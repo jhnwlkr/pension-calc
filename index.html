@@ -295,10 +295,11 @@
             <th>State Pension /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Property /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
+            <th>Pot Balance (median)<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
           </tr>
         </thead>
         <tbody id="annual-income-tbody">
-          <tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          <tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
         </tbody>
       </table>
       </div>
@@ -691,6 +692,10 @@ function runSimulation() {
     const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, propNominal, taxFreeFrac);
     const totalNetNominal = tc.pensionNet + (hasStatePension ? tc.spNet : 0) + tc.propNet;
 
+    // Median pot balance (nominal + today's £)
+    const potBalNom = medianPot;
+    const potBalReal = medianPot * todayDeflator;
+
     return {
       age,
       calYear: currentYear + (age - p.currentAge),
@@ -702,6 +707,7 @@ function runSimulation() {
       spReal: hasStatePension ? (p.sp * todayDeflator) / 12 : 0,
       propReal: (propNominal * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
+      potBalNom, potBalReal,
       guardrailActive,
       isSpStart: age === p.spAge,
       isReductionStart: age === p.reductionAge,
@@ -828,6 +834,7 @@ function renderAnnualIncomeTable(r) {
       ${dualCell(d.spNom, d.spReal)}
       ${dualCell(d.propNom, d.propReal)}
       ${dualCell(d.netNom, d.netReal)}
+      ${dualCell(d.potBalNom, d.potBalReal)}
     </tr>`;
   }).join('');
 }
