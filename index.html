@@ -217,11 +217,6 @@
       <div class="card-value" id="c-monthly">—</div>
       <div class="card-sub">at retirement (after tax)</div>
     </div>
-    <div class="card" id="card-stress">
-      <div class="card-label">Worst Case (1st %ile)</div>
-      <div class="card-value" id="c-worst">—</div>
-      <div class="card-sub">pot at target age, today's £</div>
-    </div>
   </div>
 
   <div class="lsa-alert hidden" id="lsa-alert">
@@ -260,7 +255,7 @@
   <div class="chart-panel">
     <div id="tab-pot">
       <h2 style="margin-bottom:4px">Pot Balance — Fan Chart (Percentiles)</h2>
-      <div class="ai-note">Main simulation uses historical bootstrapping (1900–2025 data). Amber dashed line = State Pension start age. Red line = worst-case 1st percentile.</div>
+      <div class="ai-note">Main simulation uses historical bootstrapping (1900–2025 data). Amber dashed line = State Pension start age.</div>
       <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>
     </div>
     <div id="tab-swr" class="hidden">
@@ -562,7 +557,7 @@ function runSimulation() {
   }
 
   // Percentiles (including 1st for stress test)
-  const pctiles = [1, 5, 25, 50, 75, 95];
+  const pctiles = [5, 25, 50, 75, 95];
   const percentileData = pctiles.map(() => new Float64Array(years + 1));
 
   for (let y = 0; y <= years; y++) {
@@ -581,9 +576,7 @@ function runSimulation() {
   const realDeflatorEnd = Math.pow(1 / baseInflFactor, p.endAge - p.currentAge);
 
   // Median pot at end age (real terms)
-  const medianReal = percentileData[3][years] * realDeflatorEnd;   // idx 3 = 50th
-  // Worst-case pot at end age (1st percentile, real terms)
-  const worstReal = percentileData[0][years] * realDeflatorEnd;    // idx 0 = 1st
+  const medianReal = percentileData[2][years] * realDeflatorEnd;   // idx 2 = 50th
 
   // ── SWR binary search (uses lognormal for speed, parametric)
   function successRateForTarget(dd, runs400) {
@@ -684,7 +677,7 @@ function runSimulation() {
     const todayDeflator = Math.pow(1 / baseInflFactor, yearsToRetirement + yi); // to today's £
 
     // Check if median pot (in real terms) triggers guardrail
-    const medianPot = percentileData[3][yi];
+    const medianPot = percentileData[2][yi];
     const medianRealPot = medianPot / ci;
     const guardrailActive = yi > 0 && medianRealPot < startPot * 0.80;
     const guardrailFactor = guardrailActive ? 0.90 : 1.0;
@@ -716,7 +709,7 @@ function runSimulation() {
   });
 
   lastResults = {
-    ages, years, p, prob, guardrailPct, medianReal, worstReal,
+    ages, years, p, prob, guardrailPct, medianReal,
     swrPct, swr, netMonthly, startPot, taxFreeFrac,
     percentileData, pctiles, survivalByAge, realIncomeByAge,
     netMonthlyByAge, swrByAge, taxCalc, annualIncomeData
@@ -746,12 +739,7 @@ function renderCards(r) {
 
   document.getElementById('c-monthly').textContent = fmtGBP(r.netMonthly, 0);
 
-  // UPGRADE 4: Worst case (1st percentile)
-  const worstEl = document.getElementById('c-worst');
-  worstEl.textContent = fmtGBP(r.worstReal);
-  worstEl.className = 'card-value ' + (r.worstReal > 0 ? 'amber' : 'red');
-
-  // UPGRADE 4: LSA warning
+  // LSA warning
   const lsaAlert = document.getElementById('lsa-alert');
   lsaAlert.classList.toggle('hidden', r.startPot <= FORMER_LTA);
 }
@@ -854,7 +842,7 @@ function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete chart
 function renderPotChart(r) {
   destroyChart('pot');
   const ctx = document.getElementById('chart-pot').getContext('2d');
-  const [p1, p5, p25, p50, p75, p95] = r.percentileData;
+  const [p5, p25, p50, p75, p95] = r.percentileData;
   const spAgeIdx = r.ages.indexOf(r.p.spAge);
 
   // Inline plugin for vertical SP-age marker
@@ -888,7 +876,6 @@ function renderPotChart(r) {
         { label: 'Median', data: Array.from(p50), borderColor: 'rgba(37,99,235,1)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2 },
         { label: '25th', data: Array.from(p25), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
         { label: '5th', data: Array.from(p5), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1 },
-        { label: '1st (Worst)', data: Array.from(p1), borderColor: 'rgba(220,38,38,0.7)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5, borderDash: [4,3] },
       ]
     },
     options: {
