@@ -296,10 +296,12 @@
             <th>Property /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Pot Balance (median)<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
+            <th>Annual Withdrawal<br><small style="font-weight:400;color:var(--text2)">gross · today's £</small></th>
+            <th>Investment Growth<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
           </tr>
         </thead>
         <tbody id="annual-income-tbody">
-          <tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          <tr><td colspan="8" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
         </tbody>
       </table>
       </div>
@@ -696,6 +698,15 @@ function runSimulation() {
     const potBalNom = medianPot;
     const potBalReal = medianPot * todayDeflator;
 
+    // Annual withdrawal from pot (gross, before tax)
+    const withdrawalNom = yi === 0 ? 0 : potWithdrawNominal;
+    const withdrawalReal = withdrawalNom * todayDeflator;
+
+    // Annual investment growth = pot[yi] − pot[yi−1] + withdrawal (yi > 0)
+    const prevMedianPot = yi === 0 ? startPot : percentileData[2][yi - 1];
+    const growthNom = yi === 0 ? 0 : medianPot - prevMedianPot + potWithdrawNominal;
+    const growthReal = growthNom * todayDeflator;
+
     return {
       age,
       calYear: currentYear + (age - p.currentAge),
@@ -708,6 +719,8 @@ function runSimulation() {
       propReal: (propNominal * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
       potBalNom, potBalReal,
+      withdrawalNom, withdrawalReal,
+      growthNom, growthReal,
       guardrailActive,
       isSpStart: age === p.spAge,
       isReductionStart: age === p.reductionAge,
@@ -835,6 +848,8 @@ function renderAnnualIncomeTable(r) {
       ${dualCell(d.propNom, d.propReal)}
       ${dualCell(d.netNom, d.netReal)}
       ${dualCell(d.potBalNom, d.potBalReal)}
+      ${dualCell(d.withdrawalNom, d.withdrawalReal)}
+      <td style="text-align:right">${d.growthNom >= 0 ? fmtGBP(d.growthNom) : '<span style="color:var(--red)">' + fmtGBP(d.growthNom) + '</span>'}<span class="ann-real">${d.growthReal >= 0 ? fmtGBP(d.growthReal) : '<span style="color:var(--red)">' + fmtGBP(d.growthReal) + '</span>'}</span></td>
     </tr>`;
   }).join('');
 }
