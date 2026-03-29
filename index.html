@@ -702,9 +702,13 @@ function runSimulation() {
     const withdrawalNom = yi === 0 ? 0 : potWithdrawNominal;
     const withdrawalReal = withdrawalNom * todayDeflator;
 
-    // Annual investment growth = pot[yi] − pot[yi−1] + withdrawal (yi > 0)
+    // Annual investment growth:
+    //   yi=0: pre-retirement growth (startPot − current pot), or 0 if already retired
+    //   yi>0: pot[yi] − pot[yi−1] + withdrawal (investment gain before withdrawal)
     const prevMedianPot = yi === 0 ? startPot : percentileData[2][yi - 1];
-    const growthNom = yi === 0 ? 0 : medianPot - prevMedianPot + potWithdrawNominal;
+    const growthNom = yi === 0
+      ? (yearsToRetirement > 0 ? startPot - p.pot : 0)
+      : medianPot - prevMedianPot + potWithdrawNominal;
     const growthReal = growthNom * todayDeflator;
 
     return {
@@ -841,8 +845,11 @@ function renderAnnualIncomeTable(r) {
     let cls = '';
     if (d.guardrailActive) cls = 'guardrail-row';
     else if (d.isSpStart) cls = 'sp-start-row';
+    const ageLabel = d.age === r.p.retirementAge && r.p.retirementAge > r.p.currentAge
+      ? `${d.age}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear} · pre-ret. growth →</span>`
+      : `${d.age}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear}</span>`;
     return `<tr class="${cls}">
-      <td>${d.age}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear}</span></td>
+      <td>${ageLabel}</td>
       ${dualCell(d.pensionNom, d.pensionReal)}
       ${dualCell(d.spNom, d.spReal)}
       ${dualCell(d.propNom, d.propReal)}
