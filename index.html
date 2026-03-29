@@ -699,7 +699,7 @@ function runSimulation() {
     const potBalReal = medianPot * todayDeflator;
 
     // Annual withdrawal from pot (gross, before tax)
-    const withdrawalNom = yi === 0 ? 0 : potWithdrawNominal;
+    const withdrawalNom = potWithdrawNominal;
     const withdrawalReal = withdrawalNom * todayDeflator;
 
     // Annual investment growth:
