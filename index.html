@@ -1086,16 +1086,29 @@ document.getElementById('run-btn').addEventListener('click', () => {
   btn.disabled = true; spinner.style.display = 'block';
   setTimeout(() => {
     try {
+      // Remember current tab and percentile before re-running
+      const activeTab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
+      const pctileIdx = +document.getElementById('ann-pctile').value;
+
       const r = runSimulation();
+      // Rebuild annual income data using the remembered percentile
+      r.annualIncomeData = buildAnnualIncomeData(r, pctileIdx);
+
       renderCards(r);
       renderIncomeTable(r);
-      renderPotChart(r);
-      // Reset percentile slider to median and pot tab
-      document.getElementById('ann-pctile').value = 2;
-      document.getElementById('v-ann-pctile').textContent = PCT_LABELS[2] + ' percentile';
+
+      // Re-render the active tab's chart
+      if (activeTab === 'pot') renderPotChart(r);
+      else if (activeTab === 'swr') renderSWRChart(r);
+      else if (activeTab === 'survival') renderSurvivalChart(r);
+      else if (activeTab === 'realincome') renderRealIncomeChart(r);
+      else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
+      else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
+
+      // Restore the active tab (no visual reset)
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelector('[data-tab="pot"]').classList.add('active');
-      tabDefs.forEach(t => { document.getElementById('tab-' + t).classList.toggle('hidden', t !== 'pot'); });
+      document.querySelector(`[data-tab="${activeTab}"]`).classList.add('active');
+      tabDefs.forEach(t => { document.getElementById('tab-' + t).classList.toggle('hidden', t !== activeTab); });
     } finally {
       btn.disabled = false; spinner.style.display = 'none';
     }
