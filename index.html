@@ -190,7 +190,7 @@
         <input type="checkbox" id="guardrails" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         <span>
           <span class="slider-name" style="display:block">Apply Guyton-Klinger guardrails</span>
-          <span style="font-size:0.72rem;color:var(--text2)">10% income cut when pot &gt;20% below starting real value</span>
+          <span style="font-size:0.72rem;color:var(--text2)">10% income cut when pot drops &gt;20% below its value at retirement</span>
         </span>
       </label>
     </div>
@@ -525,10 +525,10 @@ function buildAnnualIncomeData(r, pctileIdx) {
 
     // Pot at the selected percentile
     const potAtPctile = r.percentileData[pctileIdx][yi];
+    const potDepleted = potAtPctile <= 0;
 
-    // Guardrail: only triggers if toggle is on AND pot (in real terms) < 80% of start
-    const potRealTerms = potAtPctile / ci;
-    const guardrailActive = p.guardrails && yi > 0 && potRealTerms < r.startPot * 0.80;
+    // Guardrail: triggers when nominal pot < 80% of nominal starting pot
+    const guardrailActive = p.guardrails && yi > 0 && !potDepleted && potAtPctile < r.startPot * 0.80;
     const guardrailFactor = guardrailActive ? 0.90 : 1.0;
 
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
@@ -539,8 +539,6 @@ function buildAnnualIncomeData(r, pctileIdx) {
 
     const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, propNominal, r.taxFreeFrac);
     const totalNetNominal = tc.pensionNet + (hasStatePension ? tc.spNet : 0) + tc.propNet;
-
-    const potDepleted = potAtPctile <= 0;
 
     const potBalNom = potAtPctile;
     const potBalReal = potAtPctile * todayDeflator;
@@ -623,9 +621,8 @@ function runSimulation() {
       const inflThisYear = stochasticInflation(p.inflation, ret);
       cumulInfl *= (1 + inflThisYear);
 
-      // UPGRADE 2: Guyton-Klinger guardrail
-      const potRealTerms = pot / cumulInfl;           // pot in retirement-year-0 money
-      const guardrailActive = p.guardrails && potRealTerms < startPot * 0.80;
+      // Guyton-Klinger guardrail: triggers when nominal pot < 80% of nominal starting pot
+      const guardrailActive = p.guardrails && pot < startPot * 0.80;
       const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       if (guardrailActive) guardrailEverTriggered = true;
 
