@@ -623,7 +623,7 @@ let lastResults = null;
 let charts = {};
 
 function runSimulation() {
-  const p = getParams();
+  let p = getParams();
   const years = p.endAge - p.retirementAge;
   if (years <= 0) return;
   const ages = Array.from({length: years + 1}, (_, i) => p.retirementAge + i);
