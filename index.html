@@ -154,8 +154,31 @@
       <input type="range" id="contrib" min="0" max="60000" step="500" value="57500">
     </div>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Annual pension income</span><span class="slider-val" id="v-drawdown">£35,000</span></div>
-      <input type="range" id="drawdown" min="10000" max="120000" step="1000" value="35000">
+      <div style="display:flex;gap:20px;margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text2)">
+          <input type="radio" name="drawdown-mode" id="dm-amount" value="amount" checked style="accent-color:var(--accent)"> Fixed amount
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text2)">
+          <input type="radio" name="drawdown-mode" id="dm-pct" value="pct" style="accent-color:var(--accent)"> % of pot
+        </label>
+      </div>
+      <div id="drawdown-amount-row">
+        <div class="slider-label"><span class="slider-name">Annual pension income</span><span class="slider-val" id="v-drawdown">£35,000</span></div>
+        <input type="range" id="drawdown" min="10000" max="120000" step="1000" value="35000">
+      </div>
+      <div id="drawdown-pct-row" class="hidden">
+        <div class="slider-label"><span class="slider-name">Annual drawdown rate</span><span class="slider-val" id="v-drawdown-pct">4.00%</span></div>
+        <input type="range" id="drawdown-pct" min="2" max="7" step="0.25" value="4">
+      </div>
+    </div>
+    <div class="slider-row">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="drawdown-inflation" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <span>
+          <span class="slider-name" style="display:block">Drawdown increases with inflation</span>
+          <span style="font-size:0.72rem;color:var(--text2)">Uncheck for fixed amount each year</span>
+        </span>
+      </label>
     </div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">State pension (annual)</span><span class="slider-val" id="v-sp">£12,540</span></div>
@@ -451,6 +474,9 @@ function getParams() {
     inflation: +document.getElementById('inflation').value,
     runs: +document.getElementById('runs').value,
     guardrails: document.getElementById('guardrails').checked,
+    drawdownMode: document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount',
+    drawdownPct: +document.getElementById('drawdown-pct').value,
+    drawdownInflation: document.getElementById('drawdown-inflation').checked,
   };
 }
 
@@ -459,7 +485,7 @@ const sliders = [
   ['end-age', v => v, ''], ['sp-age', v => v, ''],
   ['reduction-age', v => v, ''], ['reduction-pct', v => fmtPct(v), ''],
   ['pot', v => fmtGBP(v), ''], ['contrib', v => fmtGBP(v), ''],
-  ['drawdown', v => fmtGBP(v), ''], ['sp', v => fmtGBP(v), ''],
+  ['drawdown', v => fmtGBP(v), ''], ['drawdown-pct', v => fmtPct(+v, 2), ''], ['sp', v => fmtGBP(v), ''],
   ['prop', v => fmtGBP(v), ''], ['return', v => fmtPct(v), ''],
   ['vol', v => fmtPct(v), ''], ['inflation', v => fmtPct(v), ''],
   ['runs', v => fmt(v), ''],
@@ -477,6 +503,8 @@ function persistParams() {
   const obj = {};
   SLIDER_IDS.forEach(id => { obj[id] = document.getElementById(id).value; });
   obj['guardrails'] = document.getElementById('guardrails').checked ? '1' : '0';
+  obj['drawdown-mode'] = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
+  obj['drawdown-inflation'] = document.getElementById('drawdown-inflation').checked ? '1' : '0';
   try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e) {}
   history.replaceState(null, '', '#' + new URLSearchParams(obj).toString());
 }
@@ -497,12 +525,26 @@ function restoreParams(obj) {
   if (obj['guardrails'] !== undefined) {
     document.getElementById('guardrails').checked = obj['guardrails'] !== '0';
   }
+  if (obj['drawdown-mode']) {
+    const modeEl = document.getElementById('dm-' + obj['drawdown-mode']);
+    if (modeEl) { modeEl.checked = true; updateDrawdownMode(obj['drawdown-mode']); }
+  }
+  if (obj['drawdown-inflation'] !== undefined) {
+    document.getElementById('drawdown-inflation').checked = obj['drawdown-inflation'] !== '0';
+  }
+}
+
+// ── Drawdown mode UI toggle ────────────────────────────────────────────────
+function updateDrawdownMode(mode) {
+  document.getElementById('drawdown-amount-row').classList.toggle('hidden', mode !== 'amount');
+  document.getElementById('drawdown-pct-row').classList.toggle('hidden', mode !== 'pct');
 }
 
 // ── Income target helpers (deterministic, for income tables) ───────────────
 function targetIncome(age, p, cumulInfl) {
   const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
-  return p.drawdown * cumulInfl * reductionFactor;
+  const inflFactor = p.drawdownInflation !== false ? cumulInfl : 1.0;
+  return p.drawdown * inflFactor * reductionFactor;
 }
 function potWithdrawal(age, p, cumulInfl) {
   const stateP = age >= p.spAge ? p.sp : 0;
@@ -532,7 +574,8 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const guardrailFactor = guardrailActive ? 0.90 : 1.0;
 
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
-    const targetNominal = p.drawdown * ci * reductionFactor * guardrailFactor;
+    const inflFactor = p.drawdownInflation ? ci : 1.0;
+    const targetNominal = p.drawdown * inflFactor * reductionFactor * guardrailFactor;
     const spNominal = hasStatePension ? p.sp : 0;
     const intendedWithdrawal = Math.max(0, targetNominal - spNominal);
     // Cap at actual pot balance — can't withdraw more than exists; zero if depleted
@@ -594,6 +637,13 @@ function runSimulation() {
       ? p.pot * Math.pow(1 + gr, yearsToRetirement) + p.contrib * (Math.pow(1 + gr, yearsToRetirement) - 1) / gr
       : p.pot + p.contrib * yearsToRetirement;
 
+  // Resolve effective drawdown (amount or % of pot) and override p so all
+  // downstream helpers (targetIncome, potWithdrawal, SWR search) use it
+  const effectiveDrawdown = p.drawdownMode === 'pct'
+    ? startPot * p.drawdownPct / 100
+    : p.drawdown;
+  p = Object.assign({}, p, { drawdown: effectiveDrawdown });
+
   const taxFreeFrac = startPot > 0 ? Math.min(0.25, LSA / startPot) : 0.25;
 
   // ── Main Monte Carlo (historical bootstrapping + stochastic inflation + guardrails)
@@ -628,9 +678,10 @@ function runSimulation() {
       const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       if (guardrailActive) guardrailEverTriggered = true;
 
-      // Withdrawal: inflation-adjusted target minus state pension, with guardrail
+      // Withdrawal: target minus state pension offset, with optional inflation scaling and guardrail
       const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
-      const targetNominal = p.drawdown * cumulInfl * reductionFactor * guardrailFactor;
+      const inflFactor = p.drawdownInflation ? cumulInfl : 1.0;
+      const targetNominal = p.drawdown * inflFactor * reductionFactor * guardrailFactor;
       const spNominal = age >= p.spAge ? p.sp : 0;
       const withdrawal = Math.max(0, targetNominal - spNominal);
 
@@ -1132,8 +1183,14 @@ window.addEventListener('DOMContentLoaded', () => {
       toggleBtn.setAttribute('aria-expanded', false);
     }
   }, true);
-  // Guardrails toggle persistence
+  // Drawdown mode radio buttons
+  document.querySelectorAll('input[name="drawdown-mode"]').forEach(radio => {
+    radio.addEventListener('change', () => { updateDrawdownMode(radio.value); persistParams(); });
+  });
+
+  // Guardrails toggle + drawdown inflation checkbox persistence
   document.getElementById('guardrails').addEventListener('change', persistParams);
+  document.getElementById('drawdown-inflation').addEventListener('change', persistParams);
 
   // Annual income percentile slider
   const annPctileSlider = document.getElementById('ann-pctile');
