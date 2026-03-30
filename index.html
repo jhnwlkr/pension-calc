@@ -185,6 +185,15 @@
       <div class="slider-label"><span class="slider-name">Monte Carlo runs</span><span class="slider-val" id="v-runs">1,000</span></div>
       <input type="range" id="runs" min="200" max="2000" step="100" value="1000">
     </div>
+    <div class="slider-row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="guardrails" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <span>
+          <span class="slider-name" style="display:block">Apply Guyton-Klinger guardrails</span>
+          <span style="font-size:0.72rem;color:var(--text2)">10% income cut when pot &gt;20% below starting real value</span>
+        </span>
+      </label>
+    </div>
   </div>
 
   <button class="run-btn" id="run-btn">Run Simulation</button>
@@ -284,7 +293,12 @@
     </div>
     <div id="tab-annualincome" class="hidden">
       <h2 style="margin-bottom:4px">Annual Income Breakdown — Year by Year</h2>
-      <div class="ai-note">Based on median simulation path with base inflation. ⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts. Nominal = actual cash received. Today's £ = purchasing power in current money.</div>
+      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts. Nominal = actual cash received. Today's £ = purchasing power in current money.</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <span style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Scenario percentile:</span>
+        <input type="range" id="ann-pctile" min="0" max="4" step="1" value="2" style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);height:4px">
+        <span id="v-ann-pctile" style="font-size:0.88rem;font-weight:600;white-space:nowrap;color:var(--accent)">50th (Median)</span>
+      </div>
       <div class="chart-wrap" style="height:220px;margin-bottom:16px"><canvas id="chart-annualincome"></canvas></div>
       <div class="table-scroll">
       <table class="ann-table">
@@ -436,6 +450,7 @@ function getParams() {
     vol: +document.getElementById('vol').value,
     inflation: +document.getElementById('inflation').value,
     runs: +document.getElementById('runs').value,
+    guardrails: document.getElementById('guardrails').checked,
   };
 }
 
@@ -456,11 +471,12 @@ sliders.forEach(([id, formatter]) => {
 });
 
 // ── Persistence ────────────────────────────────────────────────────────────
-const LS_KEY = 'pension-forecast-v2';
+const LS_KEY = 'pension-forecast-v3';
 const SLIDER_IDS = sliders.map(([id]) => id);
 function persistParams() {
   const obj = {};
   SLIDER_IDS.forEach(id => { obj[id] = document.getElementById(id).value; });
+  obj['guardrails'] = document.getElementById('guardrails').checked ? '1' : '0';
   try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e) {}
   history.replaceState(null, '', '#' + new URLSearchParams(obj).toString());
 }
@@ -478,6 +494,9 @@ function restoreParams(obj) {
     el.value = obj[id];
     el.dispatchEvent(new Event('input'));
   });
+  if (obj['guardrails'] !== undefined) {
+    document.getElementById('guardrails').checked = obj['guardrails'] !== '0';
+  }
 }
 
 // ── Income target helpers (deterministic, for income tables) ───────────────
@@ -488,6 +507,70 @@ function targetIncome(age, p, cumulInfl) {
 function potWithdrawal(age, p, cumulInfl) {
   const stateP = age >= p.spAge ? p.sp : 0;
   return Math.max(0, targetIncome(age, p, cumulInfl) - stateP);
+}
+
+// ── Annual income data builder (percentile-aware) ──────────────────────────
+const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
+
+function buildAnnualIncomeData(r, pctileIdx) {
+  const p = r.p;
+  const baseInflFactor = 1 + p.inflation / 100;
+  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const currentYear = new Date().getFullYear();
+
+  return r.ages.map((age, yi) => {
+    const hasStatePension = age >= p.spAge;
+    const ci = Math.pow(baseInflFactor, yi);
+    const todayDeflator = Math.pow(1 / baseInflFactor, yearsToRetirement + yi);
+
+    // Pot at the selected percentile
+    const potAtPctile = r.percentileData[pctileIdx][yi];
+
+    // Guardrail: only triggers if toggle is on AND pot (in real terms) < 80% of start
+    const potRealTerms = potAtPctile / ci;
+    const guardrailActive = p.guardrails && yi > 0 && potRealTerms < r.startPot * 0.80;
+    const guardrailFactor = guardrailActive ? 0.90 : 1.0;
+
+    const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
+    const targetNominal = p.drawdown * ci * reductionFactor * guardrailFactor;
+    const spNominal = hasStatePension ? p.sp : 0;
+    const potWithdrawNominal = Math.max(0, targetNominal - spNominal);
+    const propNominal = p.prop * ci;
+
+    const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, propNominal, r.taxFreeFrac);
+    const totalNetNominal = tc.pensionNet + (hasStatePension ? tc.spNet : 0) + tc.propNet;
+
+    const potBalNom = potAtPctile;
+    const potBalReal = potAtPctile * todayDeflator;
+
+    const withdrawalNom = potWithdrawNominal;
+    const withdrawalReal = withdrawalNom * todayDeflator;
+
+    const prevPot = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
+    const growthNom = yi === 0
+      ? (yearsToRetirement > 0 ? r.startPot - p.pot : 0)
+      : potAtPctile - prevPot + potWithdrawNominal;
+    const growthReal = growthNom * todayDeflator;
+
+    return {
+      age,
+      calYear: currentYear + (age - p.currentAge),
+      pensionNom: potWithdrawNominal / 12,
+      spNom: hasStatePension ? p.sp / 12 : 0,
+      propNom: propNominal / 12,
+      netNom: totalNetNominal / 12,
+      pensionReal: (potWithdrawNominal * todayDeflator) / 12,
+      spReal: hasStatePension ? (p.sp * todayDeflator) / 12 : 0,
+      propReal: (propNominal * todayDeflator) / 12,
+      netReal: (totalNetNominal * todayDeflator) / 12,
+      potBalNom, potBalReal,
+      withdrawalNom, withdrawalReal,
+      growthNom, growthReal,
+      guardrailActive,
+      isSpStart: age === p.spAge,
+      isReductionStart: age === p.reductionAge,
+    };
+  });
 }
 
 // ── Simulation ─────────────────────────────────────────────────────────────
@@ -540,7 +623,7 @@ function runSimulation() {
 
       // UPGRADE 2: Guyton-Klinger guardrail
       const potRealTerms = pot / cumulInfl;           // pot in retirement-year-0 money
-      const guardrailActive = potRealTerms < startPot * 0.80;
+      const guardrailActive = p.guardrails && potRealTerms < startPot * 0.80;
       const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       if (guardrailActive) guardrailEverTriggered = true;
 
@@ -672,71 +755,13 @@ function runSimulation() {
     return { age, pension: (tc.pensionNet * realF) / 12, sp: hasStatePension ? (tc.spNet * realF) / 12 : 0, prop: (tc.propNet * realF) / 12 };
   });
 
-  // ── Annual income table data (median guardrail check, both nominal & real)
-  const currentYear = new Date().getFullYear();
-  const annualIncomeData = ages.map((age, yi) => {
-    const hasStatePension = age >= p.spAge;
-    const ci = Math.pow(baseInflFactor, yi);                     // cumul infl since retirement
-    const todayDeflator = Math.pow(1 / baseInflFactor, yearsToRetirement + yi); // to today's £
-
-    // Check if median pot (in real terms) triggers guardrail
-    const medianPot = percentileData[2][yi];
-    const medianRealPot = medianPot / ci;
-    const guardrailActive = yi > 0 && medianRealPot < startPot * 0.80;
-    const guardrailFactor = guardrailActive ? 0.90 : 1.0;
-
-    const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
-    const targetNominal = p.drawdown * ci * reductionFactor * guardrailFactor;
-    const spNominal = hasStatePension ? p.sp : 0;
-    const potWithdrawNominal = Math.max(0, targetNominal - spNominal);
-    const propNominal = p.prop * ci;
-
-    const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, propNominal, taxFreeFrac);
-    const totalNetNominal = tc.pensionNet + (hasStatePension ? tc.spNet : 0) + tc.propNet;
-
-    // Median pot balance (nominal + today's £)
-    const potBalNom = medianPot;
-    const potBalReal = medianPot * todayDeflator;
-
-    // Annual withdrawal from pot (gross, before tax)
-    const withdrawalNom = potWithdrawNominal;
-    const withdrawalReal = withdrawalNom * todayDeflator;
-
-    // Annual investment growth:
-    //   yi=0: pre-retirement growth (startPot − current pot), or 0 if already retired
-    //   yi>0: pot[yi] − pot[yi−1] + withdrawal (investment gain before withdrawal)
-    const prevMedianPot = yi === 0 ? startPot : percentileData[2][yi - 1];
-    const growthNom = yi === 0
-      ? (yearsToRetirement > 0 ? startPot - p.pot : 0)
-      : medianPot - prevMedianPot + potWithdrawNominal;
-    const growthReal = growthNom * todayDeflator;
-
-    return {
-      age,
-      calYear: currentYear + (age - p.currentAge),
-      pensionNom: potWithdrawNominal / 12,
-      spNom: hasStatePension ? p.sp / 12 : 0,
-      propNom: propNominal / 12,
-      netNom: totalNetNominal / 12,
-      pensionReal: (potWithdrawNominal * todayDeflator) / 12,
-      spReal: hasStatePension ? (p.sp * todayDeflator) / 12 : 0,
-      propReal: (propNominal * todayDeflator) / 12,
-      netReal: (totalNetNominal * todayDeflator) / 12,
-      potBalNom, potBalReal,
-      withdrawalNom, withdrawalReal,
-      growthNom, growthReal,
-      guardrailActive,
-      isSpStart: age === p.spAge,
-      isReductionStart: age === p.reductionAge,
-    };
-  });
-
   lastResults = {
     ages, years, p, prob, guardrailPct, medianReal,
     swrPct, swr, netMonthly, startPot, taxFreeFrac,
     percentileData, pctiles, survivalByAge, realIncomeByAge,
-    netMonthlyByAge, swrByAge, taxCalc, annualIncomeData
+    netMonthlyByAge, swrByAge, taxCalc
   };
+  lastResults.annualIncomeData = buildAnnualIncomeData(lastResults, 2);
   return lastResults;
 }
 
@@ -746,8 +771,9 @@ function renderCards(r) {
   probEl.textContent = r.prob.toFixed(1) + '%';
   probEl.className = 'card-value ' + (r.prob >= 90 ? 'green' : r.prob >= 70 ? 'amber' : 'red');
 
-  document.getElementById('c-guardrail-sub').textContent =
-    `pot survives · guardrail in ${r.guardrailPct.toFixed(0)}% of runs`;
+  document.getElementById('c-guardrail-sub').textContent = r.p.guardrails
+    ? `pot survives · guardrail in ${r.guardrailPct.toFixed(0)}% of runs`
+    : 'pot survives · guardrails off';
 
   document.getElementById('c-median').textContent = fmtGBP(r.medianReal);
 
@@ -1064,7 +1090,9 @@ document.getElementById('run-btn').addEventListener('click', () => {
       renderCards(r);
       renderIncomeTable(r);
       renderPotChart(r);
-      // Reset to pot tab
+      // Reset percentile slider to median and pot tab
+      document.getElementById('ann-pctile').value = 2;
+      document.getElementById('v-ann-pctile').textContent = PCT_LABELS[2] + ' percentile';
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelector('[data-tab="pot"]').classList.add('active');
       tabDefs.forEach(t => { document.getElementById('tab-' + t).classList.toggle('hidden', t !== 'pot'); });
@@ -1090,6 +1118,22 @@ window.addEventListener('DOMContentLoaded', () => {
       toggleBtn.setAttribute('aria-expanded', false);
     }
   }, true);
+  // Guardrails toggle persistence
+  document.getElementById('guardrails').addEventListener('change', persistParams);
+
+  // Annual income percentile slider
+  const annPctileSlider = document.getElementById('ann-pctile');
+  const annPctileLabel  = document.getElementById('v-ann-pctile');
+  annPctileSlider.addEventListener('input', () => {
+    const idx = +annPctileSlider.value;
+    annPctileLabel.textContent = PCT_LABELS[idx] + ' percentile';
+    if (lastResults) {
+      lastResults.annualIncomeData = buildAnnualIncomeData(lastResults, idx);
+      renderAnnualIncomeChart(lastResults);
+      renderAnnualIncomeTable(lastResults);
+    }
+  });
+
   const saved = loadPersistedParams();
   if (saved) restoreParams(saved);
   document.getElementById('run-btn').click();
