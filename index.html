@@ -28,11 +28,13 @@
   .header-text h1 { font-size: 1.1rem; }
   .header-sub { font-size: 0.75rem; color: var(--text2); margin-top: 1px; }
   .sidebar-toggle { display: none; align-items: center; gap: 6px; padding: 8px 14px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
-  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 0; min-height: calc(100vh - 53px); }
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 0; min-height: calc(100vh - 53px); }
   .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px; overflow-y: auto; }
   .main { padding: 20px; overflow-y: auto; min-width: 0; }
   .section { margin-bottom: 20px; }
   .section-title { margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .section-header h3 { margin: 0; border: none; padding: 0; }
   .slider-row { margin-bottom: 12px; }
   .slider-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
   .slider-name { font-size: 0.82rem; color: var(--text2); }
@@ -78,12 +80,30 @@
   .spinner { display: none; text-align: center; padding: 8px; color: var(--text2); font-size: 0.82rem; }
   .hidden { display: none !important; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
-  /* Annual income table specifics */
   .ann-table td { vertical-align: top; }
   .ann-real { font-size: 0.75rem; color: var(--text2); display: block; margin-top: 1px; }
   .guardrail-row td:first-child::after { content: ' ⚡'; color: var(--red); font-size: 0.75rem; }
   .guardrail-row { background: rgba(220,38,38,0.04); }
   .sp-start-row td:first-child::after { content: ' 🏛'; font-size: 0.75rem; }
+
+  /* Dynamic pots & incomes */
+  .add-btn { padding: 4px 10px; background: var(--accent); color: #fff; border: none; border-radius: 5px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .add-btn:hover { opacity: 0.85; }
+  .remove-btn { padding: 2px 7px; background: transparent; color: var(--red); border: 1px solid var(--red); border-radius: 4px; font-size: 0.78rem; cursor: pointer; line-height: 1.4; }
+  .remove-btn:hover { background: var(--red); color: #fff; }
+  .pot-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
+  .pot-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .pot-card-title { font-size: 0.82rem; font-weight: 600; color: var(--text2); }
+  .income-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+  .income-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .input-group { border: 1px solid var(--border); border-radius: 5px; display: flex; align-items: center; background: var(--surface); overflow: hidden; }
+  .input-prefix { padding: 4px 7px; background: var(--surface2); color: var(--text2); font-size: 0.78rem; border-right: 1px solid var(--border); white-space: nowrap; }
+  .input-suffix { padding: 4px 7px; background: var(--surface2); color: var(--text2); font-size: 0.78rem; border-left: 1px solid var(--border); white-space: nowrap; }
+  .dyn-input { border: none; outline: none; background: transparent; color: var(--text); font-size: 0.82rem; padding: 4px 7px; width: 100%; min-width: 0; }
+  .dyn-select { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); font-size: 0.82rem; padding: 4px 7px; width: 100%; cursor: pointer; }
+  .field-label { font-size: 0.75rem; color: var(--text2); margin-bottom: 3px; display: block; }
+
   @media (max-width: 768px) {
     .sidebar-toggle { display: flex; }
     .layout { grid-template-columns: 1fr; min-height: unset; }
@@ -115,6 +135,8 @@
 
 <div class="layout">
 <div class="sidebar" id="sidebar">
+
+  <!-- Age & Retirement -->
   <div class="section">
     <h3 class="section-title">Age & Retirement</h3>
     <div class="slider-row">
@@ -130,10 +152,6 @@
       <input type="range" id="end-age" min="75" max="100" value="90">
     </div>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">State pension from age</span><span class="slider-val" id="v-sp-age">67</span></div>
-      <input type="range" id="sp-age" min="60" max="70" value="67">
-    </div>
-    <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Income reduction from age</span><span class="slider-val" id="v-reduction-age">75</span></div>
       <input type="range" id="reduction-age" min="60" max="95" value="75">
     </div>
@@ -143,16 +161,18 @@
     </div>
   </div>
 
+  <!-- Pension Pots -->
   <div class="section">
-    <h3 class="section-title">Pension Pot & Income</h3>
-    <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">DC pot value</span><span class="slider-val" id="v-pot">£775,000</span></div>
-      <input type="range" id="pot" min="50000" max="1500000" step="5000" value="775000">
+    <div class="section-header">
+      <h3>Pension Pots</h3>
+      <button class="add-btn" id="add-pot-btn">+ Add Pot</button>
     </div>
-    <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Annual contribution</span><span class="slider-val" id="v-contrib">£57,500</span></div>
-      <input type="range" id="contrib" min="0" max="60000" step="500" value="57500">
-    </div>
+    <div id="pots-container"></div>
+  </div>
+
+  <!-- Drawdown -->
+  <div class="section">
+    <h3 class="section-title">Drawdown</h3>
     <div class="slider-row">
       <div style="display:flex;gap:20px;margin-bottom:8px">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text2)">
@@ -180,26 +200,33 @@
         </span>
       </label>
     </div>
+  </div>
+
+  <!-- State Pension -->
+  <div class="section">
+    <h3 class="section-title">State Pension</h3>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">State pension from age</span><span class="slider-val" id="v-sp-age">67</span></div>
+      <input type="range" id="sp-age" min="60" max="70" value="67">
+    </div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">State pension (annual)</span><span class="slider-val" id="v-sp">£12,540</span></div>
       <input type="range" id="sp" min="0" max="12900" step="10" value="12540">
     </div>
-    <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Property income</span><span class="slider-val" id="v-prop">£15,600</span></div>
-      <input type="range" id="prop" min="10000" max="30000" step="100" value="15600">
-    </div>
   </div>
 
+  <!-- Other Income -->
+  <div class="section">
+    <div class="section-header">
+      <h3>Other Income</h3>
+      <button class="add-btn" id="add-income-btn">+ Add Income</button>
+    </div>
+    <div id="incomes-container"></div>
+  </div>
+
+  <!-- Investment & Simulation -->
   <div class="section">
     <h3 class="section-title">Investment & Simulation</h3>
-    <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Volatility (SWR calc)</span><span class="slider-val" id="v-vol">10.0%</span></div>
-      <input type="range" id="vol" min="2" max="20" step="0.1" value="10">
-    </div>
-    <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Equity / Bond allocation</span><span class="slider-val" id="v-equity-alloc">80% / 20%</span></div>
-      <input type="range" id="equity-alloc" min="0" max="100" step="5" value="80">
-    </div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Base inflation</span><span class="slider-val" id="v-inflation">2.5%</span></div>
       <input type="range" id="inflation" min="1" max="6" step="0.1" value="2.5">
@@ -330,7 +357,7 @@
             <th style="text-align:left">Age</th>
             <th>DC Pension /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>State Pension /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>Property /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
+            <th>Other Income /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Pot Balance (median)<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Annual Withdrawal<br><small style="font-weight:400;color:var(--text2)">gross · today's £</small></th>
@@ -363,10 +390,7 @@ function randn() {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
-// ── UPGRADE 1: Historical Bootstrapping ───────────────────────────────────
-// Separate equity and bond return series, 1900–2025 (126 years).
-// Blended at the same year index to preserve correlation.
-// Equity: approximate global equity nominal returns (%)
+// ── Historical Bootstrapping ───────────────────────────────────────────────
 const HIST_EQUITY_RETURNS = [
   // 1900–1909
    9.5,  5.7,  3.5, 13.7, 10.8,  7.6, -3.4,  9.8,  8.2, 14.3,
@@ -395,7 +419,6 @@ const HIST_EQUITY_RETURNS = [
   // 2020–2025: COVID + recovery + rate shock
  -20.7, 24.3,-12.2, 17.5,  9.0,  4.7
 ];
-// Bonds: approximate UK government gilt nominal returns (%)
 const HIST_BONDS_RETURNS = [
   // 1900–1909
    3.2,  2.8,  3.1,  3.4,  3.2,  3.0,  3.1,  2.9,  3.2,  3.3,
@@ -432,27 +455,18 @@ function historicalReturn(equityWeight) {
   return 1 + (equityWeight * eq + (1 - equityWeight) * bd) / 100;
 }
 
-// ── UPGRADE 3: Stochastic Inflation ───────────────────────────────────────
-// Base inflation + random noise. Crash years increase stagflation probability.
+// ── Stochastic Inflation ───────────────────────────────────────────────────
 function stochasticInflation(baseInflPct, returnMultiplier) {
   const base = baseInflPct / 100;
-  const noise = randn() * 0.008;                              // ±0.8% std dev
-  const isCrash = returnMultiplier < 0.90;                    // return < −10%
+  const noise = randn() * 0.008;
+  const isCrash = returnMultiplier < 0.90;
   const stagflation = isCrash ? Math.max(0, randn() * 0.012 + 0.010) : 0;
   return Math.max(0.005, base + noise + stagflation);
-}
-
-// Lognormal return (kept for SWR binary-search sub-simulations)
-function lognormalReturn(mu, sigma) {
-  const m = mu / 100, s = sigma / 100;
-  const muLn = Math.log(1 + m) - 0.5 * s * s;
-  return Math.exp(muLn + s * randn());
 }
 
 // ── UK Tax Engine (2024/25) ────────────────────────────────────────────────
 const PA = 12570, BR_LIMIT = 37700, HR_LIMIT = 125140;
 const BR_RATE = 0.20, HR_RATE = 0.40, AR_RATE = 0.45;
-const PROP_EFFECTIVE_RATE = 0.22;
 const LSA = 268275;
 const FORMER_LTA = 1073100;
 
@@ -470,7 +484,8 @@ function incomeTax(taxable) {
   return tax;
 }
 
-function calcPensionTax(grossDrawdown, statePension, hasStatePension, propIncome, taxFreeFrac = 0.25) {
+// Pension + State Pension through progressive UK income tax (no propIncome)
+function calcPensionTax(grossDrawdown, statePension, hasStatePension, taxFreeFrac) {
   const taxFree = grossDrawdown * taxFreeFrac;
   const pensionTaxable = grossDrawdown * (1 - taxFreeFrac);
   const spTaxable = hasStatePension ? statePension : 0;
@@ -478,15 +493,214 @@ function calcPensionTax(grossDrawdown, statePension, hasStatePension, propIncome
   const totalTax = incomeTax(totalTaxable);
   const pensionTaxShare = totalTaxable > 0 ? totalTax * (pensionTaxable / totalTaxable) : 0;
   const spTaxShare = totalTaxable > 0 ? totalTax * (spTaxable / totalTaxable) : 0;
-  const propTax = propIncome * PROP_EFFECTIVE_RATE;
   return {
     taxFree, pensionTaxable, pensionTax: pensionTaxShare,
-    spTaxable, spTax: spTaxShare, propTax,
+    spTaxable, spTax: spTaxShare,
     pensionNet: grossDrawdown - pensionTaxShare,
     spNet: statePension - spTaxShare,
-    propNet: propIncome - propTax
   };
 }
+
+// Each other income source has its own flat tax rate; all CPI-linked
+function calcOtherIncomesNet(incomes, inflFactor) {
+  let grossTotal = 0, taxTotal = 0, netTotal = 0;
+  const items = incomes.map(inc => {
+    const annualAmt = inc.frequency === 'monthly' ? inc.amount * 12 : inc.amount;
+    const gross = annualAmt * inflFactor;
+    const tax = gross * (inc.taxPct / 100);
+    const net = gross - tax;
+    grossTotal += gross;
+    taxTotal += tax;
+    netTotal += net;
+    return { name: inc.name, gross, tax, net };
+  });
+  return { grossTotal, taxTotal, netTotal, items };
+}
+
+// ── Dynamic Pots State ─────────────────────────────────────────────────────
+let nextPotId = 1;
+let potsData = [];
+
+function addPot(value, annualContrib, equityPct) {
+  const id = nextPotId++;
+  potsData.push({
+    id,
+    value: (value !== undefined && value !== null) ? +value : 0,
+    annualContrib: (annualContrib !== undefined && annualContrib !== null) ? +annualContrib : 0,
+    equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
+  });
+  renderPotsUI();
+}
+
+function removePot(id) {
+  if (potsData.length <= 1) return; // keep at least one
+  potsData = potsData.filter(p => p.id !== id);
+  renderPotsUI();
+  persistParams();
+}
+
+function renderPotsUI() {
+  const container = document.getElementById('pots-container');
+  container.innerHTML = '';
+  potsData.forEach((pot, idx) => {
+    const div = document.createElement('div');
+    div.className = 'pot-card';
+    div.innerHTML = `
+      <div class="pot-card-header">
+        <span class="pot-card-title">Pot ${idx + 1}</span>
+        ${potsData.length > 1 ? `<button class="remove-btn" data-pot-id="${pot.id}">✕</button>` : ''}
+      </div>
+      <div class="two-col" style="margin-bottom:8px">
+        <div>
+          <span class="field-label">Current value</span>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="1000" data-pot-id="${pot.id}" data-field="value" value="${pot.value}">
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Annual contribution</span>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="100" data-pot-id="${pot.id}" data-field="annualContrib" value="${pot.annualContrib}">
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="slider-label" style="margin-bottom:4px">
+          <span class="slider-name">Equity / Bond</span>
+          <span class="slider-val" id="v-pot-equity-${pot.id}">${pot.equityPct}% / ${100 - pot.equityPct}%</span>
+        </div>
+        <input type="range" min="0" max="100" step="5" value="${pot.equityPct}" data-pot-id="${pot.id}" data-field="equityPct" class="pot-equity-slider">
+      </div>`;
+    container.appendChild(div);
+  });
+
+  // Wire remove buttons
+  container.querySelectorAll('.remove-btn[data-pot-id]').forEach(btn => {
+    btn.addEventListener('click', () => removePot(+btn.dataset.potId));
+  });
+
+  // Wire number inputs
+  container.querySelectorAll('.dyn-input[data-pot-id]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const potId = +inp.dataset.potId;
+      const field = inp.dataset.field;
+      const pot = potsData.find(p => p.id === potId);
+      if (pot) { pot[field] = +inp.value; }
+      persistParams();
+    });
+  });
+
+  // Wire equity sliders
+  container.querySelectorAll('.pot-equity-slider').forEach(slider => {
+    slider.addEventListener('input', () => {
+      const potId = +slider.dataset.potId;
+      const pot = potsData.find(p => p.id === potId);
+      if (pot) {
+        pot.equityPct = +slider.value;
+        const lbl = document.getElementById('v-pot-equity-' + potId);
+        if (lbl) lbl.textContent = pot.equityPct + '% / ' + (100 - pot.equityPct) + '%';
+      }
+      persistParams();
+    });
+  });
+}
+
+document.getElementById('add-pot-btn').addEventListener('click', () => {
+  addPot(0, 0, 80);
+  persistParams();
+});
+
+// ── Dynamic Incomes State ──────────────────────────────────────────────────
+let nextIncomeId = 1;
+let incomesData = [];
+
+function addIncome(name, amount, frequency, taxPct) {
+  const id = nextIncomeId++;
+  incomesData.push({
+    id,
+    name: name || 'Income source',
+    amount: amount !== undefined ? amount : 0,
+    frequency: frequency || 'annual',
+    taxPct: taxPct !== undefined ? taxPct : 20
+  });
+  renderIncomesUI();
+}
+
+function removeIncome(id) {
+  incomesData = incomesData.filter(inc => inc.id !== id);
+  renderIncomesUI();
+  persistParams();
+}
+
+function renderIncomesUI() {
+  const container = document.getElementById('incomes-container');
+  container.innerHTML = '';
+  if (incomesData.length === 0) {
+    container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:6px 0">No other income sources added.</div>';
+    return;
+  }
+  incomesData.forEach(inc => {
+    const div = document.createElement('div');
+    div.className = 'income-card';
+    div.innerHTML = `
+      <div class="income-card-header">
+        <div class="input-group" style="flex:1;margin-right:6px">
+          <input class="dyn-input" type="text" placeholder="Name" data-inc-id="${inc.id}" data-field="name" value="${inc.name.replace(/"/g,'&quot;')}" style="font-weight:600">
+        </div>
+        <button class="remove-btn" data-inc-id="${inc.id}">✕</button>
+      </div>
+      <div class="two-col">
+        <div>
+          <span class="field-label">Amount</span>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="100" data-inc-id="${inc.id}" data-field="amount" value="${inc.amount}">
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Frequency</span>
+          <select class="dyn-select" data-inc-id="${inc.id}" data-field="frequency">
+            <option value="annual" ${inc.frequency === 'annual' ? 'selected' : ''}>Annual</option>
+            <option value="monthly" ${inc.frequency === 'monthly' ? 'selected' : ''}>Monthly</option>
+          </select>
+        </div>
+        <div>
+          <span class="field-label">Tax rate</span>
+          <div class="input-group">
+            <input class="dyn-input" type="number" min="0" max="100" step="1" data-inc-id="${inc.id}" data-field="taxPct" value="${inc.taxPct}" style="text-align:right">
+            <span class="input-suffix">%</span>
+          </div>
+        </div>
+      </div>`;
+    container.appendChild(div);
+  });
+
+  // Wire remove buttons
+  container.querySelectorAll('.remove-btn[data-inc-id]').forEach(btn => {
+    btn.addEventListener('click', () => removeIncome(+btn.dataset.incId));
+  });
+
+  // Wire inputs
+  container.querySelectorAll('[data-inc-id]').forEach(el => {
+    const evName = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(evName, () => {
+      const incId = +el.dataset.incId;
+      const field = el.dataset.field;
+      const inc = incomesData.find(i => i.id === incId);
+      if (inc) {
+        inc[field] = (field === 'name' || field === 'frequency') ? el.value : +el.value;
+      }
+      persistParams();
+    });
+  });
+}
+
+document.getElementById('add-income-btn').addEventListener('click', () => {
+  addIncome('Income source', 0, 'annual', 20);
+  persistParams();
+});
 
 // ── Slider wiring ──────────────────────────────────────────────────────────
 function getParams() {
@@ -497,19 +711,16 @@ function getParams() {
     spAge: +document.getElementById('sp-age').value,
     reductionAge: +document.getElementById('reduction-age').value,
     reductionPct: +document.getElementById('reduction-pct').value,
-    pot: +document.getElementById('pot').value,
-    contrib: +document.getElementById('contrib').value,
     drawdown: +document.getElementById('drawdown').value,
     sp: +document.getElementById('sp').value,
-    prop: +document.getElementById('prop').value,
-    vol: +document.getElementById('vol').value,
     inflation: +document.getElementById('inflation').value,
     runs: +document.getElementById('runs').value,
     guardrails: document.getElementById('guardrails').checked,
     drawdownMode: document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount',
     drawdownPct: +document.getElementById('drawdown-pct').value,
     drawdownInflation: document.getElementById('drawdown-inflation').checked,
-    equityAlloc: +document.getElementById('equity-alloc').value,
+    pots: potsData.map(p => Object.assign({}, p)),
+    incomes: incomesData.map(i => Object.assign({}, i)),
   };
 }
 
@@ -517,10 +728,8 @@ const sliders = [
   ['current-age', v => v, ''], ['retirement-age', v => v, ''],
   ['end-age', v => v, ''], ['sp-age', v => v, ''],
   ['reduction-age', v => v, ''], ['reduction-pct', v => fmtPct(v), ''],
-  ['pot', v => fmtGBP(v), ''], ['contrib', v => fmtGBP(v), ''],
-  ['drawdown', v => fmtGBP(v), ''], ['drawdown-pct', v => fmtPct(+v, 2), ''], ['sp', v => fmtGBP(v), ''],
-  ['prop', v => fmtGBP(v), ''],
-  ['vol', v => fmtPct(v), ''], ['equity-alloc', v => `${+v}% / ${100 - +v}%`, ''], ['inflation', v => fmtPct(v), ''],
+  ['drawdown', v => fmtGBP(v), ''], ['drawdown-pct', v => fmtPct(+v, 2), ''],
+  ['sp', v => fmtGBP(v), ''], ['inflation', v => fmtPct(v), ''],
   ['runs', v => fmt(v), ''],
 ];
 sliders.forEach(([id, formatter]) => {
@@ -530,24 +739,50 @@ sliders.forEach(([id, formatter]) => {
 });
 
 // ── Persistence ────────────────────────────────────────────────────────────
-const LS_KEY = 'pension-forecast-v4';
+const LS_KEY = 'pension-forecast-v5';
 const SLIDER_IDS = sliders.map(([id]) => id);
+
 function persistParams() {
   const obj = {};
   SLIDER_IDS.forEach(id => { obj[id] = document.getElementById(id).value; });
   obj['guardrails'] = document.getElementById('guardrails').checked ? '1' : '0';
   obj['drawdown-mode'] = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
   obj['drawdown-inflation'] = document.getElementById('drawdown-inflation').checked ? '1' : '0';
+  obj['pots'] = JSON.stringify(potsData);
+  obj['incomes'] = JSON.stringify(incomesData);
   try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e) {}
-  history.replaceState(null, '', '#' + new URLSearchParams(obj).toString());
+  // URL hash only for slider values (pots/incomes too complex)
+  const urlObj = {};
+  SLIDER_IDS.forEach(id => { urlObj[id] = obj[id]; });
+  urlObj['guardrails'] = obj['guardrails'];
+  urlObj['drawdown-mode'] = obj['drawdown-mode'];
+  urlObj['drawdown-inflation'] = obj['drawdown-inflation'];
+  history.replaceState(null, '', '#' + new URLSearchParams(urlObj).toString());
 }
+
 function loadPersistedParams() {
+  // URL hash only for sliders (not pots/incomes)
   if (location.hash.length > 1) {
-    try { const obj = Object.fromEntries(new URLSearchParams(location.hash.slice(1))); if (Object.keys(obj).length > 0) return obj; } catch(e) {}
+    try {
+      const obj = Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
+      if (Object.keys(obj).length > 0) {
+        // Also check localStorage for pots/incomes
+        try {
+          const raw = localStorage.getItem(LS_KEY);
+          if (raw) {
+            const ls = JSON.parse(raw);
+            if (ls['pots']) obj['pots'] = ls['pots'];
+            if (ls['incomes']) obj['incomes'] = ls['incomes'];
+          }
+        } catch(e) {}
+        return obj;
+      }
+    } catch(e) {}
   }
   try { const raw = localStorage.getItem(LS_KEY); if (raw) return JSON.parse(raw); } catch(e) {}
   return null;
 }
+
 function restoreParams(obj) {
   SLIDER_IDS.forEach(id => {
     if (obj[id] === undefined) return;
@@ -564,6 +799,34 @@ function restoreParams(obj) {
   }
   if (obj['drawdown-inflation'] !== undefined) {
     document.getElementById('drawdown-inflation').checked = obj['drawdown-inflation'] !== '0';
+  }
+  // Restore pots
+  if (obj['pots']) {
+    try {
+      const saved = JSON.parse(obj['pots']);
+      if (Array.isArray(saved) && saved.length > 0) {
+        potsData = [];
+        saved.forEach(p => {
+          const id = nextPotId++;
+          potsData.push({ id, value: +p.value || 0, annualContrib: +p.annualContrib || 0, equityPct: p.equityPct !== undefined ? +p.equityPct : 80 });
+        });
+        renderPotsUI();
+      }
+    } catch(e) {}
+  }
+  // Restore incomes
+  if (obj['incomes']) {
+    try {
+      const saved = JSON.parse(obj['incomes']);
+      if (Array.isArray(saved)) {
+        incomesData = [];
+        saved.forEach(inc => {
+          const id = nextIncomeId++;
+          incomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', taxPct: inc.taxPct !== undefined ? inc.taxPct : 20 });
+        });
+        renderIncomesUI();
+      }
+    } catch(e) {}
   }
 }
 
@@ -598,11 +861,9 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const ci = Math.pow(baseInflFactor, yi);
     const todayDeflator = Math.pow(1 / baseInflFactor, yearsToRetirement + yi);
 
-    // Pot at the selected percentile
     const potAtPctile = r.percentileData[pctileIdx][yi];
     const potDepleted = potAtPctile <= 0;
 
-    // Guardrail: triggers when nominal pot < 80% of nominal starting pot
     const guardrailActive = p.guardrails && yi > 0 && !potDepleted && potAtPctile < r.startPot * 0.80;
     const guardrailFactor = guardrailActive ? 0.90 : 1.0;
 
@@ -611,12 +872,13 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const targetNominal = p.drawdown * inflFactor * reductionFactor * guardrailFactor;
     const spNominal = hasStatePension ? p.sp : 0;
     const intendedWithdrawal = Math.max(0, targetNominal - spNominal);
-    // Cap at actual pot balance — can't withdraw more than exists; zero if depleted
     const potWithdrawNominal = potDepleted ? 0 : Math.min(potAtPctile, intendedWithdrawal);
-    const propNominal = p.prop * ci;
 
-    const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, propNominal, r.taxFreeFrac);
-    const totalNetNominal = tc.pensionNet + (hasStatePension ? tc.spNet : 0) + tc.propNet;
+    // Other incomes (CPI-linked, flat tax per source)
+    const otherNet = calcOtherIncomesNet(p.incomes, ci);
+
+    const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, r.taxFreeFrac);
+    const totalNetNominal = tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
 
     const potBalNom = potAtPctile;
     const potBalReal = potAtPctile * todayDeflator;
@@ -626,7 +888,7 @@ function buildAnnualIncomeData(r, pctileIdx) {
 
     const prevPot = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
     const growthNom = potDepleted ? 0 : yi === 0
-      ? (yearsToRetirement > 0 ? r.startPot - p.pot : 0)
+      ? (yearsToRetirement > 0 ? r.startPot - (p.pots.reduce((s,pot) => s + pot.value, 0)) : 0)
       : potAtPctile - prevPot + potWithdrawNominal;
     const growthReal = growthNom * todayDeflator;
 
@@ -635,11 +897,11 @@ function buildAnnualIncomeData(r, pctileIdx) {
       calYear: currentYear + (age - p.currentAge),
       pensionNom: potWithdrawNominal / 12,
       spNom: hasStatePension ? p.sp / 12 : 0,
-      propNom: propNominal / 12,
+      otherNom: otherNet.netTotal / 12,
       netNom: totalNetNominal / 12,
       pensionReal: (potWithdrawNominal * todayDeflator) / 12,
       spReal: hasStatePension ? (p.sp * todayDeflator) / 12 : 0,
-      propReal: (propNominal * todayDeflator) / 12,
+      otherReal: (otherNet.netTotal * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
       potBalNom, potBalReal,
       withdrawalNom, withdrawalReal,
@@ -662,27 +924,41 @@ function runSimulation() {
   const ages = Array.from({length: years + 1}, (_, i) => p.retirementAge + i);
   const nRuns = p.runs;
 
-  // Pre-retirement bootstrapping — each run grows the pot independently
   const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
-  const equityW = p.equityAlloc / 100;
-  const startPots = new Float64Array(nRuns);
+
+  // Pre-retirement bootstrapping — each pot bootstrapped independently
+  // startPotsPerRun[r] = array of per-pot ending values for run r
+  const numPots = p.pots.length;
+  const startPotsPerRun = Array.from({length: nRuns}, () => new Float64Array(numPots));
+
   if (yearsToRetirement === 0) {
-    startPots.fill(p.pot);
+    for (let r = 0; r < nRuns; r++) {
+      p.pots.forEach((pot, pi) => { startPotsPerRun[r][pi] = Math.max(0, pot.value); });
+    }
   } else {
-    for (let i = 0; i < nRuns; i++) {
-      let pot = p.pot;
-      for (let y = 0; y < yearsToRetirement; y++) {
-        pot = pot * historicalReturn(equityW) + p.contrib;
-      }
-      startPots[i] = Math.max(0, pot);
+    for (let r = 0; r < nRuns; r++) {
+      p.pots.forEach((pot, pi) => {
+        let val = pot.value;
+        const eq = pot.equityPct / 100;
+        for (let y = 0; y < yearsToRetirement; y++) {
+          val = val * historicalReturn(eq) + pot.annualContrib;
+        }
+        startPotsPerRun[r][pi] = Math.max(0, val);
+      });
     }
   }
-  // Median starting pot used for SWR, display, and pct-mode drawdown reference
-  const sortedSP = Float64Array.from(startPots).sort();
+
+  // Total pot per run, then take median for display
+  const startTotals = new Float64Array(nRuns);
+  for (let r = 0; r < nRuns; r++) {
+    let tot = 0;
+    for (let pi = 0; pi < numPots; pi++) tot += startPotsPerRun[r][pi];
+    startTotals[r] = tot;
+  }
+  const sortedSP = Float64Array.from(startTotals).sort();
   const startPot = sortedSP[Math.floor(nRuns / 2)];
 
-  // Resolve effective drawdown (amount or % of pot) and override p so all
-  // downstream helpers (targetIncome, potWithdrawal, SWR search) use it
+  // Resolve effective drawdown
   const effectiveDrawdown = p.drawdownMode === 'pct'
     ? startPot * p.drawdownPct / 100
     : p.drawdown;
@@ -690,59 +966,108 @@ function runSimulation() {
 
   const taxFreeFrac = startPot > 0 ? Math.min(0.25, LSA / startPot) : 0.25;
 
-  // ── Main Monte Carlo (historical bootstrapping + stochastic inflation + guardrails)
+  // Sort pots ascending by equityPct (lowest equity drawn first)
+  const potsOrder = p.pots.map((pot, idx) => idx).sort((a, b) => p.pots[a].equityPct - p.pots[b].equityPct);
+
+  // Weighted equity for SWR sub-sim (value-weighted across pots using median start values)
+  const medianPotVals = p.pots.map((pot, pi) => {
+    const vals = Array.from({length: nRuns}, (_, r) => startPotsPerRun[r][pi]).sort((a,b)=>a-b);
+    return vals[Math.floor(nRuns/2)];
+  });
+  const totalMedianVal = medianPotVals.reduce((s,v) => s+v, 0);
+  const weightedEquityW = totalMedianVal > 0
+    ? p.pots.reduce((s, pot, pi) => s + (medianPotVals[pi] / totalMedianVal) * (pot.equityPct / 100), 0)
+    : (p.pots[0]?.equityPct || 80) / 100;
+
+  // ── Main Monte Carlo
   const potMatrix = Array.from({length: nRuns}, () => new Float64Array(years + 1));
   let successCount = 0;
   let guardrailTriggerCount = 0;
 
   for (let r = 0; r < nRuns; r++) {
-    let pot = startPots[r];
+    // Per-run pot values (one per pot, ordered by potsOrder)
+    const runPots = new Float64Array(numPots);
+    potsOrder.forEach((origIdx, rank) => { runPots[rank] = startPotsPerRun[r][origIdx]; });
+
+    // Record starting values for rebalance trigger
+    const runStartValues = Float64Array.from(runPots);
+    const runTotalStart = startTotals[r];
+
     let cumulInfl = 1.0;
-    potMatrix[r][0] = pot;
+    potMatrix[r][0] = runTotalStart;
     let guardrailEverTriggered = false;
-    const runStartPot = startPots[r];
 
     for (let y = 0; y < years; y++) {
       const age = p.retirementAge + y;
+      const runTotal = runPots.reduce((s, v) => s + v, 0);
 
-      if (pot <= 0) {
+      if (runTotal <= 0) {
         potMatrix[r][y + 1] = 0;
         cumulInfl *= (1 + p.inflation / 100);
         continue;
       }
 
-      // UPGRADE 1: Draw from historical returns (blended equity/bond)
-      const ret = historicalReturn(equityW);
+      // a) Grow each pot independently using its own equityPct
+      let blendedRet = 0;
+      let totalForBlend = runPots.reduce((s,v) => s+v, 0);
+      for (let rank = 0; rank < numPots; rank++) {
+        const origIdx = potsOrder[rank];
+        const eq = p.pots[origIdx].equityPct / 100;
+        const ret = historicalReturn(eq);
+        const w = totalForBlend > 0 ? runPots[rank] / totalForBlend : 1 / numPots;
+        blendedRet += w * ret;
+        runPots[rank] = runPots[rank] * ret;
+      }
 
-      // UPGRADE 3: Stochastic inflation (correlated with crashes)
-      const inflThisYear = stochasticInflation(p.inflation, ret);
+      // b) Stochastic inflation using blended return as signal
+      const inflThisYear = stochasticInflation(p.inflation, blendedRet);
       cumulInfl *= (1 + inflThisYear);
 
-      // Guyton-Klinger guardrail: triggers when nominal pot < 80% of this run's starting pot
-      const guardrailActive = p.guardrails && pot < runStartPot * 0.80;
+      const totalAfterGrowth = runPots.reduce((s,v) => s+v, 0);
+
+      // c) Guardrail check on total
+      const guardrailActive = p.guardrails && totalAfterGrowth < runTotalStart * 0.80;
       const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       if (guardrailActive) guardrailEverTriggered = true;
 
-      // Withdrawal: target minus state pension offset, with optional inflation scaling and guardrail
+      // Compute withdrawal
       const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
       const inflFactor = p.drawdownInflation ? cumulInfl : 1.0;
       const targetNominal = p.drawdown * inflFactor * reductionFactor * guardrailFactor;
       const spNominal = age >= p.spAge ? p.sp : 0;
-      const withdrawal = Math.max(0, targetNominal - spNominal);
+      let withdrawal = Math.max(0, targetNominal - spNominal);
 
-      pot = pot * ret - withdrawal;
-      if (pot < 0) pot = 0;
-      potMatrix[r][y + 1] = pot;
+      // c) Cascade withdrawal from lowest-equity pot first
+      for (let rank = 0; rank < numPots && withdrawal > 0; rank++) {
+        const take = Math.min(runPots[rank], withdrawal);
+        runPots[rank] -= take;
+        withdrawal -= take;
+      }
+
+      // d) Rebalance: if pot falls below 50% of its startValue, draw from next pot
+      for (let rank = 0; rank < numPots - 1; rank++) {
+        if (runPots[rank] < runStartValues[rank] * 0.5) {
+          const deficit = runStartValues[rank] - runPots[rank];
+          const nextRank = rank + 1;
+          if (nextRank < numPots && runPots[nextRank] > 0) {
+            const transfer = Math.min(deficit, runPots[nextRank]);
+            runPots[rank] += transfer;
+            runPots[nextRank] -= transfer;
+          }
+        }
+      }
+
+      const newTotal = runPots.reduce((s,v) => s+v, 0);
+      potMatrix[r][y + 1] = Math.max(0, newTotal);
     }
 
     if (potMatrix[r][years] > 0) successCount++;
     if (guardrailEverTriggered) guardrailTriggerCount++;
   }
 
-  // Percentiles (including 1st for stress test)
+  // Percentiles
   const pctiles = [5, 25, 50, 75, 95];
   const percentileData = pctiles.map(() => new Float64Array(years + 1));
-
   for (let y = 0; y <= years; y++) {
     const vals = Array.from({length: nRuns}, (_, r) => potMatrix[r][y]).sort((a, b) => a - b);
     pctiles.forEach((pc, pi) => {
@@ -754,14 +1079,11 @@ function runSimulation() {
   const prob = (successCount / nRuns) * 100;
   const guardrailPct = (guardrailTriggerCount / nRuns) * 100;
 
-  // Real-terms deflator from current age (for card displays)
   const baseInflFactor = 1 + p.inflation / 100;
   const realDeflatorEnd = Math.pow(1 / baseInflFactor, p.endAge - p.currentAge);
+  const medianReal = percentileData[2][years] * realDeflatorEnd;
 
-  // Median pot at end age (real terms)
-  const medianReal = percentileData[2][years] * realDeflatorEnd;   // idx 2 = 50th
-
-  // ── SWR binary search (uses lognormal for speed, parametric)
+  // ── SWR binary search (historical bootstrapping, weighted equity)
   function successRateForTarget(dd, runs400) {
     const pp = Object.assign({}, p, { drawdown: dd });
     let sc = 0;
@@ -773,7 +1095,7 @@ function runSimulation() {
         const ci = Math.pow(inflF, y);
         const w = potWithdrawal(age, pp, ci);
         if (pot2 <= 0) { pot2 = 0; break; }
-        pot2 = pot2 * historicalReturn(equityW) - w;
+        pot2 = pot2 * historicalReturn(weightedEquityW) - w;
         if (pot2 < 0) { pot2 = 0; break; }
       }
       if (pot2 > 0) sc++;
@@ -792,8 +1114,9 @@ function runSimulation() {
   // Net monthly income at retirement
   const hasSpAtRetirement = p.retirementAge >= p.spAge;
   const potWAtRetirement = potWithdrawal(p.retirementAge, p, 1.0);
-  const taxCalc = calcPensionTax(potWAtRetirement, p.sp, hasSpAtRetirement, p.prop, taxFreeFrac);
-  const netMonthly = (taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + taxCalc.propNet) / 12;
+  const taxCalc = calcPensionTax(potWAtRetirement, p.sp, hasSpAtRetirement, taxFreeFrac);
+  const otherAtRetirement = calcOtherIncomesNet(p.incomes, 1.0);
+  const netMonthly = (taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + otherAtRetirement.netTotal) / 12;
 
   // SWR by starting age
   const swrByAge = [];
@@ -812,7 +1135,7 @@ function runSimulation() {
           const ci = Math.pow(inflF, y);
           const w = potWithdrawal(startAge + y, pp2, ci);
           if (pot3 <= 0) { pot3 = 0; break; }
-          pot3 = pot3 * historicalReturn(equityW) - w;
+          pot3 = pot3 * historicalReturn(weightedEquityW) - w;
           if (pot3 < 0) { pot3 = 0; break; }
         }
         if (pot3 > 0) sc3++;
@@ -829,27 +1152,36 @@ function runSimulation() {
     return alive / nRuns * 100;
   });
 
-  // Real income by age (uses base inflation, deterministic)
+  // Real income by age (deterministic, uses weighted equity)
   const realIncomeByAge = ages.map((age, yi) => {
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
-    const nominalProp = p.prop * ci;
+    const otherNet = calcOtherIncomesNet(p.incomes, ci);
     const potW = potWithdrawal(age, p, ci);
     const stateP = hasStatePension ? p.sp : 0;
-    const tc = calcPensionTax(potW, p.sp, hasStatePension, nominalProp, taxFreeFrac);
+    const tc = calcPensionTax(potW, p.sp, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
-    return { age, gross: (potW + stateP + nominalProp) * realF, net: (tc.pensionNet + (hasStatePension ? tc.spNet : 0) + tc.propNet) * realF };
+    return {
+      age,
+      gross: (potW + stateP + otherNet.grossTotal) * realF,
+      net: (tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal) * realF
+    };
   });
 
-  // Net monthly by age (for stacked chart)
+  // Net monthly by age (stacked chart, inflation-adjusted / real)
   const netMonthlyByAge = ages.map((age, yi) => {
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
-    const nominalProp = p.prop * ci;
+    const otherNet = calcOtherIncomesNet(p.incomes, ci);
     const potW = potWithdrawal(age, p, ci);
-    const tc = calcPensionTax(potW, p.sp, hasStatePension, nominalProp, taxFreeFrac);
+    const tc = calcPensionTax(potW, p.sp, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
-    return { age, pension: (tc.pensionNet * realF) / 12, sp: hasStatePension ? (tc.spNet * realF) / 12 : 0, prop: (tc.propNet * realF) / 12 };
+    return {
+      age,
+      pension: (tc.pensionNet * realF) / 12,
+      sp: hasStatePension ? (tc.spNet * realF) / 12 : 0,
+      other: (otherNet.netTotal * realF) / 12
+    };
   });
 
   lastResults = {
@@ -885,7 +1217,6 @@ function renderCards(r) {
 
   document.getElementById('c-monthly').textContent = fmtGBP(r.netMonthly, 0);
 
-  // LSA warning
   const lsaAlert = document.getElementById('lsa-alert');
   lsaAlert.classList.toggle('hidden', r.startPot <= FORMER_LTA);
 }
@@ -898,20 +1229,21 @@ function renderIncomeTable(r) {
 
   const ci0 = 1.0;
   const potW1Full = potWithdrawal(p.retirementAge, p, ci0);
-  const tc1 = calcPensionTax(potW1Full, 0, false, p.prop, taxFreeFrac);
+  const tc1 = calcPensionTax(potW1Full, 0, false, taxFreeFrac);
+  const other1 = calcOtherIncomesNet(p.incomes, ci0);
 
   const spYears = Math.max(0, p.spAge - p.retirementAge);
   const ci2 = Math.pow(baseInfl, spYears);
   const potW2 = potWithdrawal(p.spAge, p, ci2);
-  const prop2 = p.prop * ci2;
-  const tc2 = calcPensionTax(potW2, p.sp, true, prop2, taxFreeFrac);
+  const tc2 = calcPensionTax(potW2, p.sp, true, taxFreeFrac);
+  const other2 = calcOtherIncomesNet(p.incomes, ci2);
 
   const hasSpAtReduction = p.reductionAge >= p.spAge;
   const redYears = Math.max(0, p.reductionAge - p.retirementAge);
   const ci3 = Math.pow(baseInfl, redYears);
   const potW3 = potWithdrawal(p.reductionAge, p, ci3);
-  const prop3 = p.prop * ci3;
-  const tc3 = calcPensionTax(potW3, p.sp, hasSpAtReduction, prop3, taxFreeFrac);
+  const tc3 = calcPensionTax(potW3, p.sp, hasSpAtReduction, taxFreeFrac);
+  const other3 = calcOtherIncomesNet(p.incomes, ci3);
 
   document.getElementById('th-after-reduction').innerHTML =
     `After Reduction (age ${p.reductionAge})<br><small style="font-weight:400">Gross / Tax / Net</small>`;
@@ -927,35 +1259,52 @@ function renderIncomeTable(r) {
     ? `<span class="badge badge-amber">${(taxFreeFrac*100).toFixed(1)}% tax-free (LSA capped)</span>`
     : `<span class="badge badge-green">25% tax-free (within LSA)</span>`;
 
-  // Former-LTA warning badge
   const ltaBadge = r.startPot > FORMER_LTA
     ? ` <span class="badge badge-warning">⚠ Former LTA exceeded</span>`
     : '';
 
-  document.getElementById('income-tbody').innerHTML =
-    row('Pension (from pot)',
+  let rows = row('Pension (from pot)',
       potW1Full, tc1.pensionTax, tc1.pensionNet,
       potW2, tc2.pensionTax, tc2.pensionNet,
       potW3, tc3.pensionTax, tc3.pensionNet,
-      lsaBadge + ltaBadge) +
-    row('State pension',
+      lsaBadge + ltaBadge);
+
+  rows += row('State pension',
       0,0,0, p.sp, tc2.spTax, tc2.spNet,
       hasSpAtReduction ? p.sp : 0,
       hasSpAtReduction ? tc3.spTax : 0,
       hasSpAtReduction ? tc3.spNet : 0,
-      `From age ${p.spAge}`) +
-    row('Property income',
-      p.prop, tc1.propTax, tc1.propNet,
-      prop2, tc2.propTax, tc2.propNet,
-      prop3, tc3.propTax, tc3.propNet,
-      '22% eff. rate, CPI-linked') +
-    `<tr>
-      <td><strong>Total</strong></td>
-      <td>${cell(potW1Full+p.prop, tc1.pensionTax+tc1.propTax, tc1.pensionNet+tc1.propNet)}</td>
-      <td>${cell(potW2+p.sp+prop2, tc2.pensionTax+tc2.spTax+tc2.propTax, tc2.pensionNet+tc2.spNet+tc2.propNet)}</td>
-      <td>${cell(potW3+(hasSpAtReduction?p.sp:0)+prop3, tc3.pensionTax+(hasSpAtReduction?tc3.spTax:0)+tc3.propTax, tc3.pensionNet+(hasSpAtReduction?tc3.spNet:0)+tc3.propNet)}</td>
-      <td></td>
-    </tr>`;
+      `From age ${p.spAge}`);
+
+  // Dynamic other income rows
+  if (p.incomes.length > 0) {
+    // Per-source rows
+    p.incomes.forEach(inc => {
+      const annAmt = inc.frequency === 'monthly' ? inc.amount * 12 : inc.amount;
+      const g1i = annAmt * ci0, t1i = g1i * (inc.taxPct/100), n1i = g1i - t1i;
+      const g2i = annAmt * ci2, t2i = g2i * (inc.taxPct/100), n2i = g2i - t2i;
+      const g3i = annAmt * ci3, t3i = g3i * (inc.taxPct/100), n3i = g3i - t3i;
+      rows += row(inc.name, g1i,t1i,n1i, g2i,t2i,n2i, g3i,t3i,n3i, `${inc.taxPct}% flat tax, CPI-linked`);
+    });
+  }
+
+  // Total row
+  const tot1g = potW1Full + other1.grossTotal, tot1t = tc1.pensionTax + other1.taxTotal, tot1n = tc1.pensionNet + other1.netTotal;
+  const tot2g = potW2 + p.sp + other2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + other2.taxTotal, tot2n = tc2.pensionNet + tc2.spNet + other2.netTotal;
+  const sp3 = hasSpAtReduction ? p.sp : 0;
+  const spTax3 = hasSpAtReduction ? tc3.spTax : 0;
+  const spNet3 = hasSpAtReduction ? tc3.spNet : 0;
+  const tot3g = potW3 + sp3 + other3.grossTotal, tot3t = tc3.pensionTax + spTax3 + other3.taxTotal, tot3n = tc3.pensionNet + spNet3 + other3.netTotal;
+
+  rows += `<tr>
+    <td><strong>Total</strong></td>
+    <td>${cell(tot1g, tot1t, tot1n)}</td>
+    <td>${cell(tot2g, tot2t, tot2n)}</td>
+    <td>${cell(tot3g, tot3t, tot3n)}</td>
+    <td></td>
+  </tr>`;
+
+  document.getElementById('income-tbody').innerHTML = rows;
 }
 
 // ── Render Annual Income Table ─────────────────────────────────────────────
@@ -975,7 +1324,7 @@ function renderAnnualIncomeTable(r) {
       <td>${ageLabel}</td>
       ${dualCell(d.pensionNom, d.pensionReal)}
       ${dualCell(d.spNom, d.spReal)}
-      ${dualCell(d.propNom, d.propReal)}
+      ${dualCell(d.otherNom, d.otherReal)}
       ${dualCell(d.netNom, d.netReal)}
       ${dualCell(d.potBalNom, d.potBalReal)}
       ${dualCell(d.withdrawalNom, d.withdrawalReal)}
@@ -990,14 +1339,13 @@ function gridColor() { return isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,
 function textColor() { return isDark() ? '#9ca3af' : '#6b7280'; }
 function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
 
-// ── Pot Chart (with SP age vertical line + 1st percentile) ────────────────
+// ── Pot Chart ──────────────────────────────────────────────────────────────
 function renderPotChart(r) {
   destroyChart('pot');
   const ctx = document.getElementById('chart-pot').getContext('2d');
   const [p5, p25, p50, p75, p95] = r.percentileData;
   const spAgeIdx = r.ages.indexOf(r.p.spAge);
 
-  // Inline plugin for vertical SP-age marker
   const spLinePlugin = {
     id: 'spLine',
     afterDraw(chart) {
@@ -1119,7 +1467,7 @@ function renderNetMonthlyChart(r) {
       datasets: [
         { label: 'Pension', data: r.netMonthlyByAge.map(d => d.pension), backgroundColor: '#2563eb', stack: 'a' },
         { label: 'State Pension', data: r.netMonthlyByAge.map(d => d.sp), backgroundColor: '#16a34a', stack: 'a' },
-        { label: 'Property', data: r.netMonthlyByAge.map(d => d.prop), backgroundColor: '#d97706', stack: 'a' },
+        { label: 'Other Income', data: r.netMonthlyByAge.map(d => d.other), backgroundColor: '#d97706', stack: 'a' },
       ]
     },
     options: {
@@ -1183,18 +1531,15 @@ document.getElementById('run-btn').addEventListener('click', () => {
   btn.disabled = true; spinner.style.display = 'block';
   setTimeout(() => {
     try {
-      // Remember current tab and percentile before re-running
       const activeTab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
       const pctileIdx = +document.getElementById('ann-pctile').value;
 
       const r = runSimulation();
-      // Rebuild annual income data using the remembered percentile
       r.annualIncomeData = buildAnnualIncomeData(r, pctileIdx);
 
       renderCards(r);
       renderIncomeTable(r);
 
-      // Re-render the active tab's chart
       if (activeTab === 'pot') renderPotChart(r);
       else if (activeTab === 'swr') renderSWRChart(r);
       else if (activeTab === 'survival') renderSurvivalChart(r);
@@ -1202,7 +1547,6 @@ document.getElementById('run-btn').addEventListener('click', () => {
       else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
       else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
 
-      // Restore the active tab (no visual reset)
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelector(`[data-tab="${activeTab}"]`).classList.add('active');
       tabDefs.forEach(t => { document.getElementById('tab-' + t).classList.toggle('hidden', t !== activeTab); });
@@ -1228,12 +1572,10 @@ window.addEventListener('DOMContentLoaded', () => {
       toggleBtn.setAttribute('aria-expanded', false);
     }
   }, true);
-  // Drawdown mode radio buttons
+
   document.querySelectorAll('input[name="drawdown-mode"]').forEach(radio => {
     radio.addEventListener('change', () => { updateDrawdownMode(radio.value); persistParams(); });
   });
-
-  // Guardrails toggle + drawdown inflation checkbox persistence
   document.getElementById('guardrails').addEventListener('change', persistParams);
   document.getElementById('drawdown-inflation').addEventListener('change', persistParams);
 
@@ -1250,8 +1592,24 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Try to restore persisted state; fall back to defaults
   const saved = loadPersistedParams();
-  if (saved) restoreParams(saved);
+  if (saved) {
+    restoreParams(saved);
+    // If no pots were restored, seed defaults
+    if (potsData.length === 0) {
+      addPot(775000, 57500, 80);
+    }
+    // If no incomes were restored, seed defaults
+    if (incomesData.length === 0) {
+      addIncome('Property income', 15600, 'annual', 22);
+    }
+  } else {
+    // First-run defaults
+    addPot(775000, 57500, 80);
+    addIncome('Property income', 15600, 'annual', 22);
+  }
+
   document.getElementById('run-btn').click();
 });
 </script>
