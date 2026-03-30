@@ -277,11 +277,11 @@
 
   <div class="tabs">
     <button class="tab active" data-tab="pot">Pot Balance</button>
+    <button class="tab" data-tab="annualincome">Annual Income</button>
     <button class="tab" data-tab="swr">Safe Withdrawal Rate</button>
     <button class="tab" data-tab="survival">Survival Probability</button>
     <button class="tab" data-tab="realincome">Real Income</button>
     <button class="tab" data-tab="netmonthly">Net Monthly Income</button>
-    <button class="tab" data-tab="annualincome">Annual Income</button>
   </div>
 
   <div class="chart-panel">
@@ -1113,7 +1113,7 @@ function renderAnnualIncomeChart(r) {
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
-const tabDefs = ['pot', 'swr', 'survival', 'realincome', 'netmonthly', 'annualincome'];
+const tabDefs = ['pot', 'annualincome', 'swr', 'survival', 'realincome', 'netmonthly'];
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
