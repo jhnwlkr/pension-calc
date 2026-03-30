@@ -300,9 +300,9 @@
         <span id="v-ann-pctile" style="font-size:0.88rem;font-weight:600;white-space:nowrap;color:var(--accent)">50th (Median)</span>
       </div>
       <div class="chart-wrap" style="height:220px;margin-bottom:16px"><canvas id="chart-annualincome"></canvas></div>
-      <div class="table-scroll">
+      <div class="table-scroll" style="max-height:55vh;overflow-y:auto">
       <table class="ann-table">
-        <thead>
+        <thead style="position:sticky;top:0;z-index:2;background:var(--surface)">
           <tr>
             <th style="text-align:left">Age</th>
             <th>DC Pension /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
