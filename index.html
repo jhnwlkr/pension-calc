@@ -534,7 +534,9 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const targetNominal = p.drawdown * ci * reductionFactor * guardrailFactor;
     const spNominal = hasStatePension ? p.sp : 0;
-    const potWithdrawNominal = Math.max(0, targetNominal - spNominal);
+    const intendedWithdrawal = Math.max(0, targetNominal - spNominal);
+    // Cap at actual pot balance — can't withdraw more than exists; zero if depleted
+    const potWithdrawNominal = potDepleted ? 0 : Math.min(potAtPctile, intendedWithdrawal);
     const propNominal = p.prop * ci;
 
     const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, propNominal, r.taxFreeFrac);
