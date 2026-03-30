@@ -540,14 +540,16 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, propNominal, r.taxFreeFrac);
     const totalNetNominal = tc.pensionNet + (hasStatePension ? tc.spNet : 0) + tc.propNet;
 
+    const potDepleted = potAtPctile <= 0;
+
     const potBalNom = potAtPctile;
     const potBalReal = potAtPctile * todayDeflator;
 
-    const withdrawalNom = potWithdrawNominal;
+    const withdrawalNom = potDepleted ? 0 : potWithdrawNominal;
     const withdrawalReal = withdrawalNom * todayDeflator;
 
     const prevPot = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
-    const growthNom = yi === 0
+    const growthNom = potDepleted ? 0 : yi === 0
       ? (yearsToRetirement > 0 ? r.startPot - p.pot : 0)
       : potAtPctile - prevPot + potWithdrawNominal;
     const growthReal = growthNom * todayDeflator;
