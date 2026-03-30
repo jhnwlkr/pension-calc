@@ -193,12 +193,12 @@
   <div class="section">
     <h3 class="section-title">Investment & Simulation</h3>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Pre-retirement return</span><span class="slider-val" id="v-return">5.0%</span></div>
-      <input type="range" id="return" min="2" max="12" step="0.1" value="5">
-    </div>
-    <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Volatility (SWR calc)</span><span class="slider-val" id="v-vol">10.0%</span></div>
       <input type="range" id="vol" min="2" max="20" step="0.1" value="10">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Equity / Bond allocation</span><span class="slider-val" id="v-equity-alloc">80% / 20%</span></div>
+      <input type="range" id="equity-alloc" min="0" max="100" step="5" value="80">
     </div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Base inflation</span><span class="slider-val" id="v-inflation">2.5%</span></div>
@@ -364,39 +364,72 @@ function randn() {
 }
 
 // ── UPGRADE 1: Historical Bootstrapping ───────────────────────────────────
-// Approximate nominal annual returns (%) for an 80/20 globally-diversified
-// portfolio, 1900–2025. Includes Great Depression, stagflation, GFC, etc.
-const HIST_RETURNS = [
+// Separate equity and bond return series, 1900–2025 (126 years).
+// Blended at the same year index to preserve correlation.
+// Equity: approximate global equity nominal returns (%)
+const HIST_EQUITY_RETURNS = [
   // 1900–1909
-   8.2,  5.1,  3.4, 11.6,  9.3,  6.7, -2.1,  8.4,  7.2, 12.1,
+   9.5,  5.7,  3.5, 13.7, 10.8,  7.6, -3.4,  9.8,  8.2, 14.3,
   // 1910–1919: WWI
-   4.3,  2.8,  6.9, -4.2, -8.6,  3.1, 14.2, 18.6,  9.4, 16.8,
+   4.6,  2.8,  7.8, -4.7, -8.7,  3.6, 17.2, 22.4, 11.1, 20.6,
   // 1920–1929: Roaring Twenties
-  -9.1, 13.4, 22.6,  7.3, 18.2, 21.3,  6.8, 26.4, 32.1, -8.4,
+ -10.6, 15.7, 27.0,  8.2, 21.5, 25.4,  7.4, 32.0, 39.2,-11.8,
   // 1930–1939: Great Depression & recovery
- -24.3,-38.6,-17.2, 48.2,  6.4, 28.7, 25.1,-15.3, 18.6, -4.2,
+ -32.5,-51.4,-23.6, 59.0,  6.8, 34.3, 30.0,-19.9, 22.1, -6.7,
   // 1940–1949: WWII
- -12.1, -8.4,  8.2, 19.4, 22.3, 32.1, -8.2,  3.4,  5.1, 18.6,
+ -15.7,-11.0,  9.7, 23.9, 27.4, 39.6,-10.6,  3.7,  5.7, 22.5,
   // 1950–1959: Post-war boom
-  22.4, 17.2,  6.3, -2.1, 42.6, 28.1,  6.7, -8.2, 34.2, 16.8,
+  28.2, 21.5,  7.4, -3.4, 53.8, 34.8,  7.7,-10.0, 43.6, 20.5,
   // 1960–1969
-  -2.4, 18.4, -9.8, 13.7, 10.4, 12.3,-12.1, 19.8,  4.3,-11.4,
+  -3.9, 22.3,-13.3, 16.7, 12.2, 14.8,-15.6, 23.9,  4.7,-14.7,
   // 1970–1979: Stagflation
-  -0.8,  7.2, 15.3,-16.8,-24.7, 28.4, 11.6,  3.2,  4.1, 12.3,
+   0.1, 10.0, 20.7,-19.0,-27.8, 34.3, 13.7,  3.3,  4.3, 13.3,
   // 1980–1989: Bull run + 1987 crash
-  22.1, -8.6, 16.4, 21.3,  4.2, 24.8, 14.6,-11.2, 12.4, 22.7,
+  24.0,-12.9, 15.9, 23.1,  2.1, 25.9, 15.1,-15.6, 13.8, 25.3,
   // 1990–1999
-  -8.4, 22.6,  3.2, 14.8,  3.1, 28.4, 16.2, 18.7, 22.3, 18.6,
+ -12.6, 24.2,  2.3, 15.4,  4.9, 31.8, 18.1, 20.3, 25.3, 21.2,
   // 2000–2009: Dot-com bust + GFC
-  -9.8,-15.2,-18.6, 22.4, 11.8,  8.2, 13.6,  6.4,-34.2, 19.8,
+ -14.3,-20.2,-25.4, 27.3, 13.9,  9.2, 16.6,  6.9,-45.9, 24.1,
   // 2010–2019
-  14.2, -2.1, 12.8, 18.6,  8.4,  2.6,  6.3, 14.8, -8.2, 22.4,
+  15.9, -6.2, 15.6, 24.3,  7.9,  3.1,  5.8, 18.2,-10.5, 26.4,
   // 2020–2025: COVID + recovery + rate shock
- -14.8, 18.6,-14.2, 12.3,  6.8,  4.2
+ -20.7, 24.3,-12.2, 17.5,  9.0,  4.7
+];
+// Bonds: approximate UK government gilt nominal returns (%)
+const HIST_BONDS_RETURNS = [
+  // 1900–1909
+   3.2,  2.8,  3.1,  3.4,  3.2,  3.0,  3.1,  2.9,  3.2,  3.3,
+  // 1910–1919: WWI
+   3.1,  2.9,  3.2, -2.4, -8.2,  1.2,  2.1,  3.4,  2.8,  1.6,
+  // 1920–1929: Roaring Twenties
+  -3.2,  4.2,  5.1,  3.8,  5.2,  4.8,  4.6,  4.2,  3.8,  5.2,
+  // 1930–1939: Flight to safety
+   8.4, 12.6,  8.2,  5.1,  4.8,  6.2,  5.4,  3.2,  4.8,  5.6,
+  // 1940–1949: WWII financial repression
+   2.1,  1.8,  2.4,  1.6,  1.8,  2.2,  1.4,  2.1,  2.8,  3.2,
+  // 1950–1959: Rising yields
+  -0.8,  2.1,  1.8,  3.2, -2.1,  1.4,  2.8, -1.2, -3.4,  2.1,
+  // 1960–1969
+   3.4,  2.8,  4.2,  1.8,  3.2,  2.4,  1.8,  3.4,  2.8,  1.6,
+  // 1970–1979: Stagflation (bonds crushed)
+  -4.2, -3.8, -6.4, -8.2,-12.4,  4.8,  3.2,  2.8,  3.4,  8.2,
+  // 1980–1989: Bond bull market begins
+  14.6,  8.4, 18.6, 14.2, 12.8, 20.4, 12.6,  6.4,  6.8, 12.4,
+  // 1990–1999
+   8.4, 16.2,  6.8, 12.6, -4.2, 14.8,  8.6, 12.4, 10.2,  8.4,
+  // 2000–2009: Flight to safety in crashes
+   8.2,  4.6,  8.4,  2.8,  3.4,  4.2,  1.8,  4.6, 12.4,  2.8,
+  // 2010–2019: QE + low yields
+   7.6, 14.2,  1.8, -4.2, 10.6,  0.8,  8.4,  1.2,  0.8,  6.4,
+  // 2020–2025: COVID flight-to-safety then rate shock
+   8.6, -4.2,-22.4, -8.6, -1.8,  2.4
 ];
 
-function historicalReturn() {
-  return 1 + HIST_RETURNS[Math.floor(Math.random() * HIST_RETURNS.length)] / 100;
+function historicalReturn(equityWeight) {
+  const idx = Math.floor(Math.random() * HIST_EQUITY_RETURNS.length);
+  const eq = HIST_EQUITY_RETURNS[idx];
+  const bd = HIST_BONDS_RETURNS[idx];
+  return 1 + (equityWeight * eq + (1 - equityWeight) * bd) / 100;
 }
 
 // ── UPGRADE 3: Stochastic Inflation ───────────────────────────────────────
@@ -469,7 +502,6 @@ function getParams() {
     drawdown: +document.getElementById('drawdown').value,
     sp: +document.getElementById('sp').value,
     prop: +document.getElementById('prop').value,
-    ret: +document.getElementById('return').value,
     vol: +document.getElementById('vol').value,
     inflation: +document.getElementById('inflation').value,
     runs: +document.getElementById('runs').value,
@@ -477,6 +509,7 @@ function getParams() {
     drawdownMode: document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount',
     drawdownPct: +document.getElementById('drawdown-pct').value,
     drawdownInflation: document.getElementById('drawdown-inflation').checked,
+    equityAlloc: +document.getElementById('equity-alloc').value,
   };
 }
 
@@ -486,8 +519,8 @@ const sliders = [
   ['reduction-age', v => v, ''], ['reduction-pct', v => fmtPct(v), ''],
   ['pot', v => fmtGBP(v), ''], ['contrib', v => fmtGBP(v), ''],
   ['drawdown', v => fmtGBP(v), ''], ['drawdown-pct', v => fmtPct(+v, 2), ''], ['sp', v => fmtGBP(v), ''],
-  ['prop', v => fmtGBP(v), ''], ['return', v => fmtPct(v), ''],
-  ['vol', v => fmtPct(v), ''], ['inflation', v => fmtPct(v), ''],
+  ['prop', v => fmtGBP(v), ''],
+  ['vol', v => fmtPct(v), ''], ['equity-alloc', v => `${+v}% / ${100 - +v}%`, ''], ['inflation', v => fmtPct(v), ''],
   ['runs', v => fmt(v), ''],
 ];
 sliders.forEach(([id, formatter]) => {
@@ -497,7 +530,7 @@ sliders.forEach(([id, formatter]) => {
 });
 
 // ── Persistence ────────────────────────────────────────────────────────────
-const LS_KEY = 'pension-forecast-v3';
+const LS_KEY = 'pension-forecast-v4';
 const SLIDER_IDS = sliders.map(([id]) => id);
 function persistParams() {
   const obj = {};
@@ -629,13 +662,24 @@ function runSimulation() {
   const ages = Array.from({length: years + 1}, (_, i) => p.retirementAge + i);
   const nRuns = p.runs;
 
-  // Pre-retirement projection (uses expected return slider)
+  // Pre-retirement bootstrapping — each run grows the pot independently
   const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
-  const gr = p.ret / 100;
-  const startPot = yearsToRetirement === 0 ? p.pot
-    : gr > 0
-      ? p.pot * Math.pow(1 + gr, yearsToRetirement) + p.contrib * (Math.pow(1 + gr, yearsToRetirement) - 1) / gr
-      : p.pot + p.contrib * yearsToRetirement;
+  const equityW = p.equityAlloc / 100;
+  const startPots = new Float64Array(nRuns);
+  if (yearsToRetirement === 0) {
+    startPots.fill(p.pot);
+  } else {
+    for (let i = 0; i < nRuns; i++) {
+      let pot = p.pot;
+      for (let y = 0; y < yearsToRetirement; y++) {
+        pot = pot * historicalReturn(equityW) + p.contrib;
+      }
+      startPots[i] = Math.max(0, pot);
+    }
+  }
+  // Median starting pot used for SWR, display, and pct-mode drawdown reference
+  const sortedSP = Float64Array.from(startPots).sort();
+  const startPot = sortedSP[Math.floor(nRuns / 2)];
 
   // Resolve effective drawdown (amount or % of pot) and override p so all
   // downstream helpers (targetIncome, potWithdrawal, SWR search) use it
@@ -652,10 +696,11 @@ function runSimulation() {
   let guardrailTriggerCount = 0;
 
   for (let r = 0; r < nRuns; r++) {
-    let pot = startPot;
+    let pot = startPots[r];
     let cumulInfl = 1.0;
     potMatrix[r][0] = pot;
     let guardrailEverTriggered = false;
+    const runStartPot = startPots[r];
 
     for (let y = 0; y < years; y++) {
       const age = p.retirementAge + y;
@@ -666,15 +711,15 @@ function runSimulation() {
         continue;
       }
 
-      // UPGRADE 1: Draw from historical returns
-      const ret = historicalReturn();
+      // UPGRADE 1: Draw from historical returns (blended equity/bond)
+      const ret = historicalReturn(equityW);
 
       // UPGRADE 3: Stochastic inflation (correlated with crashes)
       const inflThisYear = stochasticInflation(p.inflation, ret);
       cumulInfl *= (1 + inflThisYear);
 
-      // Guyton-Klinger guardrail: triggers when nominal pot < 80% of nominal starting pot
-      const guardrailActive = p.guardrails && pot < startPot * 0.80;
+      // Guyton-Klinger guardrail: triggers when nominal pot < 80% of this run's starting pot
+      const guardrailActive = p.guardrails && pot < runStartPot * 0.80;
       const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       if (guardrailActive) guardrailEverTriggered = true;
 
@@ -728,7 +773,7 @@ function runSimulation() {
         const ci = Math.pow(inflF, y);
         const w = potWithdrawal(age, pp, ci);
         if (pot2 <= 0) { pot2 = 0; break; }
-        pot2 = pot2 * lognormalReturn(p.ret, p.vol) - w;
+        pot2 = pot2 * historicalReturn(equityW) - w;
         if (pot2 < 0) { pot2 = 0; break; }
       }
       if (pot2 > 0) sc++;
@@ -767,7 +812,7 @@ function runSimulation() {
           const ci = Math.pow(inflF, y);
           const w = potWithdrawal(startAge + y, pp2, ci);
           if (pot3 <= 0) { pot3 = 0; break; }
-          pot3 = pot3 * lognormalReturn(p.ret, p.vol) - w;
+          pot3 = pot3 * historicalReturn(equityW) - w;
           if (pot3 < 0) { pot3 = 0; break; }
         }
         if (pot3 > 0) sc3++;
