@@ -895,12 +895,12 @@ function buildAnnualIncomeData(r, pctileIdx) {
     return {
       age,
       calYear: currentYear + (age - p.currentAge),
-      pensionNom: potWithdrawNominal / 12,
-      spNom: hasStatePension ? p.sp / 12 : 0,
+      pensionNom: tc.pensionNet / 12,
+      spNom: hasStatePension ? tc.spNet / 12 : 0,
       otherNom: otherNet.netTotal / 12,
       netNom: totalNetNominal / 12,
-      pensionReal: (potWithdrawNominal * todayDeflator) / 12,
-      spReal: hasStatePension ? (p.sp * todayDeflator) / 12 : 0,
+      pensionReal: (tc.pensionNet * todayDeflator) / 12,
+      spReal: hasStatePension ? (tc.spNet * todayDeflator) / 12 : 0,
       otherReal: (otherNet.netTotal * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
       potBalNom, potBalReal,
@@ -1007,19 +1007,24 @@ function runSimulation() {
         continue;
       }
 
-      // a) Grow each pot independently using its own equityPct
+      // a) Draw ONE year index so all pots share the same market environment
+      //    (preserves equity/bond correlation and realistic crash co-movement)
+      const yearIdx = Math.floor(Math.random() * HIST_EQUITY_RETURNS.length);
+      const eqRetYear = HIST_EQUITY_RETURNS[yearIdx];
+      const bdRetYear = HIST_BONDS_RETURNS[yearIdx];
+
       let blendedRet = 0;
-      let totalForBlend = runPots.reduce((s,v) => s+v, 0);
+      const totalForBlend = runPots.reduce((s,v) => s+v, 0);
       for (let rank = 0; rank < numPots; rank++) {
         const origIdx = potsOrder[rank];
         const eq = p.pots[origIdx].equityPct / 100;
-        const ret = historicalReturn(eq);
+        const ret = 1 + (eq * eqRetYear + (1 - eq) * bdRetYear) / 100;
         const w = totalForBlend > 0 ? runPots[rank] / totalForBlend : 1 / numPots;
         blendedRet += w * ret;
         runPots[rank] = runPots[rank] * ret;
       }
 
-      // b) Stochastic inflation using blended return as signal
+      // b) Stochastic inflation using blended return as market signal
       const inflThisYear = stochasticInflation(p.inflation, blendedRet);
       cumulInfl *= (1 + inflThisYear);
 
