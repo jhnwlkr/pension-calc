@@ -310,7 +310,12 @@
 
   <div class="chart-panel">
     <div id="tab-monthlybreakdown" class="hidden">
-      <h2 style="margin-bottom:12px">Monthly Net Income Breakdown</h2>
+      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
+        <h2 style="margin:0;font-size:1.14rem">Monthly Net Income Breakdown</h2>
+        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
+          <input type="checkbox" id="today-money-toggle-monthlybreakdown" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent);"> Compare future actual value vs today’s purchasing power
+        </label>
+      </div>
       <div class="table-scroll">
       <table id="income-table">
         <thead>
@@ -330,7 +335,12 @@
     </div>
 
     <div id="tab-pot">
-      <h2 style="margin-bottom:4px">Pot Balance — Fan Chart (Percentiles)</h2>
+      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
+        <h2 style="margin:0;font-size:1.14rem">Pot Balance — Fan Chart (Percentiles)</h2>
+        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
+          <input type="checkbox" id="today-money-toggle-pot" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent);"> Compare future actual value vs today’s purchasing power
+        </label>
+      </div>
       <div class="ai-note">Main simulation uses historical bootstrapping (1900–2025 data). Amber dashed line = State Pension start age.</div>
       <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>
     </div>
@@ -351,15 +361,30 @@
       <div class="chart-wrap"><canvas id="chart-survival"></canvas></div>
     </div>
     <div id="tab-realincome" class="hidden">
-      <h2 style="margin-bottom:12px">Real Income by Age (Dual Axis)</h2>
+      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
+        <h2 style="margin:0;font-size:1.14rem">Real Income by Age (Dual Axis)</h2>
+        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
+          <input type="checkbox" id="today-money-toggle-realincome" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent);"> Compare future actual value vs today’s purchasing power
+        </label>
+      </div>
       <div class="chart-wrap"><canvas id="chart-realincome"></canvas></div>
     </div>
     <div id="tab-netmonthly" class="hidden">
-      <h2 style="margin-bottom:12px">Net Monthly Income by Age (Stacked, Inflation-Adjusted)</h2>
+      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
+        <h2 style="margin:0;font-size:1.14rem">Net Monthly Income by Age (Stacked, Inflation-Adjusted)</h2>
+        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
+          <input type="checkbox" id="today-money-toggle-netmonthly" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent);"> Compare future actual value vs today’s purchasing power
+        </label>
+      </div>
       <div class="chart-wrap"><canvas id="chart-netmonthly"></canvas></div>
     </div>
     <div id="tab-annualincome" class="hidden">
-      <h2 style="margin-bottom:4px">Annual Income Breakdown — Year by Year</h2>
+      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
+        <h2 style="margin:0;font-size:1.14rem">Annual Income Breakdown — Year by Year</h2>
+        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
+          <input type="checkbox" id="today-money-toggle-annualincome" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent);"> Compare future actual value vs today’s purchasing power
+        </label>
+      </div>
       <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts. Nominal = actual cash received. Today's £ = purchasing power in current money.</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
         <span style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Scenario percentile:</span>

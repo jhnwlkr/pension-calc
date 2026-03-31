@@ -308,6 +308,26 @@ function chartAvailable() {
   return typeof Chart !== 'undefined';
 }
 
+function isTodayMoney() {
+  const el = document.querySelector('.today-money-toggle');
+  return el ? el.checked : false;
+}
+
+function setTodayMoney(checked, r) {
+  document.querySelectorAll('.today-money-toggle').forEach(cb => { cb.checked = checked; });
+  if (r) {
+    // re-render current active view immediately
+    const tab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
+    if (tab === 'pot') renderPotChart(r);
+    else if (tab === 'swr') renderSWRChart(r);
+    else if (tab === 'survival') renderSurvivalChart(r);
+    else if (tab === 'realincome') renderRealIncomeChart(r);
+    else if (tab === 'netmonthly') renderNetMonthlyChart(r);
+    else if (tab === 'annualincome') renderAnnualIncomeChart(r);
+    else if (tab === 'monthlybreakdown') renderIncomeTable(r);
+  }
+}
+
 const sliders = [
   ['current-age', v => v, ''], ['retirement-age', v => v, ''],
   ['end-age', v => v, ''], ['sp-age', v => v, ''],
@@ -330,6 +350,7 @@ function persistParams() {
   const obj = {};
   SLIDER_IDS.forEach(id => { obj[id] = document.getElementById(id).value; });
   obj['guardrails'] = document.getElementById('guardrails').checked ? '1' : '0';
+  obj['today-money'] = isTodayMoney() ? '1' : '0';
   obj['drawdown-mode'] = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
   obj['drawdown-inflation'] = document.getElementById('drawdown-inflation').checked ? '1' : '0';
   obj['pots'] = JSON.stringify(potsData);
@@ -385,6 +406,10 @@ function restoreParams(obj) {
   }
   if (obj['drawdown-inflation'] !== undefined) {
     document.getElementById('drawdown-inflation').checked = obj['drawdown-inflation'] !== '0';
+  }
+  if (obj['today-money'] !== undefined) {
+    const checked = obj['today-money'] !== '0';
+    document.querySelectorAll('.today-money-toggle').forEach(cb => { cb.checked = checked; });
   }
   // Restore pots
   if (obj['pots']) {
@@ -622,11 +647,15 @@ function renderIncomeTable(r) {
   }
 
   const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
-  const ci0 = 1.0;
+  const isToday = isTodayMoney();
+  const factor1 = isToday ? 1 / Math.pow(baseInfl, yearsToRetirement) : 1;
   const spYears = Math.max(0, p.spAge - p.retirementAge);
-  const ci2 = Math.pow(baseInfl, spYears);
+  const factor2 = isToday ? 1 / Math.pow(baseInfl, yearsToRetirement + spYears) : 1;
   const hasSpAtReduction = p.reductionAge >= p.spAge;
   const redYears = Math.max(0, p.reductionAge - p.retirementAge);
+  const factor3 = isToday ? 1 / Math.pow(baseInfl, yearsToRetirement + redYears) : 1;
+  const ci0 = 1.0;
+  const ci2 = Math.pow(baseInfl, spYears);
   const ci3 = Math.pow(baseInfl, redYears);
 
   // Cash contributions at each snapshot (NET values — cash is post-tax)
@@ -669,11 +698,11 @@ function renderIncomeTable(r) {
   document.getElementById('th-after-reduction').innerHTML =
     `After Reduction (age ${p.reductionAge})<br><small style="font-weight:400">Gross / Tax / Net</small>`;
 
-  function cell(gross, tax, net) {
-    return `${fmtGBP(gross/12)} / <span style="color:var(--red)">${fmtGBP(tax/12)}</span> / <strong>${fmtGBP(net/12)}</strong>`;
+  function cell(gross, tax, net, fact) {
+    return `${fmtGBP((gross * fact)/12)} / <span style="color:var(--red)">${fmtGBP((tax * fact)/12)}</span> / <strong>${fmtGBP((net * fact)/12)}</strong>`;
   }
   function row(label, g1,t1,n1, g2,t2,n2, g3,t3,n3, note) {
-    return `<tr><td>${label}</td><td>${cell(g1,t1,n1)}</td><td>${cell(g2,t2,n2)}</td><td>${cell(g3,t3,n3)}</td><td>${note}</td></tr>`;
+    return `<tr><td>${label}</td><td>${cell(g1,t1,n1, factor1)}</td><td>${cell(g2,t2,n2, factor2)}</td><td>${cell(g3,t3,n3, factor3)}</td><td>${note}</td></tr>`;
   }
 
   const lsaBadge = taxFreeFrac < 0.25
@@ -789,6 +818,12 @@ function renderPotChart(r) {
   const ctx = chartEl.getContext('2d');
   const [p5, p25, p50, p75, p95] = r.percentileData;
   const spAgeIdx = r.ages.indexOf(r.p.spAge);
+  const useToday = isTodayMoney();
+  const baseInflFactor = 1 + (r.p?.inflation || 0) / 100;
+  const yearsToRetirement = Math.max(0, r.p.retirementAge - r.p.currentAge);
+  const deflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
+
+  const mapSeries = (arr) => Array.from(arr).map((v, i) => useToday ? v * deflator(i) : v);
 
   const spLinePlugin = {
     id: 'spLine',
@@ -815,11 +850,11 @@ function renderPotChart(r) {
     data: {
       labels: r.ages,
       datasets: [
-        { label: '95th', data: Array.from(p95), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
-        { label: '75th', data: Array.from(p75), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
-        { label: 'Median', data: Array.from(p50), borderColor: 'rgba(37,99,235,1)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2 },
-        { label: '25th', data: Array.from(p25), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
-        { label: '5th', data: Array.from(p5), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1 },
+        { label: '95th', data: mapSeries(p95), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
+        { label: '75th', data: mapSeries(p75), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
+        { label: 'Median', data: mapSeries(p50), borderColor: 'rgba(37,99,235,1)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2 },
+        { label: '25th', data: mapSeries(p25), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
+        { label: '5th', data: mapSeries(p5), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1 },
       ]
     },
     options: {
@@ -828,7 +863,7 @@ function renderPotChart(r) {
       plugins: { legend: { labels: { color: textColor(), font: { size: 11 } } } },
       scales: {
         x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
-        y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() }, title: { display: true, text: 'Pot Value (£)', color: textColor() } }
+        y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() }, title: { display: true, text: useToday ? 'Pot Value (£, today\'s money)' : 'Pot Value (£, nominal)', color: textColor() } }
       }
     }
   });
@@ -889,13 +924,18 @@ function renderRealIncomeChart(r) {
   const chartEl = document.getElementById('chart-realincome');
   if (!chartEl) return;
   const ctx = chartEl.getContext('2d');
+  const useToday = isTodayMoney();
+  const baseInflFactor = 1 + (r.p?.inflation || 0) / 100;
+  const grossData = r.realIncomeByAge.map((d, i) => useToday ? d.gross : d.gross * Math.pow(baseInflFactor, i));
+  const netData = r.realIncomeByAge.map((d, i) => useToday ? d.net : d.net * Math.pow(baseInflFactor, i));
+
   charts['realincome'] = new Chart(ctx, {
     type: 'line',
     data: {
       labels: r.ages,
       datasets: [
-        { label: 'Gross Income (£)', data: r.realIncomeByAge.map(d => d.gross), borderColor: '#2563eb', backgroundColor: 'transparent', tension: 0.3, pointRadius: 0, borderWidth: 2 },
-        { label: 'Net Income (£)', data: r.realIncomeByAge.map(d => d.net), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }
+        { label: useToday ? 'Gross Income (Today\'s £)' : 'Gross Income (Nominal £)', data: grossData, borderColor: '#2563eb', backgroundColor: 'transparent', tension: 0.3, pointRadius: 0, borderWidth: 2 },
+        { label: useToday ? 'Net Income (Today\'s £)' : 'Net Income (Nominal £)', data: netData, borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }
       ]
     },
     options: {
@@ -904,7 +944,7 @@ function renderRealIncomeChart(r) {
       plugins: { legend: { labels: { color: textColor() } } },
       scales: {
         x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
-        y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() }, title: { display: true, text: 'Annual Income (£, real)', color: textColor() } }
+        y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() }, title: { display: true, text: useToday ? 'Annual Income (Today\'s £)' : 'Annual Income (Nominal £)', color: textColor() } }
       }
     }
   });
@@ -916,15 +956,20 @@ function renderNetMonthlyChart(r) {
   const chartEl = document.getElementById('chart-netmonthly');
   if (!chartEl) return;
   const ctx = chartEl.getContext('2d');
+
+  const useToday = isTodayMoney();
+  const baseInflFactor = 1 + (r.p?.inflation || 0) / 100;
+  const makeSeries = (field) => r.netMonthlyByAge.map((d,i)=> useToday ? d[field] : d[field] * Math.pow(baseInflFactor, i));
+
   charts['netmonthly'] = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: r.ages,
       datasets: [
-        { label: 'Cash Pots', data: r.netMonthlyByAge.map(d => d.cash || 0), backgroundColor: '#0891b2', stack: 'a' },
-        { label: 'Pension', data: r.netMonthlyByAge.map(d => d.pension), backgroundColor: '#2563eb', stack: 'a' },
-        { label: 'State Pension', data: r.netMonthlyByAge.map(d => d.sp), backgroundColor: '#16a34a', stack: 'a' },
-        { label: 'Other Income', data: r.netMonthlyByAge.map(d => d.other), backgroundColor: '#d97706', stack: 'a' },
+        { label: 'Cash Pots', data: makeSeries('cash'), backgroundColor: '#0891b2', stack: 'a' },
+        { label: 'Pension', data: makeSeries('pension'), backgroundColor: '#2563eb', stack: 'a' },
+        { label: 'State Pension', data: makeSeries('sp'), backgroundColor: '#16a34a', stack: 'a' },
+        { label: 'Other Income', data: makeSeries('other'), backgroundColor: '#d97706', stack: 'a' },
       ]
     },
     options: {
@@ -932,7 +977,7 @@ function renderNetMonthlyChart(r) {
       plugins: { legend: { labels: { color: textColor() } } },
       scales: {
         x: { stacked: true, ticks: { color: textColor(), maxTicksLimit: 12 }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
-        y: { stacked: true, ticks: { color: textColor(), callback: v => '£' + fmt(v) }, grid: { color: gridColor() }, title: { display: true, text: 'Net Monthly Income (£, real)', color: textColor() } }
+        y: { stacked: true, ticks: { color: textColor(), callback: v => '£' + fmt(v) }, grid: { color: gridColor() }, title: { display: true, text: useToday ? "Net Monthly Income (Today\'s £)" : 'Net Monthly Income (Nominal £)', color: textColor() } }
       }
     }
   });
@@ -941,13 +986,15 @@ function renderNetMonthlyChart(r) {
 function renderAnnualIncomeChart(r) {
   destroyChart('annualincome');
   const ctx = document.getElementById('chart-annualincome').getContext('2d');
+  const useToday = isTodayMoney();
+  const dataSeries = r.annualIncomeData.map(d => useToday ? d.netReal : d.netNom);
+  const label = useToday ? "Total Net /mo — Today's £ (real)" : 'Total Net /mo — Nominal (actual £)';
   charts['annualincome'] = new Chart(ctx, {
     type: 'line',
     data: {
       labels: r.ages,
       datasets: [
-        { label: 'Total Net /mo — Nominal (actual £)', data: r.annualIncomeData.map(d => d.netNom), borderColor: '#2563eb', backgroundColor: 'transparent', tension: 0.3, pointRadius: 0, borderWidth: 2 },
-        { label: "Total Net /mo — Today's £ (real)", data: r.annualIncomeData.map(d => d.netReal), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 },
+        { label, data: dataSeries, borderColor: '#2563eb', backgroundColor: useToday ? 'rgba(37,99,235,0.08)' : 'transparent', fill: useToday, tension: 0.3, pointRadius: 0, borderWidth: 2 },
       ]
     },
     options: {
@@ -956,7 +1003,7 @@ function renderAnnualIncomeChart(r) {
       plugins: { legend: { labels: { color: textColor(), font: { size: 11 } } } },
       scales: {
         x: { ticks: { color: textColor(), maxTicksLimit: 12 }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
-        y: { ticks: { color: textColor(), callback: v => '£' + fmt(v) }, grid: { color: gridColor() }, title: { display: true, text: 'Net Monthly Income (£)', color: textColor() } }
+        y: { ticks: { color: textColor(), callback: v => '£' + fmt(v) }, grid: { color: gridColor() }, title: { display: true, text: useToday ? "Net Monthly Income (Today's £)" : 'Net Monthly Income (Nominal £)', color: textColor() } }
       }
     }
   });
@@ -1049,6 +1096,14 @@ function initApp() {
   });
   document.getElementById('guardrails').addEventListener('change', persistParams);
   document.getElementById('drawdown-inflation').addEventListener('change', persistParams);
+  document.querySelectorAll('.today-money-toggle').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const checked = cb.checked;
+      document.querySelectorAll('.today-money-toggle').forEach(cb2 => { cb2.checked = checked; });
+      persistParams();
+      if (lastResults) setTodayMoney(checked, lastResults);
+    });
+  });
 
   const addPotBtn = document.getElementById('add-pot-btn');
   if (addPotBtn) addPotBtn.addEventListener('click', () => { addPot(0, 0, 80); persistParams(); });
