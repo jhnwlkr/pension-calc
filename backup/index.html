@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UK Pension Drawdown Forecaster</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f5f5;
+    --surface: #ffffff;
+    --surface2: #f0f0f0;
+    --border: #e0e0e0;
+    --text: #1a1a1a;
+    --text2: #555555;
+    --accent: #2563eb;
+    --green: #16a34a;
+    --amber: #d97706;
+    --red: #dc2626;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111827;
+      --surface: #1f2937;
+      --surface2: #374151;
+      --border: #374151;
+      --text: #f9fafb;
+      --text2: #9ca3af;
+      --accent: #3b82f6;
+      --shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+  h1 { font-size: 1.4rem; font-weight: 600; }
+  h2 { font-size: 1rem; font-weight: 600; }
+  h3 { font-size: 0.85rem; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; z-index: 10; }
+  .header-text h1 { font-size: 1.1rem; }
+  .header-sub { font-size: 0.75rem; color: var(--text2); margin-top: 1px; }
+  .sidebar-toggle { display: none; align-items: center; gap: 6px; padding: 8px 14px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 0; min-height: calc(100vh - 53px); }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px; overflow-y: auto; }
+  .main { padding: 20px; overflow-y: auto; min-width: 0; }
+  .section { margin-bottom: 20px; }
+  .section-title { margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .slider-row { margin-bottom: 12px; }
+  .slider-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .slider-name { font-size: 0.82rem; color: var(--text2); }
+  .slider-val { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 4px; cursor: pointer; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; box-shadow: var(--shadow); }
+  .card-label { font-size: 0.75rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .card-value { font-size: 1.6rem; font-weight: 700; line-height: 1; }
+  .card-sub { font-size: 0.75rem; color: var(--text2); margin-top: 4px; }
+  .green { color: var(--green); }
+  .amber { color: var(--amber); }
+  .red { color: var(--red); }
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tab { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); cursor: pointer; font-size: 0.82rem; transition: all 0.15s; }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .chart-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .chart-wrap { position: relative; height: 300px; }
+  canvas { max-height: 300px; }
+  .income-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th { text-align: right; padding: 6px 10px; color: var(--text2); font-weight: 600; border-bottom: 1px solid var(--border); font-size: 0.75rem; white-space: nowrap; }
+  th:first-child { text-align: left; }
+  td { text-align: right; padding: 5px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td:first-child { text-align: left; color: var(--text2); }
+  tr:last-child td { border-bottom: none; font-weight: 600; color: var(--text); }
+  .swr-table { margin-top: 16px; }
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: #dcfce7; color: #15803d; }
+  .badge-amber { background: #fef3c7; color: #b45309; }
+  .badge-red { background: #fee2e2; color: #b91c1c; }
+  @media (prefers-color-scheme: dark) {
+    .badge-green { background: #14532d; color: #86efac; }
+    .badge-amber { background: #451a03; color: #fcd34d; }
+    .badge-red { background: #450a0a; color: #fca5a5; }
+  }
+  .run-btn { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .run-btn:hover { opacity: 0.9; }
+  .spinner { display: none; text-align: center; padding: 8px; color: var(--text2); font-size: 0.82rem; }
+  .hidden { display: none !important; }
+
+  /* ── Mobile ─────────────────────────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    .sidebar-toggle { display: flex; }
+    .layout { grid-template-columns: 1fr; min-height: unset; }
+    .sidebar {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      display: none;
+      padding: 16px;
+    }
+    .sidebar.open { display: block; }
+    .main { padding: 12px; }
+    .cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .card { padding: 12px; }
+    .card-value { font-size: 1.3rem; }
+    .chart-wrap { height: 220px; }
+    canvas { max-height: 220px; }
+    .chart-panel { padding: 12px; }
+    .income-panel { padding: 12px; }
+    .tab { padding: 6px 10px; font-size: 0.78rem; }
+    input[type=range] { height: 6px; }
+  }
+
+  @media (max-width: 400px) {
+    .cards { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .card-value { font-size: 1.1rem; }
+    h1 { font-size: 0.95rem; }
+    .header-sub { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-text">
+    <h1>UK Pension Drawdown Forecaster</h1>
+    <div class="header-sub">Monte Carlo simulation · UK 2024/25 tax rules</div>
+  </div>
+  <button class="sidebar-toggle" id="sidebar-toggle" aria-expanded="false" aria-controls="sidebar">
+    ⚙ Settings
+  </button>
+</div>
+
+<div class="layout">
+<div class="sidebar" id="sidebar">
+  <div class="section">
+    <h3 class="section-title">Age & Retirement</h3>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Current age</span><span class="slider-val" id="v-current-age">54</span></div>
+      <input type="range" id="current-age" min="40" max="75" value="54">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Retirement age</span><span class="slider-val" id="v-retirement-age">55</span></div>
+      <input type="range" id="retirement-age" min="55" max="75" value="55">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Target end age</span><span class="slider-val" id="v-end-age">90</span></div>
+      <input type="range" id="end-age" min="75" max="100" value="90">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">State pension from age</span><span class="slider-val" id="v-sp-age">67</span></div>
+      <input type="range" id="sp-age" min="60" max="70" value="67">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Income reduction from age</span><span class="slider-val" id="v-reduction-age">75</span></div>
+      <input type="range" id="reduction-age" min="60" max="95" value="75">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Income reduction at that age</span><span class="slider-val" id="v-reduction-pct">25%</span></div>
+      <input type="range" id="reduction-pct" min="0" max="75" step="5" value="25">
+    </div>
+  </div>
+
+  <div class="section">
+    <h3 class="section-title">Pension Pot & Income</h3>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">DC pot value</span><span class="slider-val" id="v-pot">£775,000</span></div>
+      <input type="range" id="pot" min="50000" max="1500000" step="5000" value="775000">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Annual contribution</span><span class="slider-val" id="v-contrib">£57,500</span></div>
+      <input type="range" id="contrib" min="0" max="60000" step="500" value="57500">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Annual pension income</span><span class="slider-val" id="v-drawdown">£35,000</span></div>
+      <input type="range" id="drawdown" min="10000" max="120000" step="1000" value="35000">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">State pension (annual)</span><span class="slider-val" id="v-sp">£12,540</span></div>
+      <input type="range" id="sp" min="0" max="12900" step="10" value="12540">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Property income</span><span class="slider-val" id="v-prop">£15,600</span></div>
+      <input type="range" id="prop" min="10000" max="30000" step="100" value="15600">
+    </div>
+  </div>
+
+  <div class="section">
+    <h3 class="section-title">Investment & Simulation</h3>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Expected nominal return</span><span class="slider-val" id="v-return">5.0%</span></div>
+      <input type="range" id="return" min="2" max="12" step="0.1" value="5">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Volatility (std dev)</span><span class="slider-val" id="v-vol">10.0%</span></div>
+      <input type="range" id="vol" min="2" max="20" step="0.1" value="10">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Inflation</span><span class="slider-val" id="v-inflation">2.5%</span></div>
+      <input type="range" id="inflation" min="1" max="6" step="0.1" value="2.5">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Monte Carlo runs</span><span class="slider-val" id="v-runs">1,000</span></div>
+      <input type="range" id="runs" min="200" max="2000" step="100" value="1000">
+    </div>
+  </div>
+
+  <button class="run-btn" id="run-btn">Run Simulation</button>
+  <div class="spinner" id="spinner">Simulating…</div>
+</div>
+
+<div class="main">
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Probability of Success</div>
+      <div class="card-value" id="c-prob">—</div>
+      <div class="card-sub">pot survives to target age</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Median Pot at Target Age</div>
+      <div class="card-value" id="c-median">—</div>
+      <div class="card-sub">today's money (real terms)</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Safe Withdrawal Rate</div>
+      <div class="card-value" id="c-swr">—</div>
+      <div class="card-sub">at 95% success probability</div>
+      <div class="card-sub" style="margin-top:6px;display:flex;gap:6px;align-items:center">
+        <span style="color:var(--text2)">Actual:</span>
+        <span id="c-actual-rate" style="font-weight:700;font-size:0.95rem">—</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-label">Net Monthly Income</div>
+      <div class="card-value" id="c-monthly">—</div>
+      <div class="card-sub">at retirement (after tax)</div>
+    </div>
+  </div>
+
+  <div class="income-panel">
+    <h2 style="margin-bottom:12px">Monthly Net Income Breakdown</h2>
+    <div class="table-scroll">
+    <table id="income-table">
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th id="th-before-sp">Before State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+          <th id="th-after-sp">After State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+          <th id="th-after-reduction">After Income Reduction<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="income-tbody">
+        <tr><td colspan="4" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="pot">Pot Balance</button>
+    <button class="tab" data-tab="swr">Safe Withdrawal Rate</button>
+    <button class="tab" data-tab="survival">Survival Probability</button>
+    <button class="tab" data-tab="realincome">Real Income</button>
+    <button class="tab" data-tab="netmonthly">Net Monthly Income</button>
+  </div>
+
+  <div class="chart-panel">
+    <div id="tab-pot">
+      <h2 style="margin-bottom:12px">Pot Balance — Fan Chart (Percentiles)</h2>
+      <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>
+    </div>
+    <div id="tab-swr" class="hidden">
+      <h2 style="margin-bottom:12px">Safe Withdrawal Rate by Starting Age</h2>
+      <div class="chart-wrap"><canvas id="chart-swr"></canvas></div>
+      <div class="swr-table">
+        <div class="table-scroll">
+        <table id="swr-detail-table">
+          <thead><tr><th>Start Age</th><th>SWR (%)</th><th>Annual (£)</th><th>Rating</th></tr></thead>
+          <tbody id="swr-tbody"></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+    <div id="tab-survival" class="hidden">
+      <h2 style="margin-bottom:12px">Survival Probability by Age</h2>
+      <div class="chart-wrap"><canvas id="chart-survival"></canvas></div>
+    </div>
+    <div id="tab-realincome" class="hidden">
+      <h2 style="margin-bottom:12px">Real Income by Age (Dual Axis)</h2>
+      <div class="chart-wrap"><canvas id="chart-realincome"></canvas></div>
+    </div>
+    <div id="tab-netmonthly" class="hidden">
+      <h2 style="margin-bottom:12px">Net Monthly Income by Age (Stacked, Inflation-Adjusted)</h2>
+      <div class="chart-wrap"><canvas id="chart-netmonthly"></canvas></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ── Utilities ──────────────────────────────────────────────────────────────
+function fmt(n, dec=0) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return n.toLocaleString('en-GB', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+}
+function fmtGBP(n, dec=0) { return '£' + fmt(n, dec); }
+function fmtPct(n, dec=1) { return fmt(n, dec) + '%'; }
+
+// Box-Muller normal random
+function randn() {
+  let u, v;
+  do { u = Math.random(); v = Math.random(); } while (u === 0);
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+// Log-normal annual return given mu (nominal %) and sigma (%)
+function lognormalReturn(mu, sigma) {
+  const m = mu / 100, s = sigma / 100;
+  const muLn = Math.log(1 + m) - 0.5 * s * s;
+  return Math.exp(muLn + s * randn());
+}
+
+// ── UK Tax Engine (2024/25) ────────────────────────────────────────────────
+const PA = 12570;
+const BR_LIMIT = 37700;
+const HR_LIMIT = 125140;
+const BR_RATE = 0.20;
+const HR_RATE = 0.40;
+const AR_RATE = 0.45;
+const PROP_EFFECTIVE_RATE = 0.22;
+const LSA = 268275; // Lump Sum Allowance (from April 2024)
+
+function incomeTax(taxable) {
+  if (taxable <= 0) return 0;
+  let tax = 0;
+  // Taper personal allowance above £100k
+  const effectivePA = taxable > 100000 ? Math.max(0, PA - (taxable - 100000) / 2) : PA;
+  const above = Math.max(0, taxable - effectivePA);
+  // BR band widens as PA tapers (nominal BR threshold £50,270 stays fixed)
+  const effectiveBRL = Math.max(0, (PA + BR_LIMIT) - effectivePA);
+  const br = Math.min(above, effectiveBRL);
+  tax += br * BR_RATE;
+  // HR band width is always HR_LIMIT - (PA + BR_LIMIT) = £74,870, independent of PA taper
+  const hr = Math.min(Math.max(0, above - effectiveBRL), HR_LIMIT - PA - BR_LIMIT);
+  tax += hr * HR_RATE;
+  const ar = Math.max(0, above - (HR_LIMIT - effectivePA));
+  tax += ar * AR_RATE;
+  return tax;
+}
+
+// Pension drawdown: 25% PCLS-spread tax-free, 75% taxable
+// We spread PCLS over all drawdown years
+function calcPensionTax(grossDrawdown, statePension, hasStatePension, propIncome, taxFreeFrac = 0.25) {
+  const taxFree = grossDrawdown * taxFreeFrac;
+  const pensionTaxable = grossDrawdown * (1 - taxFreeFrac);
+  const spTaxable = hasStatePension ? statePension : 0;
+  const totalTaxable = pensionTaxable + spTaxable;
+  const totalTax = incomeTax(totalTaxable);
+  // Apportion tax between pension and state pension proportionally
+  const pensionTaxShare = totalTaxable > 0 ? totalTax * (pensionTaxable / totalTaxable) : 0;
+  const spTaxShare = totalTaxable > 0 ? totalTax * (spTaxable / totalTaxable) : 0;
+  const propTax = propIncome * PROP_EFFECTIVE_RATE;
+  return {
+    taxFree, pensionTaxable, pensionTax: pensionTaxShare,
+    spTaxable, spTax: spTaxShare, propTax,
+    pensionNet: grossDrawdown - pensionTaxShare,
+    spNet: statePension - spTaxShare,
+    propNet: propIncome - propTax
+  };
+}
+
+// ── Slider wiring ──────────────────────────────────────────────────────────
+function getParams() {
+  return {
+    currentAge: +document.getElementById('current-age').value,
+    retirementAge: +document.getElementById('retirement-age').value,
+    endAge: +document.getElementById('end-age').value,
+    spAge: +document.getElementById('sp-age').value,
+    reductionAge: +document.getElementById('reduction-age').value,
+    reductionPct: +document.getElementById('reduction-pct').value,
+    pot: +document.getElementById('pot').value,
+    contrib: +document.getElementById('contrib').value,
+    drawdown: +document.getElementById('drawdown').value,
+    sp: +document.getElementById('sp').value,
+    prop: +document.getElementById('prop').value,
+    ret: +document.getElementById('return').value,
+    vol: +document.getElementById('vol').value,
+    inflation: +document.getElementById('inflation').value,
+    runs: +document.getElementById('runs').value,
+  };
+}
+
+const sliders = [
+  ['current-age', v => v, ''],
+  ['retirement-age', v => v, ''],
+  ['end-age', v => v, ''],
+  ['sp-age', v => v, ''],
+  ['reduction-age', v => v, ''],
+  ['reduction-pct', v => fmtPct(v), ''],
+  ['pot', v => fmtGBP(v), ''],
+  ['contrib', v => fmtGBP(v), ''],
+  ['drawdown', v => fmtGBP(v), ''],
+  ['sp', v => fmtGBP(v), ''],
+  ['prop', v => fmtGBP(v), ''],
+  ['return', v => fmtPct(v), ''],
+  ['vol', v => fmtPct(v), ''],
+  ['inflation', v => fmtPct(v), ''],
+  ['runs', v => fmt(v), ''],
+];
+sliders.forEach(([id, formatter]) => {
+  const el = document.getElementById(id);
+  const label = document.getElementById('v-' + id);
+  el.addEventListener('input', () => { label.textContent = formatter(+el.value); persistParams(); });
+});
+
+// ── Persistence (localStorage + URL hash) ─────────────────────────────────
+const LS_KEY = 'pension-forecast-v1';
+const SLIDER_IDS = sliders.map(([id]) => id);
+
+function persistParams() {
+  const obj = {};
+  SLIDER_IDS.forEach(id => { obj[id] = document.getElementById(id).value; });
+  // localStorage
+  try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e) {}
+  // URL hash — replaceState so no browser history entry is created
+  history.replaceState(null, '', '#' + new URLSearchParams(obj).toString());
+}
+
+function loadPersistedParams() {
+  // URL hash takes priority — enables shareable links
+  if (location.hash.length > 1) {
+    try {
+      const obj = Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
+      if (Object.keys(obj).length > 0) return obj;
+    } catch(e) {}
+  }
+  // Fall back to localStorage
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return null;
+}
+
+function restoreParams(obj) {
+  SLIDER_IDS.forEach(id => {
+    if (obj[id] === undefined) return;
+    const el = document.getElementById(id);
+    el.value = obj[id];
+    el.dispatchEvent(new Event('input')); // updates the label via existing listener
+  });
+}
+
+// ── Simulation ─────────────────────────────────────────────────────────────
+
+// Annual income target at a given age, then pot withdrawal needed after SP offset
+function targetIncome(age, p) {
+  const yi = age - p.retirementAge;
+  const inflFactor = 1 + p.inflation / 100;
+  const nominal = p.drawdown * Math.pow(inflFactor, yi);
+  const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
+  return nominal * reductionFactor;
+}
+function potWithdrawal(age, p) {
+  const stateP = age >= p.spAge ? p.sp : 0;
+  return Math.max(0, targetIncome(age, p) - stateP);
+}
+
+let lastResults = null;
+let charts = {};
+
+function runSimulation() {
+  const p = getParams();
+  const years = p.endAge - p.retirementAge;
+  if (years <= 0) return;
+  const ages = Array.from({length: years + 1}, (_, i) => p.retirementAge + i);
+  const nRuns = p.runs;
+  const inflFactor = 1 + p.inflation / 100;
+
+  // Project pot forward from current age to retirement age using expected return + contributions
+  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const gr = p.ret / 100;
+  const startPot = yearsToRetirement === 0
+    ? p.pot
+    : gr > 0
+      ? p.pot * Math.pow(1 + gr, yearsToRetirement) + p.contrib * (Math.pow(1 + gr, yearsToRetirement) - 1) / gr
+      : p.pot + p.contrib * yearsToRetirement;
+
+  // LSA cap: tax-free fraction is 25% unless startPot exceeds the £268,275 LSA
+  const taxFreeFrac = startPot > 0 ? Math.min(0.25, LSA / startPot) : 0.25;
+
+  // Store pot value at each age for each run
+  const potMatrix = Array.from({length: nRuns}, () => new Float64Array(years + 1));
+  let successCount = 0;
+
+  for (let r = 0; r < nRuns; r++) {
+    let pot = startPot;
+    potMatrix[r][0] = pot;
+
+    for (let y = 0; y < years; y++) {
+      const age = p.retirementAge + y;
+      const withdrawal = potWithdrawal(age, p);
+
+      if (pot <= 0) {
+        potMatrix[r][y + 1] = 0;
+        continue;
+      }
+
+      const ret = lognormalReturn(p.ret, p.vol);
+      pot = pot * ret - withdrawal;
+      if (pot < 0) pot = 0;
+      potMatrix[r][y + 1] = pot;
+    }
+
+    if (potMatrix[r][years] > 0) successCount++;
+  }
+
+  // Compute percentiles at each year
+  const pctiles = [5, 25, 50, 75, 95];
+  const percentileData = pctiles.map(() => new Float64Array(years + 1));
+
+  for (let y = 0; y <= years; y++) {
+    const vals = Array.from({length: nRuns}, (_, r) => potMatrix[r][y]).sort((a, b) => a - b);
+    pctiles.forEach((pc, pi) => {
+      const idx = Math.floor((pc / 100) * (nRuns - 1));
+      percentileData[pi][y] = vals[idx];
+    });
+  }
+
+  const prob = (successCount / nRuns) * 100;
+
+  // Median pot in real terms (deflated all the way back to today / current age)
+  const medianAtEnd = percentileData[2][years];
+  const realDeflator = Math.pow(1 / inflFactor, p.endAge - p.currentAge);
+  const medianReal = medianAtEnd * realDeflator;
+
+  // Safe withdrawal rate: binary search for base income target that gives 95% success
+  // dd is the base annual income target; reductions and SP offsets are applied per-age
+  function successRateForTarget(dd, runs400) {
+    const pp = Object.assign({}, p, { drawdown: dd });
+    let sc = 0;
+    for (let r = 0; r < runs400; r++) {
+      let pot2 = startPot;
+      let ok = true;
+      for (let y = 0; y < years; y++) {
+        const age = p.retirementAge + y;
+        const w = potWithdrawal(age, pp);
+        if (pot2 <= 0) { ok = false; break; }
+        const ret = lognormalReturn(p.ret, p.vol);
+        pot2 = pot2 * ret - w;
+        if (pot2 < 0) { ok = false; break; }
+      }
+      if (ok && pot2 > 0) sc++;
+    }
+    return sc / runs400 * 100;
+  }
+
+  // Binary search SWR (expressed as % of projected pot at retirement)
+  let lo = 0, hi = startPot * 0.2, swr = 0;
+  for (let i = 0; i < 15; i++) {
+    const mid = (lo + hi) / 2;
+    if (successRateForTarget(mid, Math.min(nRuns, 400)) >= 95) { swr = mid; lo = mid; }
+    else hi = mid;
+  }
+  const swrPct = startPot > 0 ? (swr / startPot) * 100 : 0;
+
+  // Tax at retirement (pot withdrawal = targetIncome minus any SP)
+  const hasSpAtRetirement = p.retirementAge >= p.spAge;
+  const potWAtRetirement = potWithdrawal(p.retirementAge, p);
+  const taxCalc = calcPensionTax(potWAtRetirement, p.sp, hasSpAtRetirement, p.prop, taxFreeFrac);
+  const netMonthly = (taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + taxCalc.propNet) / 12;
+
+  // SWR by starting age (binary search base income target at each start age)
+  const swrByAge = [];
+  for (let startAge = p.retirementAge; startAge <= Math.min(p.retirementAge + 20, p.endAge - 5); startAge += 5) {
+    const yrs = p.endAge - startAge;
+    if (yrs <= 0) continue;
+    let lo2 = 0, hi2 = startPot * 0.2, swr2 = 0;
+    for (let i = 0; i < 12; i++) {
+      const mid = (lo2 + hi2) / 2;
+      const pp2 = Object.assign({}, p, { drawdown: mid, retirementAge: startAge });
+      let sc3 = 0;
+      for (let r = 0; r < 200; r++) {
+        let pot3 = startPot;
+        let ok3 = true;
+        for (let y = 0; y < yrs; y++) {
+          const age3 = startAge + y;
+          const w = potWithdrawal(age3, pp2);
+          if (pot3 <= 0) { ok3 = false; break; }
+          const ret = lognormalReturn(p.ret, p.vol);
+          pot3 = pot3 * ret - w;
+          if (pot3 < 0) { ok3 = false; break; }
+        }
+        if (ok3 && pot3 > 0) sc3++;
+      }
+      if (sc3 / 200 * 100 >= 95) { swr2 = mid; lo2 = mid; }
+      else hi2 = mid;
+    }
+    swrByAge.push({ age: startAge, swr: swr2, pct: startPot > 0 ? (swr2 / startPot) * 100 : 0 });
+  }
+
+  // Survival probability by age
+  const survivalByAge = ages.map((age, yi) => {
+    let alive = 0;
+    for (let r = 0; r < nRuns; r++) {
+      if (potMatrix[r][yi] > 0) alive++;
+    }
+    return alive / nRuns * 100;
+  });
+
+  // Real income by age
+  const realIncomeByAge = ages.map((age, yi) => {
+    const hasStatePension = age >= p.spAge;
+    const realFactor = Math.pow(1 / inflFactor, yi);
+    const nominalProp = p.prop * Math.pow(inflFactor, yi);
+    const potW = potWithdrawal(age, p);
+    const stateP = hasStatePension ? p.sp : 0;
+    const tc = calcPensionTax(potW, p.sp, hasStatePension, nominalProp, taxFreeFrac);
+    const gross = potW + stateP + nominalProp;
+    const net = tc.pensionNet + (hasStatePension ? tc.spNet : 0) + tc.propNet;
+    return { age, gross: gross * realFactor, net: net * realFactor };
+  });
+
+  // Net monthly income by source by age (inflation-adjusted)
+  const netMonthlyByAge = ages.map((age, yi) => {
+    const hasStatePension = age >= p.spAge;
+    const realFactor = Math.pow(1 / inflFactor, yi);
+    const nominalProp = p.prop * Math.pow(inflFactor, yi);
+    const potW = potWithdrawal(age, p);
+    const tc = calcPensionTax(potW, p.sp, hasStatePension, nominalProp, taxFreeFrac);
+    return {
+      age,
+      pension: (tc.pensionNet * realFactor) / 12,
+      sp: hasStatePension ? (tc.spNet * realFactor) / 12 : 0,
+      prop: (tc.propNet * realFactor) / 12,
+    };
+  });
+
+  lastResults = {
+    ages, years, p, prob, medianReal, swrPct, swr, netMonthly, startPot, taxFreeFrac,
+    percentileData, pctiles, survivalByAge, realIncomeByAge,
+    netMonthlyByAge, swrByAge, taxCalc
+  };
+
+  return lastResults;
+}
+
+// ── Render results ─────────────────────────────────────────────────────────
+function renderCards(r) {
+  const probEl = document.getElementById('c-prob');
+  const probVal = r.prob.toFixed(1) + '%';
+  probEl.textContent = probVal;
+  probEl.className = 'card-value ' + (r.prob >= 90 ? 'green' : r.prob >= 70 ? 'amber' : 'red');
+
+  document.getElementById('c-median').textContent = fmtGBP(r.medianReal);
+
+  const swrEl = document.getElementById('c-swr');
+  swrEl.textContent = fmtPct(r.swrPct);
+  swrEl.className = 'card-value ' + (r.swrPct >= 4 ? 'green' : r.swrPct >= 3 ? 'amber' : 'red');
+
+  const actualRatePct = r.startPot > 0 ? (r.p.drawdown / r.startPot) * 100 : 0;
+  const actualEl = document.getElementById('c-actual-rate');
+  actualEl.textContent = fmtPct(actualRatePct);
+  actualEl.className = actualRatePct <= r.swrPct ? 'green' : actualRatePct <= r.swrPct * 1.2 ? 'amber' : 'red';
+
+  document.getElementById('c-monthly').textContent = fmtGBP(r.netMonthly, 0);
+}
+
+function renderIncomeTable(r) {
+  const p = r.p;
+  const inflFactor = 1 + p.inflation / 100;
+  const taxFreeFrac = r.taxFreeFrac;
+
+  // Phase 1: At retirement (no SP yet, no reduction) — year 0, no inflation
+  const potW1Full = potWithdrawal(p.retirementAge, p); // = p.drawdown at year 0
+  const prop1 = p.prop;
+  const tc1 = calcPensionTax(potW1Full, 0, false, prop1, taxFreeFrac);
+
+  // Phase 2: After state pension (SP offsets inflation-adjusted target)
+  const spYears = Math.max(0, p.spAge - p.retirementAge);
+  const prop2 = p.prop * Math.pow(inflFactor, spYears);
+  const potW2 = potWithdrawal(p.spAge, p);
+  const tc2 = calcPensionTax(potW2, p.sp, true, prop2, taxFreeFrac);
+
+  // Phase 3: After income reduction (inflation-adjusted, reduced target)
+  const hasSpAtReduction = p.reductionAge >= p.spAge;
+  const reductionYears = Math.max(0, p.reductionAge - p.retirementAge);
+  const prop3 = p.prop * Math.pow(inflFactor, reductionYears);
+  const potW3 = potWithdrawal(p.reductionAge, p);
+  const tc3 = calcPensionTax(potW3, p.sp, hasSpAtReduction, prop3, taxFreeFrac);
+
+  // Update column headers dynamically
+  document.getElementById('th-after-reduction').innerHTML =
+    `After Reduction (age ${p.reductionAge})<br><small style="font-weight:400">Gross / Tax / Net</small>`;
+
+  function cell(gross, tax, net) {
+    return `${fmtGBP(gross/12)} / <span style="color:var(--red)">${fmtGBP(tax/12)}</span> / <strong>${fmtGBP(net/12)}</strong>`;
+  }
+
+  function row(label, g1, t1, n1, g2, t2, n2, g3, t3, n3, note) {
+    return `<tr>
+      <td>${label}</td>
+      <td>${cell(g1,t1,n1)}</td>
+      <td>${cell(g2,t2,n2)}</td>
+      <td>${cell(g3,t3,n3)}</td>
+      <td>${note}</td>
+    </tr>`;
+  }
+
+  const tbody = document.getElementById('income-tbody');
+  tbody.innerHTML =
+    row('Pension (from pot)',
+      potW1Full, tc1.pensionTax, tc1.pensionNet,
+      potW2, tc2.pensionTax, tc2.pensionNet,
+      potW3, tc3.pensionTax, tc3.pensionNet,
+      taxFreeFrac < 0.25
+        ? `<span class="badge badge-amber">${(taxFreeFrac*100).toFixed(1)}% tax-free (LSA capped)</span>`
+        : `<span class="badge badge-green">25% tax-free (within LSA)</span>`) +
+    row('State pension',
+      0, 0, 0,
+      p.sp, tc2.spTax, tc2.spNet,
+      hasSpAtReduction ? p.sp : 0,
+      hasSpAtReduction ? tc3.spTax : 0,
+      hasSpAtReduction ? tc3.spNet : 0,
+      `From age ${p.spAge}`) +
+    row('Property income',
+      prop1, tc1.propTax, tc1.propNet,
+      prop2, tc2.propTax, tc2.propNet,
+      prop3, tc3.propTax, tc3.propNet,
+      '22% eff. rate, CPI-linked') +
+    `<tr>
+      <td><strong>Total</strong></td>
+      <td>${cell(potW1Full + prop1, tc1.pensionTax + tc1.propTax, tc1.pensionNet + tc1.propNet)}</td>
+      <td>${cell(potW2 + p.sp + prop2, tc2.pensionTax + tc2.spTax + tc2.propTax, tc2.pensionNet + tc2.spNet + tc2.propNet)}</td>
+      <td>${cell(potW3 + (hasSpAtReduction?p.sp:0) + prop3, tc3.pensionTax + (hasSpAtReduction?tc3.spTax:0) + tc3.propTax, tc3.pensionNet + (hasSpAtReduction?tc3.spNet:0) + tc3.propNet)}</td>
+      <td></td>
+    </tr>`;
+}
+
+// ── Chart helpers ──────────────────────────────────────────────────────────
+function isDark() {
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function gridColor() { return isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'; }
+function textColor() { return isDark() ? '#9ca3af' : '#6b7280'; }
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function renderPotChart(r) {
+  destroyChart('pot');
+  const ctx = document.getElementById('chart-pot').getContext('2d');
+  const labels = r.ages;
+  const [p5, p25, p50, p75, p95] = r.percentileData;
+
+  charts['pot'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: '95th', data: Array.from(p95), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
+        { label: '75th', data: Array.from(p75), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
+        { label: 'Median', data: Array.from(p50), borderColor: 'rgba(37,99,235,1)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2 },
+        { label: '25th', data: Array.from(p25), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
+        { label: '5th', data: Array.from(p5), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: textColor(), font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
+        y: { ticks: { color: textColor(), callback: v => '£' + (v/1000).toFixed(0) + 'k' }, grid: { color: gridColor() }, title: { display: true, text: 'Pot Value (£)', color: textColor() } }
+      }
+    }
+  });
+}
+
+function renderSWRChart(r) {
+  destroyChart('swr');
+  const ctx = document.getElementById('chart-swr').getContext('2d');
+  const labels = r.swrByAge.map(d => 'Age ' + d.age);
+  const vals = r.swrByAge.map(d => +d.pct.toFixed(2));
+  const colors = vals.map(v => v >= 4 ? '#16a34a' : v >= 3 ? '#d97706' : '#dc2626');
+
+  charts['swr'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'SWR (%)', data: vals, backgroundColor: colors, borderRadius: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: textColor() }, grid: { color: gridColor() } },
+        y: { ticks: { color: textColor(), callback: v => v + '%' }, grid: { color: gridColor() }, title: { display: true, text: 'SWR (%)', color: textColor() } }
+      }
+    }
+  });
+
+  // Table
+  const tbody = document.getElementById('swr-tbody');
+  tbody.innerHTML = r.swrByAge.map(d => {
+    const cls = d.pct >= 4 ? 'badge-green' : d.pct >= 3 ? 'badge-amber' : 'badge-red';
+    const label = d.pct >= 4 ? 'Safe' : d.pct >= 3 ? 'Caution' : 'Risk';
+    return `<tr>
+      <td>${d.age}</td>
+      <td>${d.pct.toFixed(2)}%</td>
+      <td>${fmtGBP(d.swr)}</td>
+      <td><span class="badge ${cls}">${label}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSurvivalChart(r) {
+  destroyChart('survival');
+  const ctx = document.getElementById('chart-survival').getContext('2d');
+  charts['survival'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: r.ages,
+      datasets: [{
+        label: 'Pot Survival Probability',
+        data: r.survivalByAge,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: textColor() } } },
+      scales: {
+        x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
+        y: { ticks: { color: textColor(), callback: v => v + '%' }, grid: { color: gridColor() }, min: 0, max: 100, title: { display: true, text: 'Probability (%)', color: textColor() } }
+      }
+    }
+  });
+}
+
+function renderRealIncomeChart(r) {
+  destroyChart('realincome');
+  const ctx = document.getElementById('chart-realincome').getContext('2d');
+  charts['realincome'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: r.ages,
+      datasets: [
+        {
+          label: 'Gross Income (£)',
+          data: r.realIncomeByAge.map(d => d.gross),
+          borderColor: '#2563eb',
+          backgroundColor: 'transparent',
+          yAxisID: 'y',
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2
+        },
+        {
+          label: 'Net Income (£)',
+          data: r.realIncomeByAge.map(d => d.net),
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22,163,74,0.08)',
+          fill: true,
+          yAxisID: 'y',
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: textColor() } } },
+      scales: {
+        x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
+        y: { ticks: { color: textColor(), callback: v => '£' + (v/1000).toFixed(0) + 'k' }, grid: { color: gridColor() }, title: { display: true, text: 'Annual Income (£, real)', color: textColor() } }
+      }
+    }
+  });
+}
+
+function renderNetMonthlyChart(r) {
+  destroyChart('netmonthly');
+  const ctx = document.getElementById('chart-netmonthly').getContext('2d');
+  charts['netmonthly'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: r.ages,
+      datasets: [
+        { label: 'Pension', data: r.netMonthlyByAge.map(d => d.pension), backgroundColor: '#2563eb', stack: 'a' },
+        { label: 'State Pension', data: r.netMonthlyByAge.map(d => d.sp), backgroundColor: '#16a34a', stack: 'a' },
+        { label: 'Property', data: r.netMonthlyByAge.map(d => d.prop), backgroundColor: '#d97706', stack: 'a' },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: textColor() } } },
+      scales: {
+        x: { stacked: true, ticks: { color: textColor(), maxTicksLimit: 12 }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
+        y: { stacked: true, ticks: { color: textColor(), callback: v => '£' + fmt(v) }, grid: { color: gridColor() }, title: { display: true, text: 'Net Monthly Income (£, real)', color: textColor() } }
+      }
+    }
+  });
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+const tabDefs = ['pot', 'swr', 'survival', 'realincome', 'netmonthly'];
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    tabDefs.forEach(t => {
+      document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+    });
+    // Render chart if needed
+    if (lastResults) {
+      if (tab === 'pot') renderPotChart(lastResults);
+      else if (tab === 'swr') renderSWRChart(lastResults);
+      else if (tab === 'survival') renderSurvivalChart(lastResults);
+      else if (tab === 'realincome') renderRealIncomeChart(lastResults);
+      else if (tab === 'netmonthly') renderNetMonthlyChart(lastResults);
+    }
+  });
+});
+
+// ── Run button ─────────────────────────────────────────────────────────────
+document.getElementById('run-btn').addEventListener('click', () => {
+  const btn = document.getElementById('run-btn');
+  const spinner = document.getElementById('spinner');
+  btn.disabled = true;
+  spinner.style.display = 'block';
+  setTimeout(() => {
+    try {
+      const r = runSimulation();
+      renderCards(r);
+      renderIncomeTable(r);
+      renderPotChart(r);
+      // Reset to pot tab
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelector('[data-tab="pot"]').classList.add('active');
+      tabDefs.forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== 'pot');
+      });
+    } finally {
+      btn.disabled = false;
+      spinner.style.display = 'none';
+    }
+  }, 10);
+});
+
+// Auto-run on load
+window.addEventListener('DOMContentLoaded', () => {
+  // Sidebar toggle for mobile
+  const toggleBtn = document.getElementById('sidebar-toggle');
+  const sidebar = document.getElementById('sidebar');
+  toggleBtn.addEventListener('click', () => {
+    const isOpen = sidebar.classList.toggle('open');
+    toggleBtn.textContent = isOpen ? '✕ Close' : '⚙ Settings';
+    toggleBtn.setAttribute('aria-expanded', isOpen);
+  });
+  // Close sidebar after running simulation on mobile
+  document.getElementById('run-btn').addEventListener('click', () => {
+    if (window.innerWidth <= 768) {
+      sidebar.classList.remove('open');
+      toggleBtn.textContent = '⚙ Settings';
+      toggleBtn.setAttribute('aria-expanded', false);
+    }
+  }, true); // capture phase so it fires before the existing run handler
+
+  const saved = loadPersistedParams();
+  if (saved) restoreParams(saved);
+  document.getElementById('run-btn').click();
+});
+</script>
+</body>
+</html>

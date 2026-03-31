@@ -1,7 +1,7 @@
 import { fmt, fmtGBP, fmtPct } from './utils.js';
 import { LSA, FORMER_LTA } from './constants.js';
 import { incomeTax, calcPensionTax, calcOtherIncomesNet } from './model.js';
-import { historicalReturn, stochasticInflation, targetIncome, potWithdrawal, PCT_LABELS, buildAnnualIncomeData, runSimulation as runSimulationImpl } from './simulation.js';
+import { runSimulation as runSimulationImpl } from './simulation.js';
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
 let nextPotId = 1;
@@ -413,18 +413,17 @@ function updateDrawdownMode(mode) {
   document.getElementById('drawdown-pct-row').classList.toggle('hidden', mode !== 'pct');
 }
 
-// ── Income target helpers (deterministic, for income tables) ───────────────
 function targetIncome(age, p, cumulInfl) {
   const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
   const inflFactor = p.drawdownInflation !== false ? cumulInfl : 1.0;
   return p.drawdown * inflFactor * reductionFactor;
 }
+
 function potWithdrawal(age, p, cumulInfl) {
   const stateP = age >= p.spAge ? p.sp : 0;
   return Math.max(0, targetIncome(age, p, cumulInfl) - stateP);
 }
 
-// ── Annual income data builder (percentile-aware) ──────────────────────────
 const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
 
 function buildAnnualIncomeData(r, pctileIdx) {
@@ -434,7 +433,6 @@ function buildAnnualIncomeData(r, pctileIdx) {
   const currentYear = new Date().getFullYear();
   const startPensionPot = r.startPensionPot || r.startPot;
 
-  // Running cash pot state for this display pass (mirrors deterministic sim)
   const cashBals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
 
   const result = [];
@@ -449,23 +447,19 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const pensionAtPctile = Math.max(0, combinedAtPctile - cashAtYear);
     const potDepleted = combinedAtPctile <= 0;
 
-    // Guardrail: only affects the pension draw, never the cash draw.
     const guardrailActive = p.guardrails && yi > 0 && !potDepleted && pensionAtPctile < startPensionPot * 0.80;
     const guardrailFactor = guardrailActive ? 0.90 : 1.0;
 
-    // Full income target (no guardrail here — cash always gets the full target)
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor;
     const spNominal = hasStatePension ? p.sp : 0;
     const neededFromPots = Math.max(0, targetNominal - spNominal);
 
-    // Grow cash pots this year
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
     }
 
-    // Cash satisfies net income need at full target (guardrail does not apply to cash).
     const notionalTcAnn = calcPensionTax(neededFromPots, p.sp, hasStatePension, r.taxFreeFrac);
     const netTargetAnn = notionalTcAnn.pensionNet;
     let cashContrib = 0;
@@ -475,34 +469,25 @@ function buildAnnualIncomeData(r, pctileIdx) {
       cashContrib += take;
     }
 
-    // Gross-up remaining net shortfall → gross pension withdrawal, with guardrail applied.
-    // If cash covers netTargetAnn fully, intendedPensionWithdrawal = 0.
     const remainingNetAnn = Math.max(0, netTargetAnn - cashContrib);
     const intendedPensionWithdrawal = netTargetAnn > 0
       ? remainingNetAnn * (neededFromPots / netTargetAnn) * guardrailFactor
       : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
-    // Other incomes (CPI-linked, flat tax per source)
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
-
     const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, r.taxFreeFrac);
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
 
-    // Pot balance = pension pot only. Cash pot is tracked separately.
     const potBalNom = pensionAtPctile;
     const potBalReal = pensionAtPctile * todayDeflator;
 
-    // Total outflow (kept for internal reference; not used in growth formula)
     const withdrawalNom = cashContrib + potWithdrawNominal;
     const withdrawalReal = withdrawalNom * todayDeflator;
 
-    // Portfolio growth: pension pot only, so identity holds exactly:
-    //   pensionPotBal[yi] = pensionPotBal[yi-1] + growth[yi] - pensionDrawn[yi]
-    // => growth[yi] = pensionPotBal[yi] - pensionPotBal[yi-1] + pensionDrawn[yi]
     const prevCombined = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
-    const prevCashBal  = yi === 0 ? (r.startCashTotal || 0) : (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0);
-    const prevPension  = Math.max(0, prevCombined - prevCashBal);
+    const prevCashBal = yi === 0 ? (r.startCashTotal || 0) : (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0);
+    const prevPension = Math.max(0, prevCombined - prevCashBal);
     const pensionInitialValues = p.pots.reduce((s, pot) => s + pot.value, 0);
     const growthNom = potDepleted ? 0 : yi === 0
       ? (yearsToRetirement > 0 ? r.startPensionPot - pensionInitialValues : 0)
@@ -525,16 +510,18 @@ function buildAnnualIncomeData(r, pctileIdx) {
       spReal: hasStatePension ? (tc.spNet * todayDeflator) / 12 : 0,
       otherReal: (otherNet.netTotal * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
-      // Gross pension withdrawal = what physically leaves the pension pot
       pensionWithdrawalNom: potWithdrawNominal,
       pensionWithdrawalReal: potWithdrawNominal * todayDeflator,
-      // Net cash drawn = what physically leaves the cash pot (cash is already post-tax)
       cashWithdrawalNom: cashContrib,
       cashWithdrawalReal: cashContrib * todayDeflator,
-      potBalNom, potBalReal,
-      withdrawalNom, withdrawalReal,
-      growthNom, growthReal,
-      netPotChangeNom, netPotChangeReal,
+      potBalNom,
+      potBalReal,
+      withdrawalNom,
+      withdrawalReal,
+      growthNom,
+      growthReal,
+      netPotChangeNom,
+      netPotChangeReal,
       guardrailActive,
       isSpStart: age === p.spAge,
       isReductionStart: age === p.reductionAge,
@@ -958,6 +945,10 @@ document.getElementById('run-btn').addEventListener('click', () => {
       const pctileIdx = +document.getElementById('ann-pctile').value;
 
       const r = runSimulation();
+      if (!r) {
+        document.getElementById('income-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Simulation failed: check retirement/end ages</td></tr>';
+        return;
+      }
       r.annualIncomeData = buildAnnualIncomeData(r, pctileIdx);
 
       renderCards(r);
@@ -980,7 +971,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
 });
 
 // ── Init ───────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
+function initApp() {
   const toggleBtn = document.getElementById('sidebar-toggle');
   const sidebar = document.getElementById('sidebar');
   toggleBtn.addEventListener('click', () => {
@@ -1034,4 +1025,10 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('run-btn').click();
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
