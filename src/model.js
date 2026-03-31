@@ -37,7 +37,7 @@ export function calcOtherIncomesNet(incomes, inflFactor) {
   let grossTotal = 0, taxTotal = 0, netTotal = 0;
   const items = incomes.map(inc => {
     const annualAmt = inc.frequency === 'monthly' ? inc.amount * 12 : inc.amount;
-    const gross = annualAmt * inflFactor;
+    const gross = annualAmt * (inc.inflationLinked ? inflFactor : 1);
     const tax = gross * (inc.taxPct / 100);
     const net = gross - tax;
     grossTotal += gross;

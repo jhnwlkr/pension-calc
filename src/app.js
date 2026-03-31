@@ -99,14 +99,15 @@ function renderPotsUI() {
 let nextIncomeId = 1;
 let incomesData = [];
 
-function addIncome(name, amount, frequency, taxPct) {
+function addIncome(name, amount, frequency, taxPct, inflationLinked = false) {
   const id = nextIncomeId++;
   incomesData.push({
     id,
     name: name || 'Income source',
     amount: amount !== undefined ? amount : 0,
     frequency: frequency || 'annual',
-    taxPct: taxPct !== undefined ? taxPct : 20
+    taxPct: taxPct !== undefined ? taxPct : 20,
+    inflationLinked,
   });
   renderIncomesUI();
 }
@@ -156,6 +157,10 @@ function renderIncomesUI() {
             <span class="input-suffix">%</span>
           </div>
         </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+        <input type="checkbox" data-inc-id="${inc.id}" data-field="inflationLinked" ${inc.inflationLinked ? 'checked' : ''} style="cursor:pointer;width:14px;height:14px">
+        <span style="font-size:0.78rem;color:var(--text2)">Increases with inflation</span>
       </div>`;
     container.appendChild(div);
   });
@@ -167,13 +172,15 @@ function renderIncomesUI() {
 
   // Wire inputs
   container.querySelectorAll('[data-inc-id]').forEach(el => {
-    const evName = el.tagName === 'SELECT' ? 'change' : 'input';
+    const evName = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
     el.addEventListener(evName, () => {
       const incId = +el.dataset.incId;
       const field = el.dataset.field;
       const inc = incomesData.find(i => i.id === incId);
       if (inc) {
-        inc[field] = (field === 'name' || field === 'frequency') ? el.value : +el.value;
+        if (field === 'inflationLinked') inc[field] = el.checked;
+        else if (field === 'name' || field === 'frequency') inc[field] = el.value;
+        else inc[field] = +el.value;
       }
       persistParams();
     });
@@ -401,7 +408,7 @@ function restoreParams(obj) {
         incomesData = [];
         saved.forEach(inc => {
           const id = nextIncomeId++;
-          incomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', taxPct: inc.taxPct !== undefined ? inc.taxPct : 20 });
+          incomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', taxPct: inc.taxPct !== undefined ? inc.taxPct : 20, inflationLinked: inc.inflationLinked === true });
         });
         renderIncomesUI();
       }
@@ -702,10 +709,14 @@ function renderIncomeTable(r) {
   if (p.incomes.length > 0) {
     p.incomes.forEach(inc => {
       const annAmt = inc.frequency === 'monthly' ? inc.amount * 12 : inc.amount;
-      const g1i = annAmt * ci0, t1i = g1i * (inc.taxPct/100), n1i = g1i - t1i;
-      const g2i = annAmt * ci2, t2i = g2i * (inc.taxPct/100), n2i = g2i - t2i;
-      const g3i = annAmt * ci3, t3i = g3i * (inc.taxPct/100), n3i = g3i - t3i;
-      rows += row(inc.name, g1i,t1i,n1i, g2i,t2i,n2i, g3i,t3i,n3i, `${inc.taxPct}% flat tax, CPI-linked`);
+      const f1 = inc.inflationLinked ? ci0 : 1;
+      const f2 = inc.inflationLinked ? ci2 : 1;
+      const f3 = inc.inflationLinked ? ci3 : 1;
+      const g1i = annAmt * f1, t1i = g1i * (inc.taxPct/100), n1i = g1i - t1i;
+      const g2i = annAmt * f2, t2i = g2i * (inc.taxPct/100), n2i = g2i - t2i;
+      const g3i = annAmt * f3, t3i = g3i * (inc.taxPct/100), n3i = g3i - t3i;
+      const note = `${inc.taxPct}% flat tax · ${inc.inflationLinked ? 'CPI-linked' : 'Fixed'}`;
+      rows += row(inc.name, g1i,t1i,n1i, g2i,t2i,n2i, g3i,t3i,n3i, note);
     });
   }
 
