@@ -185,7 +185,10 @@ export function runSimulation(p) {
   const effectiveDrawdown = p.drawdownMode === 'pct'
     ? startPot * p.drawdownPct / 100
     : p.drawdown;
-  p = Object.assign({}, p, { drawdown: effectiveDrawdown });
+  // Inflate state pension from today to retirement so it correctly grows with
+  // triple-lock inflation through the pre-retirement years, not just from retirement.
+  const spAtRetirement = p.sp * Math.pow(1 + p.inflation / 100, yearsToRetirement);
+  p = Object.assign({}, p, { drawdown: effectiveDrawdown, sp: spAtRetirement });
 
   const taxFreeFrac = startPensionPot > 0 ? Math.min(0.25, LSA / startPensionPot) : 0.25;
   const potsOrder = p.pots.map((pot, idx) => idx).sort((a, b) => p.pots[a].equityPct - p.pots[b].equityPct);
