@@ -78,6 +78,7 @@
   }
   .run-btn { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-top: 8px; }
   .header .run-btn { width: auto; min-width: 160px; margin: 0; }
+  .run-btn-short { display: none; }
   .run-btn:hover { opacity: 0.9; }
   .hidden { display: none !important; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
@@ -106,6 +107,8 @@
   .field-label { font-size: 0.75rem; color: var(--text2); margin-bottom: 3px; display: block; }
 
   @media (max-width: 768px) {
+    .run-btn-full { display: none; }
+    .run-btn-short { display: inline; }
     .sidebar-toggle { display: flex; }
     .layout { grid-template-columns: 1fr; min-height: unset; }
     .sidebar { border-right: none; border-bottom: 1px solid var(--border); display: none; padding: 16px; }
@@ -131,7 +134,7 @@
     <h1>UK Pension Drawdown Forecaster</h1>
     <div class="header-sub">Historical bootstrapping · Guyton-Klinger guardrails · Stochastic inflation · UK 2024/25 tax</div>
   </div>
-  <button class="run-btn header-run-btn" id="run-btn">Run Simulation</button>
+  <button class="run-btn header-run-btn" id="run-btn"><span class="run-btn-full">Run Simulation</span><span class="run-btn-short">Run</span></button>
   <div class="spinner" id="spinner">Simulating…</div>
   <button class="sidebar-toggle" id="sidebar-toggle" aria-expanded="false" aria-controls="sidebar">⚙ Settings</button>
 </div>
