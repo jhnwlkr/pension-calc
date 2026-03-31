@@ -294,8 +294,8 @@ function sanitizeParams() {
   let retirementAge = +retire.value;
   let endAge = +end.value;
 
-  if (retirementAge <= currentAge) {
-    retirementAge = currentAge + 1;
+  if (retirementAge < currentAge) {
+    retirementAge = currentAge;
     retire.value = retirementAge;
     document.getElementById('v-retirement-age').textContent = retirementAge;
   }
