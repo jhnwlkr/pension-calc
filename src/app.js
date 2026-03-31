@@ -614,6 +614,10 @@ function renderCards(r) {
   actualEl.className = actualRatePct <= r.swrPct ? 'green' : actualRatePct <= r.swrPct * 1.2 ? 'amber' : 'red';
 
   document.getElementById('c-monthly').textContent = fmtGBP(r.netMonthly, 0);
+  const cMonthlySub = document.getElementById('c-monthly-sub');
+  if (cMonthlySub) {
+    cMonthlySub.innerHTML = `at retirement (after tax)<br>Gross monthly: ${fmtGBP(r.grossMonthly, 0)} · Net annual: ${fmtGBP(r.netAnnual, 0)} · Gross annual: ${fmtGBP(r.grossAnnual, 0)}`;
+  }
 
   const lsaAlert = document.getElementById('lsa-alert');
   lsaAlert.classList.toggle('hidden', r.startPot <= FORMER_LTA);
