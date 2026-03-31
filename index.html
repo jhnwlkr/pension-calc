@@ -974,13 +974,14 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const pensionAtPctile = Math.max(0, combinedAtPctile - cashAtYear);
     const potDepleted = combinedAtPctile <= 0;
 
-    // Guardrail uses pension-only pot value vs pension-only start
+    // Guardrail: only affects the pension draw, never the cash draw.
     const guardrailActive = p.guardrails && yi > 0 && !potDepleted && pensionAtPctile < startPensionPot * 0.80;
     const guardrailFactor = guardrailActive ? 0.90 : 1.0;
 
+    // Full income target (no guardrail here — cash always gets the full target)
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
-    const targetNominal = p.drawdown * inflFactor * reductionFactor * guardrailFactor;
+    const targetNominal = p.drawdown * inflFactor * reductionFactor;
     const spNominal = hasStatePension ? p.sp : 0;
     const neededFromPots = Math.max(0, targetNominal - spNominal);
 
@@ -989,7 +990,7 @@ function buildAnnualIncomeData(r, pctileIdx) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
     }
 
-    // Cash satisfies net income need; gross-up remaining shortfall for pension.
+    // Cash satisfies net income need at full target (guardrail does not apply to cash).
     const notionalTcAnn = calcPensionTax(neededFromPots, p.sp, hasStatePension, r.taxFreeFrac);
     const netTargetAnn = notionalTcAnn.pensionNet;
     let cashContrib = 0;
@@ -999,11 +1000,11 @@ function buildAnnualIncomeData(r, pctileIdx) {
       cashContrib += take;
     }
 
-    // Gross-up remaining net shortfall → gross pension withdrawal.
+    // Gross-up remaining net shortfall → gross pension withdrawal, with guardrail applied.
     // If cash covers netTargetAnn fully, intendedPensionWithdrawal = 0.
     const remainingNetAnn = Math.max(0, netTargetAnn - cashContrib);
     const intendedPensionWithdrawal = netTargetAnn > 0
-      ? remainingNetAnn * (neededFromPots / netTargetAnn)
+      ? remainingNetAnn * (neededFromPots / netTargetAnn) * guardrailFactor
       : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
@@ -1016,13 +1017,21 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const potBalNom = combinedAtPctile;
     const potBalReal = combinedAtPctile * todayDeflator;
 
-    const withdrawalNom = potDepleted ? 0 : (cashContrib + potWithdrawNominal);
+    // "Annual Withdrawal" = gross pension pot withdrawal only (cash income shown separately)
+    const withdrawalNom = potWithdrawNominal;
     const withdrawalReal = withdrawalNom * todayDeflator;
 
-    const prevPot = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
+    // "Investment Growth" = pension pot growth only (not cash interest).
+    // Formula: pensionBal[yi] - pensionBal[yi-1] + pensionWithdrawal[yi-1]
+    // (same timing convention as original — shows growth that produced balance[yi])
+    const prevCombined = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
+    const prevCashBal = yi === 0
+      ? (r.startCashTotal || 0)
+      : (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0);
+    const prevPension = Math.max(0, prevCombined - prevCashBal);
     const growthNom = potDepleted ? 0 : yi === 0
-      ? (yearsToRetirement > 0 ? r.startPot - (p.pots.reduce((s, pot) => s + pot.value, 0) + (p.cashPots || []).reduce((s, cp) => s + cp.value, 0)) : 0)
-      : combinedAtPctile - prevPot + withdrawalNom;
+      ? (yearsToRetirement > 0 ? r.startPensionPot - p.pots.reduce((s, pot) => s + pot.value, 0) : 0)
+      : pensionAtPctile - prevPension + potWithdrawNominal;
     const growthReal = growthNom * todayDeflator;
 
     result.push({
@@ -1188,27 +1197,26 @@ function runSimulation() {
 
       const pensionTotalAfterGrowth = runPots.reduce((s,v) => s+v, 0);
 
-      // d) Guardrail check on pension pots only (cash is stable)
+      // d) Guardrail check on pension pots only (cash is stable).
+      //    The guardrail only affects the pension draw — never the cash draw —
+      //    so income is not cut when cash is fully covering the target.
       const pensionOnlyStart = startTotals[r]; // pension-only start value for this run
       const guardrailActive = p.guardrails && pensionTotalAfterGrowth < pensionOnlyStart * 0.80;
-      const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       if (guardrailActive) guardrailEverTriggered = true;
 
-      // Compute withdrawal
+      // Compute full target income (no guardrail adjustment here)
       const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
       const inflFactor = p.drawdownInflation ? cumulInfl : 1.0;
-      const targetNominal = p.drawdown * inflFactor * reductionFactor * guardrailFactor;
+      const targetNominal = p.drawdown * inflFactor * reductionFactor;
       const hasSPthisYear = age >= p.spAge;
       const spNominal = hasSPthisYear ? p.sp : 0;
       const grossWithdrawal = Math.max(0, targetNominal - spNominal);
 
       // e) Drain cash pots first.
-      //    Cash is post-tax, so each £1 satisfies £1 of NET income need.
-      //    Compute the net income target from pots, satisfy as much as possible
-      //    from cash, then gross-up only the remaining net shortfall back to a
-      //    gross pension withdrawal (so pension is 0 when cash fully covers it).
+      //    Cash is post-tax so each £1 satisfies £1 of NET income need.
+      //    Always use the full target — guardrail never applies to cash.
       const notionalTc = calcPensionTax(grossWithdrawal, p.sp, hasSPthisYear, taxFreeFrac);
-      const netTarget = notionalTc.pensionNet; // net income pots must deliver
+      const netTarget = notionalTc.pensionNet;
       let cashRemaining = netTarget;
       for (let ci = 0; ci < numCashPots && cashRemaining > 0; ci++) {
         const take = Math.min(runCashPots[ci], cashRemaining);
@@ -1218,10 +1226,13 @@ function runSimulation() {
       const cashTaken = netTarget - cashRemaining;
 
       // f) Gross-up remaining net shortfall → gross pension withdrawal,
-      //    using the same effective rate as the full withdrawal.
-      //    When cash covers netTarget fully, pensionWithdrawal = 0.
+      //    applying the guardrail factor only to the pension portion.
+      //    When cash covers netTarget fully, pensionWithdrawal = 0 regardless.
+      const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       const remainingNet = Math.max(0, netTarget - cashTaken);
-      let pensionWithdrawal = netTarget > 0 ? remainingNet * (grossWithdrawal / netTarget) : 0;
+      let pensionWithdrawal = netTarget > 0
+        ? remainingNet * (grossWithdrawal / netTarget) * guardrailFactor
+        : 0;
       for (let rank = 0; rank < numPots && pensionWithdrawal > 0; rank++) {
         const take = Math.min(runPots[rank], pensionWithdrawal);
         runPots[rank] -= take;
@@ -1366,19 +1377,31 @@ function runSimulation() {
   {
     const hasSpAtRetirement = p.retirementAge >= p.spAge;
     const cashAtRetirement = cashContribByYear[0] || 0;
-    const potWAtRetirement = Math.max(0, potWithdrawal(p.retirementAge, p, 1.0) - cashAtRetirement);
+    const grossNeededRet = potWithdrawal(p.retirementAge, p, 1.0);
+    const potWAtRetirement = pensionGrossAfterCash(grossNeededRet, cashAtRetirement, hasSpAtRetirement);
     taxCalc = calcPensionTax(potWAtRetirement, p.sp, hasSpAtRetirement, taxFreeFrac);
     const otherAtRetirement = calcOtherIncomesNet(p.incomes, 1.0);
     netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + otherAtRetirement.netTotal) / 12;
   }
 
-  // Real income by age (deterministic, uses weighted equity)
+  // Helper: given a gross-needed amount and the deterministic cash contribution
+  // for year yi, return the gross pension withdrawal (0 when cash fully covers it).
+  function pensionGrossAfterCash(grossNeeded, cashC, hasSP) {
+    const ntc = calcPensionTax(grossNeeded, p.sp, hasSP, taxFreeFrac);
+    const netTarget = ntc.pensionNet;
+    const cashUsed = Math.min(cashC, netTarget);
+    const remainingNet = Math.max(0, netTarget - cashUsed);
+    return netTarget > 0 ? remainingNet * (grossNeeded / netTarget) : 0;
+  }
+
+  // Real income by age (deterministic)
   const realIncomeByAge = ages.map((age, yi) => {
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
     const cashC = cashContribByYear[yi] || 0;
-    const potW = Math.max(0, potWithdrawal(age, p, ci) - cashC);
+    const grossNeeded = potWithdrawal(age, p, ci);
+    const potW = pensionGrossAfterCash(grossNeeded, cashC, hasStatePension);
     const stateP = hasStatePension ? p.sp : 0;
     const tc = calcPensionTax(potW, p.sp, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
@@ -1395,7 +1418,8 @@ function runSimulation() {
     const ci = Math.pow(baseInflFactor, yi);
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
     const cashC = cashContribByYear[yi] || 0;
-    const potW = Math.max(0, potWithdrawal(age, p, ci) - cashC);
+    const grossNeeded = potWithdrawal(age, p, ci);
+    const potW = pensionGrossAfterCash(grossNeeded, cashC, hasStatePension);
     const tc = calcPensionTax(potW, p.sp, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
     return {
@@ -1481,22 +1505,35 @@ function renderIncomeTable(r) {
   const redYears = Math.max(0, p.reductionAge - p.retirementAge);
   const ci3 = Math.pow(baseInfl, redYears);
 
-  // Cash contributions at each snapshot
+  // Cash contributions at each snapshot (NET values — cash is post-tax)
   const cash1 = cashContribAtYear(0);
   const cash2 = cashContribAtYear(spYears);
   const cash3 = cashContribAtYear(redYears);
 
-  // Pension withdrawals are reduced by what cash provides
-  const fullTarget1 = Math.max(0, p.drawdown * ci0 - 0); // no SP, no reduction at year 0
-  const potW1Full = Math.max(0, fullTarget1 - cash1);
+  // Helper: gross-up pension withdrawal after cash covers the net shortfall
+  function pensionGrossTable(grossNeeded, cashNet, hasSP) {
+    const ntc = calcPensionTax(grossNeeded, p.sp, hasSP, taxFreeFrac);
+    const netTarget = ntc.pensionNet;
+    const cashUsed = Math.min(cashNet, netTarget);
+    const remainingNet = Math.max(0, netTarget - cashUsed);
+    return netTarget > 0 ? remainingNet * (grossNeeded / netTarget) : 0;
+  }
+
+  // Column 1: at retirement (no state pension yet)
+  const gross1 = Math.max(0, p.drawdown * ci0);
+  const potW1Full = pensionGrossTable(gross1, cash1, false);
   const tc1 = calcPensionTax(potW1Full, 0, false, taxFreeFrac);
   const other1 = calcOtherIncomesNet(p.incomes, ci0);
 
-  const potW2 = Math.max(0, potWithdrawal(p.spAge, p, ci2) - cash2);
+  // Column 2: once state pension starts
+  const gross2 = potWithdrawal(p.spAge, p, ci2); // gross needed from pots after SP
+  const potW2 = pensionGrossTable(gross2, cash2, true);
   const tc2 = calcPensionTax(potW2, p.sp, true, taxFreeFrac);
   const other2 = calcOtherIncomesNet(p.incomes, ci2);
 
-  const potW3 = Math.max(0, potWithdrawal(p.reductionAge, p, ci3) - cash3);
+  // Column 3: after income reduction
+  const gross3 = potWithdrawal(p.reductionAge, p, ci3);
+  const potW3 = pensionGrossTable(gross3, cash3, hasSpAtReduction);
   const tc3 = calcPensionTax(potW3, p.sp, hasSpAtReduction, taxFreeFrac);
   const other3 = calcOtherIncomesNet(p.incomes, ci3);
 
