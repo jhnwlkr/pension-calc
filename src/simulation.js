@@ -427,8 +427,11 @@ export function runSimulation(p) {
     const spInfl = hasStatePension ? p.sp * ci : 0;
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
     const cashC = cashContribByYear[yi] || 0;
+    // Use median percentile to check whether the pension pot is depleted at this year
+    const medianPension = Math.max(0, percentileData[2][yi] - (cashBalByYear[yi] || 0));
+    const pensionDepleted = medianPension <= 0;
     const grossNeeded = potWithdrawal(age, p, ci);
-    const potW = pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
+    const potW = pensionDepleted ? 0 : pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
     const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
     return {
@@ -444,8 +447,11 @@ export function runSimulation(p) {
     const spInfl = hasStatePension ? p.sp * ci : 0;
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
     const cashC = cashContribByYear[yi] || 0;
+    // Use median percentile to check whether the pension pot is depleted at this year
+    const medianPension = Math.max(0, percentileData[2][yi] - (cashBalByYear[yi] || 0));
+    const pensionDepleted = medianPension <= 0;
     const grossNeeded = potWithdrawal(age, p, ci);
-    const potW = pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
+    const potW = pensionDepleted ? 0 : pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
     const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
     return {
