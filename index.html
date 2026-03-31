@@ -28,9 +28,9 @@
   .header-text h1 { font-size: 1.1rem; }
   .header-sub { font-size: 0.75rem; color: var(--text2); margin-top: 1px; }
   .sidebar-toggle { display: none; align-items: center; gap: 6px; padding: 8px 14px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
-  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 0; min-height: calc(100vh - 53px); }
-  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px; overflow-y: auto; }
-  .main { padding: 20px; overflow-y: auto; min-width: 0; }
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 0; min-height: calc(100vh - 53px); height: calc(100vh - 53px); overflow: hidden; }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px; overflow-y: auto; height: 100%; }
+  .main { padding: 20px; overflow-y: auto; min-width: 0; height: 100%; }
   .section { margin-bottom: 20px; }
   .section-title { margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
   .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
