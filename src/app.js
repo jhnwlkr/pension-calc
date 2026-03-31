@@ -949,12 +949,18 @@ function renderAnnualIncomeChart(r) {
 
 // ── Tab switching ──────────────────────────────────────────────────────────
 const tabDefs = ['monthlybreakdown', 'pot', 'annualincome', 'swr', 'survival', 'realincome', 'netmonthly'];
+function setActiveTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  tabDefs.forEach(t => {
+    const panel = document.getElementById('tab-' + t);
+    if (panel) panel.classList.toggle('hidden', t !== tab);
+  });
+}
+
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
     const tab = btn.dataset.tab;
-    tabDefs.forEach(t => { document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab); });
+    setActiveTab(tab);
     if (lastResults) {
       if (tab === 'pot') renderPotChart(lastResults);
       else if (tab === 'swr') renderSWRChart(lastResults);
@@ -999,9 +1005,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
       else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
       else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
 
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelector(`[data-tab="${activeTab}"]`).classList.add('active');
-      tabDefs.forEach(t => { document.getElementById('tab-' + t).classList.toggle('hidden', t !== activeTab); });
+      setActiveTab(activeTab);
     } finally {
       btn.disabled = false; spinner.style.display = 'none';
     }
