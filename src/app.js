@@ -6,6 +6,8 @@ import { runSimulation as runSimulationImpl } from './simulation.js';
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
 let nextPotId = 1;
 let potsData = [];
+let todayPrices = false; // Shared today’s-prices toggle state
+
 
 function addPot(value, annualContrib, equityPct) {
   const id = nextPotId++;
@@ -309,11 +311,11 @@ function chartAvailable() {
 }
 
 function isTodayMoney() {
-  const el = document.querySelector('.today-money-toggle');
-  return el ? el.checked : false;
+  return todayPrices;
 }
 
 function setTodayMoney(checked, r) {
+  todayPrices = checked;
   document.querySelectorAll('.today-money-toggle').forEach(cb => { cb.checked = checked; });
   if (r) {
     // re-render current active view immediately
@@ -409,7 +411,7 @@ function restoreParams(obj) {
   }
   if (obj['today-money'] !== undefined) {
     const checked = obj['today-money'] !== '0';
-    document.querySelectorAll('.today-money-toggle').forEach(cb => { cb.checked = checked; });
+    setTodayMoney(checked, null);
   }
   // Restore pots
   if (obj['pots']) {
@@ -1030,8 +1032,10 @@ document.querySelectorAll('.tab').forEach(btn => {
       else if (tab === 'realincome') renderRealIncomeChart(lastResults);
       else if (tab === 'netmonthly') renderNetMonthlyChart(lastResults);
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
-      // monthlybreakdown is table-based, already updated by renderIncomeTable
+      else if (tab === 'monthlybreakdown') renderIncomeTable(lastResults);
     }
+    // Sync active checkbox state to persisted value when tabs change
+    setTodayMoney(todayPrices, lastResults);
   });
 });
 
@@ -1099,9 +1103,8 @@ function initApp() {
   document.querySelectorAll('.today-money-toggle').forEach(cb => {
     cb.addEventListener('change', () => {
       const checked = cb.checked;
-      document.querySelectorAll('.today-money-toggle').forEach(cb2 => { cb2.checked = checked; });
+      setTodayMoney(checked, lastResults);
       persistParams();
-      if (lastResults) setTodayMoney(checked, lastResults);
     });
   });
 
