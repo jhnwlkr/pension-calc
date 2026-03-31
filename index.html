@@ -371,8 +371,8 @@
             <th>Other Income /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Pot Balance (median)<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>Annual Withdrawal<br><small style="font-weight:400;color:var(--text2)">gross · today's £</small></th>
-            <th>Investment Growth<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
+            <th>Annual Withdrawal<br><small style="font-weight:400;color:var(--text2)">all pots · today's £</small></th>
+            <th>Portfolio Growth<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
           </tr>
         </thead>
         <tbody id="annual-income-tbody">
@@ -1017,21 +1017,20 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const potBalNom = combinedAtPctile;
     const potBalReal = combinedAtPctile * todayDeflator;
 
-    // "Annual Withdrawal" = gross pension pot withdrawal only (cash income shown separately)
-    const withdrawalNom = potWithdrawNominal;
+    // Total outflow from all pots this year (cash net + pension gross)
+    const withdrawalNom = cashContrib + potWithdrawNominal;
     const withdrawalReal = withdrawalNom * todayDeflator;
 
-    // "Investment Growth" = pension pot growth only (not cash interest).
-    // Formula: pensionBal[yi] - pensionBal[yi-1] + pensionWithdrawal[yi-1]
-    // (same timing convention as original — shows growth that produced balance[yi])
+    // Portfolio growth: derived so the identity always holds:
+    //   potBal[yi] = potBal[yi-1] + growth[yi] - withdrawal[yi]
+    // => growth[yi] = potBal[yi] - potBal[yi-1] + withdrawal[yi]
+    // For yi=0: shows pre-retirement growth of all pots combined.
     const prevCombined = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
-    const prevCashBal = yi === 0
-      ? (r.startCashTotal || 0)
-      : (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0);
-    const prevPension = Math.max(0, prevCombined - prevCashBal);
+    const allInitialValues = p.pots.reduce((s, pot) => s + pot.value, 0)
+                           + (p.cashPots || []).reduce((s, cp) => s + cp.value, 0);
     const growthNom = potDepleted ? 0 : yi === 0
-      ? (yearsToRetirement > 0 ? r.startPensionPot - p.pots.reduce((s, pot) => s + pot.value, 0) : 0)
-      : pensionAtPctile - prevPension + potWithdrawNominal;
+      ? (yearsToRetirement > 0 ? r.startPot - allInitialValues : 0)
+      : combinedAtPctile - prevCombined + withdrawalNom;
     const growthReal = growthNom * todayDeflator;
 
     result.push({
