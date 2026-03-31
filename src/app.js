@@ -93,10 +93,7 @@ function renderPotsUI() {
   });
 }
 
-document.getElementById('add-pot-btn').addEventListener('click', () => {
-  addPot(0, 0, 80);
-  persistParams();
-});
+// Dynamic control wiring is done in initApp() to avoid DOM timing issues when the script is loaded.
 
 // ── Dynamic Incomes State ──────────────────────────────────────────────────
 let nextIncomeId = 1;
@@ -183,10 +180,7 @@ function renderIncomesUI() {
   });
 }
 
-document.getElementById('add-income-btn').addEventListener('click', () => {
-  addIncome('Income source', 0, 'annual', 20);
-  persistParams();
-});
+// add-income button wiring is initialized in initApp().
 
 // ── Dynamic Cash Pots State ────────────────────────────────────────────────
 let nextCashPotId = 1;
@@ -257,10 +251,7 @@ function renderCashPotsUI() {
   });
 }
 
-document.getElementById('add-cash-pot-btn').addEventListener('click', () => {
-  addCashPot(0, 3.5);
-  persistParams();
-});
+// add-cash-pot button wiring is initialized in initApp().
 
 // ── Slider wiring ──────────────────────────────────────────────────────────
 function getParams() {
@@ -283,6 +274,31 @@ function getParams() {
     incomes: incomesData.map(i => Object.assign({}, i)),
     cashPots: cashPotsData.map(p => Object.assign({}, p)),
   };
+}
+
+function sanitizeParams() {
+  const current = document.getElementById('current-age');
+  const retire = document.getElementById('retirement-age');
+  const end = document.getElementById('end-age');
+  if (!current || !retire || !end) return;
+  const currentAge = +current.value;
+  let retirementAge = +retire.value;
+  let endAge = +end.value;
+
+  if (retirementAge <= currentAge) {
+    retirementAge = currentAge + 1;
+    retire.value = retirementAge;
+    document.getElementById('v-retirement-age').textContent = retirementAge;
+  }
+  if (endAge <= retirementAge) {
+    endAge = Math.max(retirementAge + 5, retirementAge + 1);
+    end.value = endAge;
+    document.getElementById('v-end-age').textContent = endAge;
+  }
+}
+
+function chartAvailable() {
+  return typeof Chart !== 'undefined';
 }
 
 const sliders = [
@@ -535,6 +551,7 @@ let lastResults = null;
 let charts = {};
 
 function runSimulation() {
+  sanitizeParams();
   const r = runSimulationImpl(getParams());
   lastResults = r;
   return r;
@@ -750,8 +767,11 @@ function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete chart
 
 // ── Pot Chart ──────────────────────────────────────────────────────────────
 function renderPotChart(r) {
+  if (!chartAvailable()) return;
   destroyChart('pot');
-  const ctx = document.getElementById('chart-pot').getContext('2d');
+  const chartEl = document.getElementById('chart-pot');
+  if (!chartEl) return;
+  const ctx = chartEl.getContext('2d');
   const [p5, p25, p50, p75, p95] = r.percentileData;
   const spAgeIdx = r.ages.indexOf(r.p.spAge);
 
@@ -800,8 +820,11 @@ function renderPotChart(r) {
 }
 
 function renderSWRChart(r) {
+  if (!chartAvailable()) return;
   destroyChart('swr');
-  const ctx = document.getElementById('chart-swr').getContext('2d');
+  const chartEl = document.getElementById('chart-swr');
+  if (!chartEl) return;
+  const ctx = chartEl.getContext('2d');
   const labels = r.swrByAge.map(d => 'Age ' + d.age);
   const vals = r.swrByAge.map(d => +d.pct.toFixed(2));
   const colors = vals.map(v => v >= 4 ? '#16a34a' : v >= 3 ? '#d97706' : '#dc2626');
@@ -826,8 +849,11 @@ function renderSWRChart(r) {
 }
 
 function renderSurvivalChart(r) {
+  if (!chartAvailable()) return;
   destroyChart('survival');
-  const ctx = document.getElementById('chart-survival').getContext('2d');
+  const chartEl = document.getElementById('chart-survival');
+  if (!chartEl) return;
+  const ctx = chartEl.getContext('2d');
   charts['survival'] = new Chart(ctx, {
     type: 'line',
     data: { labels: r.ages, datasets: [{ label: 'Pot Survival Probability', data: r.survivalByAge, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }] },
@@ -843,8 +869,11 @@ function renderSurvivalChart(r) {
 }
 
 function renderRealIncomeChart(r) {
+  if (!chartAvailable()) return;
   destroyChart('realincome');
-  const ctx = document.getElementById('chart-realincome').getContext('2d');
+  const chartEl = document.getElementById('chart-realincome');
+  if (!chartEl) return;
+  const ctx = chartEl.getContext('2d');
   charts['realincome'] = new Chart(ctx, {
     type: 'line',
     data: {
@@ -867,8 +896,11 @@ function renderRealIncomeChart(r) {
 }
 
 function renderNetMonthlyChart(r) {
+  if (!chartAvailable()) return;
   destroyChart('netmonthly');
-  const ctx = document.getElementById('chart-netmonthly').getContext('2d');
+  const chartEl = document.getElementById('chart-netmonthly');
+  if (!chartEl) return;
+  const ctx = chartEl.getContext('2d');
   charts['netmonthly'] = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -936,6 +968,7 @@ document.querySelectorAll('.tab').forEach(btn => {
 
 // ── Run button ─────────────────────────────────────────────────────────────
 document.getElementById('run-btn').addEventListener('click', () => {
+  sanitizeParams();
   const btn = document.getElementById('run-btn');
   const spinner = document.getElementById('spinner');
   btn.disabled = true; spinner.style.display = 'block';
@@ -947,6 +980,10 @@ document.getElementById('run-btn').addEventListener('click', () => {
       const r = runSimulation();
       if (!r) {
         document.getElementById('income-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Simulation failed: check retirement/end ages</td></tr>';
+        ['c-prob','c-guardrail-sub','c-median','c-swr','c-actual-rate','c-monthly'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = '—';
+        });
         return;
       }
       r.annualIncomeData = buildAnnualIncomeData(r, pctileIdx);
@@ -992,6 +1029,15 @@ function initApp() {
   });
   document.getElementById('guardrails').addEventListener('change', persistParams);
   document.getElementById('drawdown-inflation').addEventListener('change', persistParams);
+
+  const addPotBtn = document.getElementById('add-pot-btn');
+  if (addPotBtn) addPotBtn.addEventListener('click', () => { addPot(0, 0, 80); persistParams(); });
+
+  const addIncomeBtn = document.getElementById('add-income-btn');
+  if (addIncomeBtn) addIncomeBtn.addEventListener('click', () => { addIncome('Income source', 0, 'annual', 20); persistParams(); });
+
+  const addCashPotBtn = document.getElementById('add-cash-pot-btn');
+  if (addCashPotBtn) addCashPotBtn.addEventListener('click', () => { addCashPot(0, 3.5); persistParams(); });
 
   // Annual income percentile slider
   const annPctileSlider = document.getElementById('ann-pctile');
