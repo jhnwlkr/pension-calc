@@ -787,9 +787,9 @@ function renderIncomeTable(r) {
 
   rows += `<tr>
     <td><strong>Total</strong></td>
-    <td>${cell(tot1g, tot1t, tot1n)}</td>
-    <td>${cell(tot2g, tot2t, tot2n)}</td>
-    <td>${cell(tot3g, tot3t, tot3n)}</td>
+    <td>${cell(tot1g, tot1t, tot1n, factor1)}</td>
+    <td>${cell(tot2g, tot2t, tot2n, factor2)}</td>
+    <td>${cell(tot3g, tot3t, tot3n, factor3)}</td>
     <td></td>
   </tr>`;
 
