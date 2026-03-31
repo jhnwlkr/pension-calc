@@ -413,6 +413,9 @@ export function runSimulation(p) {
   taxCalc = calcPensionTax(potWAtRetirement, hasSpAtRetirement ? p.sp : 0, hasSpAtRetirement, taxFreeFrac);
   const otherAtRetirement = calcOtherIncomesNet(p.incomes, Math.pow(baseInflFactor, yearsToRetirement));
   netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + otherAtRetirement.netTotal) / 12;
+  const grossMonthly = (cashAtRetirement + potWAtRetirement + (hasSpAtRetirement ? p.sp : 0) + otherAtRetirement.grossTotal) / 12;
+  const netAnnual = netMonthly * 12;
+  const grossAnnual = grossMonthly * 12;
 
   function pensionGrossAfterCash(grossNeeded, cashC, hasSP, spInfl = p.sp) {
     const ntc = calcPensionTax(grossNeeded, spInfl, hasSP, taxFreeFrac);
@@ -468,7 +471,7 @@ export function runSimulation(p) {
 
   const result = {
     ages, years, p, prob, guardrailPct, medianReal,
-    swrPct, swr, netMonthly, startPot, startPensionPot, startCashTotal,
+    swrPct, swr, netMonthly, grossMonthly, netAnnual, grossAnnual, startPot, startPensionPot, startCashTotal,
     startCashPotVals, cashContribByYear, cashBalByYear, taxFreeFrac,
     percentileData, pctiles, survivalByAge, realIncomeByAge,
     netMonthlyByAge, swrByAge, taxCalc
