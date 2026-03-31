@@ -28,6 +28,7 @@
   .header-text h1 { font-size: 1.1rem; }
   .header-sub { font-size: 0.75rem; color: var(--text2); margin-top: 1px; }
   .sidebar-toggle { display: none; align-items: center; gap: 6px; padding: 8px 14px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  .spinner { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); display: none; text-align: center; padding: 8px; color: var(--text2); font-size: 0.82rem; }
   .layout { display: grid; grid-template-columns: 340px 1fr; gap: 0; min-height: calc(100vh - 53px); height: calc(100vh - 53px); overflow: hidden; }
   .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px; overflow-y: auto; height: 100%; }
   .main { padding: 20px; overflow-y: auto; min-width: 0; height: 100%; }
@@ -78,7 +79,6 @@
   .run-btn { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-top: 8px; }
   .header .run-btn { width: auto; min-width: 160px; margin: 0; }
   .run-btn:hover { opacity: 0.9; }
-  .spinner { display: none; text-align: center; padding: 8px; color: var(--text2); font-size: 0.82rem; }
   .hidden { display: none !important; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
   .ann-table td { vertical-align: top; }
@@ -295,9 +295,9 @@
   </div>
 
   <div class="tabs">
-    <button class="tab active" data-tab="monthlybreakdown">Monthly Breakdown</button>
-    <button class="tab" data-tab="pot">Pot Balance</button>
+    <button class="tab active" data-tab="pot">Pot Balance</button>
     <button class="tab" data-tab="annualincome">Annual Income</button>
+    <button class="tab" data-tab="monthlybreakdown">Monthly Breakdown</button>
     <button class="tab" data-tab="swr">Safe Withdrawal Rate</button>
     <button class="tab" data-tab="survival">Survival Probability</button>
     <button class="tab" data-tab="realincome">Real Income</button>
@@ -305,7 +305,7 @@
   </div>
 
   <div class="chart-panel">
-    <div id="tab-monthlybreakdown">
+    <div id="tab-monthlybreakdown" class="hidden">
       <h2 style="margin-bottom:12px">Monthly Net Income Breakdown</h2>
       <div class="table-scroll">
       <table id="income-table">
@@ -325,7 +325,7 @@
       </div>
     </div>
 
-    <div id="tab-pot" class="hidden">
+    <div id="tab-pot">
       <h2 style="margin-bottom:4px">Pot Balance — Fan Chart (Percentiles)</h2>
       <div class="ai-note">Main simulation uses historical bootstrapping (1900–2025 data). Amber dashed line = State Pension start age.</div>
       <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>

@@ -948,7 +948,7 @@ function renderAnnualIncomeChart(r) {
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
-const tabDefs = ['monthlybreakdown', 'pot', 'annualincome', 'swr', 'survival', 'realincome', 'netmonthly'];
+const tabDefs = ['pot', 'annualincome', 'monthlybreakdown', 'swr', 'survival', 'realincome', 'netmonthly'];
 function setActiveTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   tabDefs.forEach(t => {
