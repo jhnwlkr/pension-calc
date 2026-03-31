@@ -616,7 +616,10 @@ function renderCards(r) {
   document.getElementById('c-monthly').textContent = fmtGBP(r.netMonthly, 0);
   const cMonthlySub = document.getElementById('c-monthly-sub');
   if (cMonthlySub) {
-    cMonthlySub.innerHTML = `at retirement (after tax)<br>Gross monthly: ${fmtGBP(r.grossMonthly, 0)} · Net annual: ${fmtGBP(r.netAnnual, 0)} · Gross annual: ${fmtGBP(r.grossAnnual, 0)}`;
+    cMonthlySub.innerHTML = `at retirement (after tax)<br>
+      <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross monthly: ${fmtGBP(r.grossMonthly, 0)}</span>
+      <span style="display:block;font-size:0.72rem;color:var(--text2)">Net annual: ${fmtGBP(r.netAnnual, 0)}</span>
+      <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross annual: ${fmtGBP(r.grossAnnual, 0)}</span>`;
   }
 
   const lsaAlert = document.getElementById('lsa-alert');
