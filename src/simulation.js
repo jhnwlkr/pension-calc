@@ -314,8 +314,9 @@ export function runSimulation(p) {
   const prob = (successCount / nRuns) * 100;
   const guardrailPct = (guardrailTriggerCount / nRuns) * 100;
   const baseInflFactor = 1 + p.inflation / 100;
-  const realDeflatorEnd = Math.pow(1 / baseInflFactor, p.endAge - p.currentAge);
-  const medianReal = percentileData[2][years] * realDeflatorEnd;
+  const realDeflatorRetirement = Math.pow(1 / baseInflFactor, p.retirementAge - p.currentAge);
+  // Median pot at target (retirement) age, adjusted to today's money
+  const medianReal = percentileData[2][0] * realDeflatorRetirement;
 
   function successRateForTarget(dd, runs400) {
     const pp = Object.assign({}, p, { drawdown: dd });
