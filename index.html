@@ -170,6 +170,16 @@
     <div id="pots-container"></div>
   </div>
 
+  <!-- Cash Pots -->
+  <div class="section">
+    <div class="section-header">
+      <h3>Cash Pots</h3>
+      <button class="add-btn" id="add-cash-pot-btn">+ Add Cash Pot</button>
+    </div>
+    <div style="font-size:0.75rem;color:var(--text2);margin-bottom:8px">Drawn down before pension pots. Grow at fixed interest (not market-linked).</div>
+    <div id="cash-pots-container"><div style="font-size:0.78rem;color:var(--text2);padding:6px 0">No cash pots added.</div></div>
+  </div>
+
   <!-- Drawdown -->
   <div class="section">
     <h3 class="section-title">Drawdown</h3>
@@ -355,6 +365,7 @@
         <thead style="position:sticky;top:0;z-index:2;background:var(--surface)">
           <tr>
             <th style="text-align:left">Age</th>
+            <th>Cash Pots /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>DC Pension /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>State Pension /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Other Income /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
@@ -365,7 +376,7 @@
           </tr>
         </thead>
         <tbody id="annual-income-tbody">
-          <tr><td colspan="8" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          <tr><td colspan="9" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
         </tbody>
       </table>
       </div>
@@ -702,6 +713,80 @@ document.getElementById('add-income-btn').addEventListener('click', () => {
   persistParams();
 });
 
+// ── Dynamic Cash Pots State ────────────────────────────────────────────────
+let nextCashPotId = 1;
+let cashPotsData = [];
+
+function addCashPot(value, interestPct) {
+  const id = nextCashPotId++;
+  cashPotsData.push({
+    id,
+    value: (value !== undefined && value !== null) ? +value : 0,
+    interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
+  });
+  renderCashPotsUI();
+}
+
+function removeCashPot(id) {
+  cashPotsData = cashPotsData.filter(p => p.id !== id);
+  renderCashPotsUI();
+  persistParams();
+}
+
+function renderCashPotsUI() {
+  const container = document.getElementById('cash-pots-container');
+  container.innerHTML = '';
+  if (cashPotsData.length === 0) {
+    container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:6px 0">No cash pots added.</div>';
+    return;
+  }
+  cashPotsData.forEach((pot, idx) => {
+    const div = document.createElement('div');
+    div.className = 'pot-card';
+    div.innerHTML = `
+      <div class="pot-card-header">
+        <span class="pot-card-title">Cash Pot ${idx + 1}</span>
+        <button class="remove-btn" data-cash-pot-id="${pot.id}">✕</button>
+      </div>
+      <div class="two-col">
+        <div>
+          <span class="field-label">Current value</span>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="1000" data-cash-pot-id="${pot.id}" data-field="value" value="${pot.value}">
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Interest rate</span>
+          <div class="input-group">
+            <input class="dyn-input" type="number" min="0" max="20" step="0.1" data-cash-pot-id="${pot.id}" data-field="interestPct" value="${pot.interestPct}" style="text-align:right">
+            <span class="input-suffix">%</span>
+          </div>
+        </div>
+      </div>`;
+    container.appendChild(div);
+  });
+
+  container.querySelectorAll('.remove-btn[data-cash-pot-id]').forEach(btn => {
+    btn.addEventListener('click', () => removeCashPot(+btn.dataset.cashPotId));
+  });
+
+  container.querySelectorAll('.dyn-input[data-cash-pot-id]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const potId = +inp.dataset.cashPotId;
+      const field = inp.dataset.field;
+      const pot = cashPotsData.find(p => p.id === potId);
+      if (pot) { pot[field] = +inp.value; }
+      persistParams();
+    });
+  });
+}
+
+document.getElementById('add-cash-pot-btn').addEventListener('click', () => {
+  addCashPot(0, 3.5);
+  persistParams();
+});
+
 // ── Slider wiring ──────────────────────────────────────────────────────────
 function getParams() {
   return {
@@ -721,6 +806,7 @@ function getParams() {
     drawdownInflation: document.getElementById('drawdown-inflation').checked,
     pots: potsData.map(p => Object.assign({}, p)),
     incomes: incomesData.map(i => Object.assign({}, i)),
+    cashPots: cashPotsData.map(p => Object.assign({}, p)),
   };
 }
 
@@ -739,7 +825,7 @@ sliders.forEach(([id, formatter]) => {
 });
 
 // ── Persistence ────────────────────────────────────────────────────────────
-const LS_KEY = 'pension-forecast-v5';
+const LS_KEY = 'pension-forecast-v6';
 const SLIDER_IDS = sliders.map(([id]) => id);
 
 function persistParams() {
@@ -750,6 +836,7 @@ function persistParams() {
   obj['drawdown-inflation'] = document.getElementById('drawdown-inflation').checked ? '1' : '0';
   obj['pots'] = JSON.stringify(potsData);
   obj['incomes'] = JSON.stringify(incomesData);
+  obj['cashPots'] = JSON.stringify(cashPotsData);
   try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e) {}
   // URL hash only for slider values (pots/incomes too complex)
   const urlObj = {};
@@ -773,6 +860,7 @@ function loadPersistedParams() {
             const ls = JSON.parse(raw);
             if (ls['pots']) obj['pots'] = ls['pots'];
             if (ls['incomes']) obj['incomes'] = ls['incomes'];
+            if (ls['cashPots']) obj['cashPots'] = ls['cashPots'];
           }
         } catch(e) {}
         return obj;
@@ -828,6 +916,20 @@ function restoreParams(obj) {
       }
     } catch(e) {}
   }
+  // Restore cash pots
+  if (obj['cashPots']) {
+    try {
+      const saved = JSON.parse(obj['cashPots']);
+      if (Array.isArray(saved)) {
+        cashPotsData = [];
+        saved.forEach(p => {
+          const id = nextCashPotId++;
+          cashPotsData.push({ id, value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+        });
+        renderCashPotsUI();
+      }
+    } catch(e) {}
+  }
 }
 
 // ── Drawdown mode UI toggle ────────────────────────────────────────────────
@@ -855,46 +957,72 @@ function buildAnnualIncomeData(r, pctileIdx) {
   const baseInflFactor = 1 + p.inflation / 100;
   const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
   const currentYear = new Date().getFullYear();
+  const startPensionPot = r.startPensionPot || r.startPot;
 
-  return r.ages.map((age, yi) => {
+  // Running cash pot state for this display pass (mirrors deterministic sim)
+  const cashBals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
+
+  const result = [];
+  for (let yi = 0; yi < r.ages.length; yi++) {
+    const age = r.ages[yi];
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
     const todayDeflator = Math.pow(1 / baseInflFactor, yearsToRetirement + yi);
 
-    const potAtPctile = r.percentileData[pctileIdx][yi];
-    const potDepleted = potAtPctile <= 0;
+    const combinedAtPctile = r.percentileData[pctileIdx][yi];
+    const cashAtYear = r.cashBalByYear ? r.cashBalByYear[yi] : 0;
+    const pensionAtPctile = Math.max(0, combinedAtPctile - cashAtYear);
+    const potDepleted = combinedAtPctile <= 0;
 
-    const guardrailActive = p.guardrails && yi > 0 && !potDepleted && potAtPctile < r.startPot * 0.80;
+    // Guardrail uses pension-only pot value vs pension-only start
+    const guardrailActive = p.guardrails && yi > 0 && !potDepleted && pensionAtPctile < startPensionPot * 0.80;
     const guardrailFactor = guardrailActive ? 0.90 : 1.0;
 
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor * guardrailFactor;
     const spNominal = hasStatePension ? p.sp : 0;
-    const intendedWithdrawal = Math.max(0, targetNominal - spNominal);
-    const potWithdrawNominal = potDepleted ? 0 : Math.min(potAtPctile, intendedWithdrawal);
+    const neededFromPots = Math.max(0, targetNominal - spNominal);
+
+    // Grow cash pots this year
+    for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
+      cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
+    }
+
+    // Cash pot contribution (drain first)
+    let cashContrib = 0;
+    for (let ci2 = 0; ci2 < cashBals.length && cashContrib < neededFromPots; ci2++) {
+      const take = Math.min(cashBals[ci2], neededFromPots - cashContrib);
+      cashBals[ci2] -= take;
+      cashContrib += take;
+    }
+
+    const intendedPensionWithdrawal = Math.max(0, neededFromPots - cashContrib);
+    const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
     // Other incomes (CPI-linked, flat tax per source)
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
 
     const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, r.taxFreeFrac);
-    const totalNetNominal = tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
+    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
 
-    const potBalNom = potAtPctile;
-    const potBalReal = potAtPctile * todayDeflator;
+    const potBalNom = combinedAtPctile;
+    const potBalReal = combinedAtPctile * todayDeflator;
 
-    const withdrawalNom = potDepleted ? 0 : potWithdrawNominal;
+    const withdrawalNom = potDepleted ? 0 : (cashContrib + potWithdrawNominal);
     const withdrawalReal = withdrawalNom * todayDeflator;
 
     const prevPot = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
     const growthNom = potDepleted ? 0 : yi === 0
-      ? (yearsToRetirement > 0 ? r.startPot - (p.pots.reduce((s,pot) => s + pot.value, 0)) : 0)
-      : potAtPctile - prevPot + potWithdrawNominal;
+      ? (yearsToRetirement > 0 ? r.startPot - (p.pots.reduce((s, pot) => s + pot.value, 0) + (p.cashPots || []).reduce((s, cp) => s + cp.value, 0)) : 0)
+      : combinedAtPctile - prevPot + withdrawalNom;
     const growthReal = growthNom * todayDeflator;
 
-    return {
+    result.push({
       age,
       calYear: currentYear + (age - p.currentAge),
+      cashNom: cashContrib / 12,
+      cashReal: (cashContrib * todayDeflator) / 12,
       pensionNom: tc.pensionNet / 12,
       spNom: hasStatePension ? tc.spNet / 12 : 0,
       otherNom: otherNet.netTotal / 12,
@@ -909,8 +1037,9 @@ function buildAnnualIncomeData(r, pctileIdx) {
       guardrailActive,
       isSpStart: age === p.spAge,
       isReductionStart: age === p.reductionAge,
-    };
-  });
+    });
+  }
+  return result;
 }
 
 // ── Simulation ─────────────────────────────────────────────────────────────
@@ -948,7 +1077,17 @@ function runSimulation() {
     }
   }
 
-  // Total pot per run, then take median for display
+  // Pre-retirement growth of cash pots — fixed interest, deterministic (same for all runs)
+  const numCashPots = p.cashPots.length;
+  const startCashPotVals = new Float64Array(numCashPots);
+  p.cashPots.forEach((cp, ci) => {
+    let val = cp.value;
+    const rate = 1 + cp.interestPct / 100;
+    for (let y = 0; y < yearsToRetirement; y++) val *= rate;
+    startCashPotVals[ci] = Math.max(0, val);
+  });
+
+  // Total pension pot per run, then take median for display
   const startTotals = new Float64Array(nRuns);
   for (let r = 0; r < nRuns; r++) {
     let tot = 0;
@@ -956,15 +1095,18 @@ function runSimulation() {
     startTotals[r] = tot;
   }
   const sortedSP = Float64Array.from(startTotals).sort();
-  const startPot = sortedSP[Math.floor(nRuns / 2)];
+  const startPensionPot = sortedSP[Math.floor(nRuns / 2)];
+  const startCashTotal = startCashPotVals.reduce((s, v) => s + v, 0);
+  const startPot = startPensionPot + startCashTotal; // combined for display/SWR
 
-  // Resolve effective drawdown
+  // Resolve effective drawdown (based on combined pot)
   const effectiveDrawdown = p.drawdownMode === 'pct'
     ? startPot * p.drawdownPct / 100
     : p.drawdown;
   p = Object.assign({}, p, { drawdown: effectiveDrawdown });
 
-  const taxFreeFrac = startPot > 0 ? Math.min(0.25, LSA / startPot) : 0.25;
+  // Tax-free cash fraction applies only to pension pots (not cash pots)
+  const taxFreeFrac = startPensionPot > 0 ? Math.min(0.25, LSA / startPensionPot) : 0.25;
 
   // Sort pots ascending by equityPct (lowest equity drawn first)
   const potsOrder = p.pots.map((pot, idx) => idx).sort((a, b) => p.pots[a].equityPct - p.pots[b].equityPct);
@@ -989,9 +1131,12 @@ function runSimulation() {
     const runPots = new Float64Array(numPots);
     potsOrder.forEach((origIdx, rank) => { runPots[rank] = startPotsPerRun[r][origIdx]; });
 
+    // Cash pot values (same for all runs — fixed-rate growth)
+    const runCashPots = Float64Array.from(startCashPotVals);
+
     // Record starting values for rebalance trigger
     const runStartValues = Float64Array.from(runPots);
-    const runTotalStart = startTotals[r];
+    const runTotalStart = startTotals[r] + runCashPots.reduce((s,v) => s+v, 0);
 
     let cumulInfl = 1.0;
     potMatrix[r][0] = runTotalStart;
@@ -999,7 +1144,9 @@ function runSimulation() {
 
     for (let y = 0; y < years; y++) {
       const age = p.retirementAge + y;
-      const runTotal = runPots.reduce((s, v) => s + v, 0);
+      const cashTotal = runCashPots.reduce((s, v) => s + v, 0);
+      const pensionTotal = runPots.reduce((s, v) => s + v, 0);
+      const runTotal = cashTotal + pensionTotal;
 
       if (runTotal <= 0) {
         potMatrix[r][y + 1] = 0;
@@ -1007,8 +1154,12 @@ function runSimulation() {
         continue;
       }
 
-      // a) Draw ONE year index so all pots share the same market environment
-      //    (preserves equity/bond correlation and realistic crash co-movement)
+      // a) Grow cash pots at their fixed interest rates
+      for (let ci = 0; ci < numCashPots; ci++) {
+        runCashPots[ci] *= (1 + p.cashPots[ci].interestPct / 100);
+      }
+
+      // b) Draw ONE year index so all pension pots share the same market environment
       const yearIdx = Math.floor(Math.random() * HIST_EQUITY_RETURNS.length);
       const eqRetYear = HIST_EQUITY_RETURNS[yearIdx];
       const bdRetYear = HIST_BONDS_RETURNS[yearIdx];
@@ -1024,14 +1175,15 @@ function runSimulation() {
         runPots[rank] = runPots[rank] * ret;
       }
 
-      // b) Stochastic inflation using blended return as market signal
+      // c) Stochastic inflation using blended return as market signal
       const inflThisYear = stochasticInflation(p.inflation, blendedRet);
       cumulInfl *= (1 + inflThisYear);
 
-      const totalAfterGrowth = runPots.reduce((s,v) => s+v, 0);
+      const pensionTotalAfterGrowth = runPots.reduce((s,v) => s+v, 0);
 
-      // c) Guardrail check on total
-      const guardrailActive = p.guardrails && totalAfterGrowth < runTotalStart * 0.80;
+      // d) Guardrail check on pension pots only (cash is stable)
+      const pensionOnlyStart = startTotals[r]; // pension-only start value for this run
+      const guardrailActive = p.guardrails && pensionTotalAfterGrowth < pensionOnlyStart * 0.80;
       const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       if (guardrailActive) guardrailEverTriggered = true;
 
@@ -1042,14 +1194,21 @@ function runSimulation() {
       const spNominal = age >= p.spAge ? p.sp : 0;
       let withdrawal = Math.max(0, targetNominal - spNominal);
 
-      // c) Cascade withdrawal from lowest-equity pot first
+      // e) Drain cash pots first (in order added)
+      for (let ci = 0; ci < numCashPots && withdrawal > 0; ci++) {
+        const take = Math.min(runCashPots[ci], withdrawal);
+        runCashPots[ci] -= take;
+        withdrawal -= take;
+      }
+
+      // f) Cascade remaining withdrawal from lowest-equity pension pot first
       for (let rank = 0; rank < numPots && withdrawal > 0; rank++) {
         const take = Math.min(runPots[rank], withdrawal);
         runPots[rank] -= take;
         withdrawal -= take;
       }
 
-      // d) Rebalance: if pot falls below 50% of its startValue, draw from next pot
+      // g) Rebalance: if pension pot falls below 50% of its startValue, draw from next pot
       for (let rank = 0; rank < numPots - 1; rank++) {
         if (runPots[rank] < runStartValues[rank] * 0.5) {
           const deficit = runStartValues[rank] - runPots[rank];
@@ -1062,8 +1221,9 @@ function runSimulation() {
         }
       }
 
-      const newTotal = runPots.reduce((s,v) => s+v, 0);
-      potMatrix[r][y + 1] = Math.max(0, newTotal);
+      const newCashTotal = runCashPots.reduce((s,v) => s+v, 0);
+      const newPensionTotal = runPots.reduce((s,v) => s+v, 0);
+      potMatrix[r][y + 1] = Math.max(0, newCashTotal + newPensionTotal);
     }
 
     if (potMatrix[r][years] > 0) successCount++;
@@ -1116,12 +1276,9 @@ function runSimulation() {
   }
   const swrPct = startPot > 0 ? (swr / startPot) * 100 : 0;
 
-  // Net monthly income at retirement
-  const hasSpAtRetirement = p.retirementAge >= p.spAge;
-  const potWAtRetirement = potWithdrawal(p.retirementAge, p, 1.0);
-  const taxCalc = calcPensionTax(potWAtRetirement, p.sp, hasSpAtRetirement, taxFreeFrac);
-  const otherAtRetirement = calcOtherIncomesNet(p.incomes, 1.0);
-  const netMonthly = (taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + otherAtRetirement.netTotal) / 12;
+  // Net monthly income at retirement (cash pots drawn first) — computed after cash sim below
+  // (placeholder — will be set after cashContribByYear is ready)
+  let netMonthly = 0, taxCalc = null;
 
   // SWR by starting age
   const swrByAge = [];
@@ -1157,19 +1314,67 @@ function runSimulation() {
     return alive / nRuns * 100;
   });
 
+  // Deterministic cash pot simulation (no guardrails — for display / income table)
+  const cashContribByYear = new Float64Array(years + 1);
+  const cashBalByYear = new Float64Array(years + 1);
+  {
+    const cb = Float64Array.from(startCashPotVals);
+    cashBalByYear[0] = cb.reduce((s,v) => s+v, 0);
+    // Year 0: grow then take
+    for (let ci = 0; ci < numCashPots; ci++) cb[ci] *= (1 + p.cashPots[ci].interestPct / 100);
+    const age0 = p.retirementAge;
+    const inflFactor0 = p.drawdownInflation ? 1.0 : 1.0;
+    const redF0 = age0 >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
+    const spN0 = age0 >= p.spAge ? p.sp : 0;
+    let needed0 = Math.max(0, p.drawdown * inflFactor0 * redF0 - spN0);
+    let taken0 = 0;
+    for (let ci = 0; ci < numCashPots && needed0 > 0; ci++) {
+      const take = Math.min(cb[ci], needed0); cb[ci] -= take; needed0 -= take; taken0 += take;
+    }
+    cashContribByYear[0] = taken0;
+    cashBalByYear[1] = cb.reduce((s,v) => s+v, 0);
+    const inflF = 1 + p.inflation / 100;
+    for (let y = 1; y < years; y++) {
+      const age = p.retirementAge + y;
+      for (let ci = 0; ci < numCashPots; ci++) cb[ci] *= (1 + p.cashPots[ci].interestPct / 100);
+      const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
+      const inflFactor = p.drawdownInflation ? Math.pow(inflF, y) : 1.0;
+      const spNom = age >= p.spAge ? p.sp : 0;
+      let needed = Math.max(0, p.drawdown * inflFactor * reductionFactor - spNom);
+      let taken = 0;
+      for (let ci = 0; ci < numCashPots && needed > 0; ci++) {
+        const take = Math.min(cb[ci], needed); cb[ci] -= take; needed -= take; taken += take;
+      }
+      cashContribByYear[y] = taken;
+      cashBalByYear[y + 1] = cb.reduce((s,v) => s+v, 0);
+    }
+    if (years > 0) cashContribByYear[years] = 0;
+  }
+
+  // Net monthly income at retirement (cash pots drawn first)
+  {
+    const hasSpAtRetirement = p.retirementAge >= p.spAge;
+    const cashAtRetirement = cashContribByYear[0] || 0;
+    const potWAtRetirement = Math.max(0, potWithdrawal(p.retirementAge, p, 1.0) - cashAtRetirement);
+    taxCalc = calcPensionTax(potWAtRetirement, p.sp, hasSpAtRetirement, taxFreeFrac);
+    const otherAtRetirement = calcOtherIncomesNet(p.incomes, 1.0);
+    netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + otherAtRetirement.netTotal) / 12;
+  }
+
   // Real income by age (deterministic, uses weighted equity)
   const realIncomeByAge = ages.map((age, yi) => {
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
-    const potW = potWithdrawal(age, p, ci);
+    const cashC = cashContribByYear[yi] || 0;
+    const potW = Math.max(0, potWithdrawal(age, p, ci) - cashC);
     const stateP = hasStatePension ? p.sp : 0;
     const tc = calcPensionTax(potW, p.sp, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
     return {
       age,
-      gross: (potW + stateP + otherNet.grossTotal) * realF,
-      net: (tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal) * realF
+      gross: (cashC + potW + stateP + otherNet.grossTotal) * realF,
+      net: (cashC + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal) * realF
     };
   });
 
@@ -1178,11 +1383,13 @@ function runSimulation() {
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
-    const potW = potWithdrawal(age, p, ci);
+    const cashC = cashContribByYear[yi] || 0;
+    const potW = Math.max(0, potWithdrawal(age, p, ci) - cashC);
     const tc = calcPensionTax(potW, p.sp, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
     return {
       age,
+      cash: (cashC * realF) / 12,
       pension: (tc.pensionNet * realF) / 12,
       sp: hasStatePension ? (tc.spNet * realF) / 12 : 0,
       other: (otherNet.netTotal * realF) / 12
@@ -1191,7 +1398,8 @@ function runSimulation() {
 
   lastResults = {
     ages, years, p, prob, guardrailPct, medianReal,
-    swrPct, swr, netMonthly, startPot, taxFreeFrac,
+    swrPct, swr, netMonthly, startPot, startPensionPot, startCashTotal,
+    startCashPotVals, cashContribByYear, cashBalByYear, taxFreeFrac,
     percentileData, pctiles, survivalByAge, realIncomeByAge,
     netMonthlyByAge, swrByAge, taxCalc
   };
@@ -1232,21 +1440,57 @@ function renderIncomeTable(r) {
   const taxFreeFrac = r.taxFreeFrac;
   const baseInfl = 1 + p.inflation / 100;
 
-  const ci0 = 1.0;
-  const potW1Full = potWithdrawal(p.retirementAge, p, ci0);
-  const tc1 = calcPensionTax(potW1Full, 0, false, taxFreeFrac);
-  const other1 = calcOtherIncomesNet(p.incomes, ci0);
+  // Helper: deterministically simulate cash pot contribution at a given year index
+  function cashContribAtYear(targetYearIdx) {
+    const bals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
+    for (let y = 0; y < targetYearIdx; y++) {
+      const age = p.retirementAge + y;
+      for (let ci = 0; ci < bals.length; ci++) bals[ci] *= (1 + p.cashPots[ci].interestPct / 100);
+      const inflF = p.drawdownInflation ? Math.pow(baseInfl, y) : 1.0;
+      const redF = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
+      const spN = age >= p.spAge ? p.sp : 0;
+      let needed = Math.max(0, p.drawdown * inflF * redF - spN);
+      for (let ci = 0; ci < bals.length && needed > 0; ci++) {
+        const take = Math.min(bals[ci], needed); bals[ci] -= take; needed -= take;
+      }
+    }
+    // Now grow for targetYearIdx
+    const age = p.retirementAge + targetYearIdx;
+    for (let ci = 0; ci < bals.length; ci++) bals[ci] *= (1 + p.cashPots[ci].interestPct / 100);
+    const inflF = p.drawdownInflation ? Math.pow(baseInfl, targetYearIdx) : 1.0;
+    const redF = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
+    const spN = age >= p.spAge ? p.sp : 0;
+    let needed = Math.max(0, p.drawdown * inflF * redF - spN);
+    let contrib = 0;
+    for (let ci = 0; ci < bals.length && contrib < needed; ci++) {
+      const take = Math.min(bals[ci], needed - contrib); contrib += take;
+    }
+    return contrib;
+  }
 
+  const ci0 = 1.0;
   const spYears = Math.max(0, p.spAge - p.retirementAge);
   const ci2 = Math.pow(baseInfl, spYears);
-  const potW2 = potWithdrawal(p.spAge, p, ci2);
-  const tc2 = calcPensionTax(potW2, p.sp, true, taxFreeFrac);
-  const other2 = calcOtherIncomesNet(p.incomes, ci2);
-
   const hasSpAtReduction = p.reductionAge >= p.spAge;
   const redYears = Math.max(0, p.reductionAge - p.retirementAge);
   const ci3 = Math.pow(baseInfl, redYears);
-  const potW3 = potWithdrawal(p.reductionAge, p, ci3);
+
+  // Cash contributions at each snapshot
+  const cash1 = cashContribAtYear(0);
+  const cash2 = cashContribAtYear(spYears);
+  const cash3 = cashContribAtYear(redYears);
+
+  // Pension withdrawals are reduced by what cash provides
+  const fullTarget1 = Math.max(0, p.drawdown * ci0 - 0); // no SP, no reduction at year 0
+  const potW1Full = Math.max(0, fullTarget1 - cash1);
+  const tc1 = calcPensionTax(potW1Full, 0, false, taxFreeFrac);
+  const other1 = calcOtherIncomesNet(p.incomes, ci0);
+
+  const potW2 = Math.max(0, potWithdrawal(p.spAge, p, ci2) - cash2);
+  const tc2 = calcPensionTax(potW2, p.sp, true, taxFreeFrac);
+  const other2 = calcOtherIncomesNet(p.incomes, ci2);
+
+  const potW3 = Math.max(0, potWithdrawal(p.reductionAge, p, ci3) - cash3);
   const tc3 = calcPensionTax(potW3, p.sp, hasSpAtReduction, taxFreeFrac);
   const other3 = calcOtherIncomesNet(p.incomes, ci3);
 
@@ -1264,11 +1508,23 @@ function renderIncomeTable(r) {
     ? `<span class="badge badge-amber">${(taxFreeFrac*100).toFixed(1)}% tax-free (LSA capped)</span>`
     : `<span class="badge badge-green">25% tax-free (within LSA)</span>`;
 
-  const ltaBadge = r.startPot > FORMER_LTA
+  const ltaBadge = (r.startPensionPot || r.startPot) > FORMER_LTA
     ? ` <span class="badge badge-warning">⚠ Former LTA exceeded</span>`
     : '';
 
-  let rows = row('Pension (from pot)',
+  let rows = '';
+
+  // Cash pot row (only if any cash pots exist)
+  if (p.cashPots && p.cashPots.length > 0) {
+    const totalCashStart = (r.startCashPotVals || []).reduce((s, v) => s + v, 0);
+    rows += row('Cash pots (drawn first)',
+        cash1, 0, cash1,
+        cash2, 0, cash2,
+        cash3, 0, cash3,
+        `Tax-free · ${fmtGBP(totalCashStart)} at retirement`);
+  }
+
+  rows += row('Pension (from pot)',
       potW1Full, tc1.pensionTax, tc1.pensionNet,
       potW2, tc2.pensionTax, tc2.pensionNet,
       potW3, tc3.pensionTax, tc3.pensionNet,
@@ -1283,7 +1539,6 @@ function renderIncomeTable(r) {
 
   // Dynamic other income rows
   if (p.incomes.length > 0) {
-    // Per-source rows
     p.incomes.forEach(inc => {
       const annAmt = inc.frequency === 'monthly' ? inc.amount * 12 : inc.amount;
       const g1i = annAmt * ci0, t1i = g1i * (inc.taxPct/100), n1i = g1i - t1i;
@@ -1294,12 +1549,12 @@ function renderIncomeTable(r) {
   }
 
   // Total row
-  const tot1g = potW1Full + other1.grossTotal, tot1t = tc1.pensionTax + other1.taxTotal, tot1n = tc1.pensionNet + other1.netTotal;
-  const tot2g = potW2 + p.sp + other2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + other2.taxTotal, tot2n = tc2.pensionNet + tc2.spNet + other2.netTotal;
+  const tot1g = cash1 + potW1Full + other1.grossTotal, tot1t = tc1.pensionTax + other1.taxTotal, tot1n = cash1 + tc1.pensionNet + other1.netTotal;
+  const tot2g = cash2 + potW2 + p.sp + other2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + other2.taxTotal, tot2n = cash2 + tc2.pensionNet + tc2.spNet + other2.netTotal;
   const sp3 = hasSpAtReduction ? p.sp : 0;
   const spTax3 = hasSpAtReduction ? tc3.spTax : 0;
   const spNet3 = hasSpAtReduction ? tc3.spNet : 0;
-  const tot3g = potW3 + sp3 + other3.grossTotal, tot3t = tc3.pensionTax + spTax3 + other3.taxTotal, tot3n = tc3.pensionNet + spNet3 + other3.netTotal;
+  const tot3g = cash3 + potW3 + sp3 + other3.grossTotal, tot3t = tc3.pensionTax + spTax3 + other3.taxTotal, tot3n = cash3 + tc3.pensionNet + spNet3 + other3.netTotal;
 
   rows += `<tr>
     <td><strong>Total</strong></td>
@@ -1327,6 +1582,7 @@ function renderAnnualIncomeTable(r) {
       : `${d.age}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear}</span>`;
     return `<tr class="${cls}">
       <td>${ageLabel}</td>
+      ${dualCell(d.cashNom, d.cashReal)}
       ${dualCell(d.pensionNom, d.pensionReal)}
       ${dualCell(d.spNom, d.spReal)}
       ${dualCell(d.otherNom, d.otherReal)}
@@ -1470,6 +1726,7 @@ function renderNetMonthlyChart(r) {
     data: {
       labels: r.ages,
       datasets: [
+        { label: 'Cash Pots', data: r.netMonthlyByAge.map(d => d.cash || 0), backgroundColor: '#0891b2', stack: 'a' },
         { label: 'Pension', data: r.netMonthlyByAge.map(d => d.pension), backgroundColor: '#2563eb', stack: 'a' },
         { label: 'State Pension', data: r.netMonthlyByAge.map(d => d.sp), backgroundColor: '#16a34a', stack: 'a' },
         { label: 'Other Income', data: r.netMonthlyByAge.map(d => d.other), backgroundColor: '#d97706', stack: 'a' },
