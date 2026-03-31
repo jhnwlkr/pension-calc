@@ -76,6 +76,7 @@
     .badge-warning { background: #451a03; color: #fcd34d; }
   }
   .run-btn { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .header .run-btn { width: auto; min-width: 160px; margin: 0; }
   .run-btn:hover { opacity: 0.9; }
   .spinner { display: none; text-align: center; padding: 8px; color: var(--text2); font-size: 0.82rem; }
   .hidden { display: none !important; }
@@ -130,6 +131,8 @@
     <h1>UK Pension Drawdown Forecaster</h1>
     <div class="header-sub">Historical bootstrapping · Guyton-Klinger guardrails · Stochastic inflation · UK 2024/25 tax</div>
   </div>
+  <button class="run-btn header-run-btn" id="run-btn">Run Simulation</button>
+  <div class="spinner" id="spinner">Simulating…</div>
   <button class="sidebar-toggle" id="sidebar-toggle" aria-expanded="false" aria-controls="sidebar">⚙ Settings</button>
 </div>
 
@@ -256,8 +259,7 @@
     </div>
   </div>
 
-  <button class="run-btn" id="run-btn">Run Simulation</button>
-  <div class="spinner" id="spinner">Simulating…</div>
+
 </div>
 
 <div class="main">
