@@ -11,6 +11,12 @@ export function fmtPct(n, dec = 1) {
   return fmt(n, dec) + '%';
 }
 
+// Compact currency for chart axes: £1.2m above £1m, otherwise £250k
+export function fmtAxisGBP(v) {
+  if (Math.abs(v) >= 1_000_000) return '£' + (v / 1_000_000).toFixed(1) + 'm';
+  return '£' + (v / 1000).toFixed(0) + 'k';
+}
+
 // Box-Muller normal random
 export function randn() {
   let u, v;

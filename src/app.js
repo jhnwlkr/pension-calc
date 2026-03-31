@@ -1,4 +1,4 @@
-import { fmt, fmtGBP, fmtPct } from './utils.js';
+import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js';
 import { LSA, FORMER_LTA } from './constants.js';
 import { incomeTax, calcPensionTax, calcOtherIncomesNet } from './model.js';
 import { runSimulation as runSimulationImpl } from './simulation.js';
@@ -828,7 +828,7 @@ function renderPotChart(r) {
       plugins: { legend: { labels: { color: textColor(), font: { size: 11 } } } },
       scales: {
         x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
-        y: { ticks: { color: textColor(), callback: v => '£' + (v/1000).toFixed(0) + 'k' }, grid: { color: gridColor() }, title: { display: true, text: 'Pot Value (£)', color: textColor() } }
+        y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() }, title: { display: true, text: 'Pot Value (£)', color: textColor() } }
       }
     }
   });
@@ -904,7 +904,7 @@ function renderRealIncomeChart(r) {
       plugins: { legend: { labels: { color: textColor() } } },
       scales: {
         x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
-        y: { ticks: { color: textColor(), callback: v => '£' + (v/1000).toFixed(0) + 'k' }, grid: { color: gridColor() }, title: { display: true, text: 'Annual Income (£, real)', color: textColor() } }
+        y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() }, title: { display: true, text: 'Annual Income (£, real)', color: textColor() } }
       }
     }
   });
