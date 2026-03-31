@@ -344,6 +344,26 @@ sliders.forEach(([id, formatter]) => {
   el.addEventListener('input', () => { label.textContent = formatter(+el.value); persistParams(); });
 });
 
+// Keep retirement-age min in sync with current-age, and end-age min with retirement-age
+document.getElementById('current-age').addEventListener('input', () => {
+  const currentAge = +document.getElementById('current-age').value;
+  const retireEl = document.getElementById('retirement-age');
+  retireEl.min = currentAge;
+  if (+retireEl.value < currentAge) {
+    retireEl.value = currentAge;
+    document.getElementById('v-retirement-age').textContent = currentAge;
+  }
+});
+document.getElementById('retirement-age').addEventListener('input', () => {
+  const retirementAge = +document.getElementById('retirement-age').value;
+  const endEl = document.getElementById('end-age');
+  endEl.min = retirementAge + 1;
+  if (+endEl.value <= retirementAge) {
+    endEl.value = retirementAge + 1;
+    document.getElementById('v-end-age').textContent = retirementAge + 1;
+  }
+});
+
 // ── Persistence ────────────────────────────────────────────────────────────
 const LS_KEY = 'pension-forecast-v6';
 const SLIDER_IDS = sliders.map(([id]) => id);
