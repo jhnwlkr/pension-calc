@@ -294,28 +294,9 @@
     ⚠️ <span><strong>Former LTA Warning:</strong> Your projected pot at retirement exceeds the £1,073,100 former Lifetime Allowance. While the LTA was abolished in April 2024, complexity remains around protections and transitional tax-free cash rules. We recommend taking specialist advice.</span>
   </div>
 
-  <div class="income-panel">
-    <h2 style="margin-bottom:12px">Monthly Net Income Breakdown</h2>
-    <div class="table-scroll">
-    <table id="income-table">
-      <thead>
-        <tr>
-          <th>Source</th>
-          <th id="th-before-sp">Before State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-          <th id="th-after-sp">After State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-          <th id="th-after-reduction">After Income Reduction<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-          <th>Notes</th>
-        </tr>
-      </thead>
-      <tbody id="income-tbody">
-        <tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
-      </tbody>
-    </table>
-    </div>
-  </div>
-
   <div class="tabs">
-    <button class="tab active" data-tab="pot">Pot Balance</button>
+    <button class="tab active" data-tab="monthlybreakdown">Monthly Breakdown</button>
+    <button class="tab" data-tab="pot">Pot Balance</button>
     <button class="tab" data-tab="annualincome">Annual Income</button>
     <button class="tab" data-tab="swr">Safe Withdrawal Rate</button>
     <button class="tab" data-tab="survival">Survival Probability</button>
@@ -324,7 +305,27 @@
   </div>
 
   <div class="chart-panel">
-    <div id="tab-pot">
+    <div id="tab-monthlybreakdown">
+      <h2 style="margin-bottom:12px">Monthly Net Income Breakdown</h2>
+      <div class="table-scroll">
+      <table id="income-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th id="th-before-sp">Before State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+            <th id="th-after-sp">After State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+            <th id="th-after-reduction">After Income Reduction<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="income-tbody">
+          <tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div id="tab-pot" class="hidden">
       <h2 style="margin-bottom:4px">Pot Balance — Fan Chart (Percentiles)</h2>
       <div class="ai-note">Main simulation uses historical bootstrapping (1900–2025 data). Amber dashed line = State Pension start age.</div>
       <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>

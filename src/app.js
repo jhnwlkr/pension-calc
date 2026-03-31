@@ -948,7 +948,7 @@ function renderAnnualIncomeChart(r) {
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
-const tabDefs = ['pot', 'annualincome', 'swr', 'survival', 'realincome', 'netmonthly'];
+const tabDefs = ['monthlybreakdown', 'pot', 'annualincome', 'swr', 'survival', 'realincome', 'netmonthly'];
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -962,6 +962,7 @@ document.querySelectorAll('.tab').forEach(btn => {
       else if (tab === 'realincome') renderRealIncomeChart(lastResults);
       else if (tab === 'netmonthly') renderNetMonthlyChart(lastResults);
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
+      // monthlybreakdown is table-based, already updated by renderIncomeTable
     }
   });
 });
