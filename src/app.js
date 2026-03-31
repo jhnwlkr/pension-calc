@@ -562,6 +562,23 @@ function buildAnnualIncomeData(r, pctileIdx) {
       spReal: hasStatePension ? (tc.spNet * todayDeflator) / 12 : 0,
       otherReal: (otherNet.netTotal * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
+      // Gross/tax breakdown for income column sub-lines
+      pensionGrossNom: potWithdrawNominal / 12,
+      pensionTaxNom: tc.pensionTax / 12,
+      pensionGrossReal: (potWithdrawNominal * todayDeflator) / 12,
+      pensionTaxReal: (tc.pensionTax * todayDeflator) / 12,
+      spGrossNom: spInflated / 12,
+      spTaxNom: hasStatePension ? tc.spTax / 12 : 0,
+      spGrossReal: (spInflated * todayDeflator) / 12,
+      spTaxReal: hasStatePension ? (tc.spTax * todayDeflator) / 12 : 0,
+      otherGrossNom: otherNet.grossTotal / 12,
+      otherTaxNom: otherNet.taxTotal / 12,
+      otherGrossReal: (otherNet.grossTotal * todayDeflator) / 12,
+      otherTaxReal: (otherNet.taxTotal * todayDeflator) / 12,
+      netGrossNom: (cashContrib + potWithdrawNominal + spInflated + otherNet.grossTotal) / 12,
+      netTaxNom: (tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal) / 12,
+      netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + otherNet.grossTotal) * todayDeflator) / 12,
+      netTaxReal: ((tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal) * todayDeflator) / 12,
       pensionWithdrawalNom: potWithdrawNominal,
       pensionWithdrawalReal: potWithdrawNominal * todayDeflator,
       cashWithdrawalNom: cashContrib,
@@ -782,9 +799,29 @@ function renderIncomeTable(r) {
 // ── Render Annual Income Table ─────────────────────────────────────────────
 function renderAnnualIncomeTable(r) {
   const tbody = document.getElementById('annual-income-tbody');
-  function dualCell(nom, real) {
-    return `<td style="text-align:right">${fmtGBP(nom)}<span class="ann-real">${fmtGBP(real)}</span></td>`;
+  const isToday = isTodayMoney();
+
+  // Single-value cell — picks nominal or today's money based on toggle
+  function cell(nom, real) {
+    const v = isToday ? real : nom;
+    return `<td style="text-align:right">${fmtGBP(v)}</td>`;
   }
+
+  // Income cell — net headline with gross and tax as sub-lines
+  function incomeCell(netNom, netReal, grossNom, grossReal, taxNom, taxReal) {
+    const net   = isToday ? netReal   : netNom;
+    const gross = isToday ? grossReal : grossNom;
+    const tax   = isToday ? taxReal   : taxNom;
+    return `<td style="text-align:right">${fmtGBP(net)}<span class="ann-sub">Gross: ${fmtGBP(gross)}</span><span class="ann-sub ann-tax">Tax: ${fmtGBP(tax)}</span></td>`;
+  }
+
+  // Growth cell — coloured red for negative values
+  function growthCell(nom, real) {
+    const v = isToday ? real : nom;
+    const str = v >= 0 ? fmtGBP(v) : `<span style="color:var(--red)">${fmtGBP(v)}</span>`;
+    return `<td style="text-align:right">${str}</td>`;
+  }
+
   tbody.innerHTML = r.annualIncomeData.map(d => {
     let cls = '';
     if (d.guardrailActive) cls = 'guardrail-row';
@@ -792,23 +829,18 @@ function renderAnnualIncomeTable(r) {
     const ageLabel = d.age === r.p.retirementAge && r.p.retirementAge > r.p.currentAge
       ? `${d.age}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear} · pre-ret. growth →</span>`
       : `${d.age}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear}</span>`;
-    function growthCell(nom, real) {
-      const nomStr  = nom  >= 0 ? fmtGBP(nom)  : `<span style="color:var(--red)">${fmtGBP(nom)}</span>`;
-      const realStr = real >= 0 ? fmtGBP(real) : `<span style="color:var(--red)">${fmtGBP(real)}</span>`;
-      return `<td style="text-align:right">${nomStr}<span class="ann-real">${realStr}</span></td>`;
-    }
     return `<tr class="${cls}">
       <td>${ageLabel}</td>
-      ${dualCell(d.cashNom, d.cashReal)}
-      ${dualCell(d.pensionNom, d.pensionReal)}
-      ${dualCell(d.spNom, d.spReal)}
-      ${dualCell(d.otherNom, d.otherReal)}
-      ${dualCell(d.netNom, d.netReal)}
-      ${dualCell(d.cashWithdrawalNom, d.cashWithdrawalReal)}
-      ${dualCell(d.pensionWithdrawalNom, d.pensionWithdrawalReal)}
+      ${cell(d.cashNom, d.cashReal)}
+      ${incomeCell(d.pensionNom, d.pensionReal, d.pensionGrossNom, d.pensionGrossReal, d.pensionTaxNom, d.pensionTaxReal)}
+      ${incomeCell(d.spNom, d.spReal, d.spGrossNom, d.spGrossReal, d.spTaxNom, d.spTaxReal)}
+      ${incomeCell(d.otherNom, d.otherReal, d.otherGrossNom, d.otherGrossReal, d.otherTaxNom, d.otherTaxReal)}
+      ${incomeCell(d.netNom, d.netReal, d.netGrossNom, d.netGrossReal, d.netTaxNom, d.netTaxReal)}
+      ${cell(d.cashWithdrawalNom, d.cashWithdrawalReal)}
+      ${cell(d.pensionWithdrawalNom, d.pensionWithdrawalReal)}
       ${growthCell(d.growthNom, d.growthReal)}
       ${growthCell(d.netPotChangeNom, d.netPotChangeReal)}
-      ${dualCell(d.potBalNom, d.potBalReal)}
+      ${cell(d.potBalNom, d.potBalReal)}
     </tr>`;
   }).join('');
 }

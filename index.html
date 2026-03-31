@@ -83,7 +83,8 @@
   .hidden { display: none !important; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
   .ann-table td { vertical-align: top; }
-  .ann-real { font-size: 0.75rem; color: var(--text2); display: block; margin-top: 1px; }
+  .ann-sub { font-size: 0.75rem; color: var(--text2); display: block; margin-top: 1px; }
+  .ann-tax { color: var(--red); }
   .guardrail-row td:first-child::after { content: ' ⚡'; color: var(--red); font-size: 0.75rem; }
   .guardrail-row { background: rgba(220,38,38,0.04); }
   .sp-start-row td:first-child::after { content: ' 🏛'; font-size: 0.75rem; }
@@ -385,7 +386,7 @@
           <input type="checkbox" id="today-money-toggle-annualincome" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
         </label>
       </div>
-      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts. Nominal = actual cash received. Today's £ = purchasing power in current money.</div>
+      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts. Use the "Today's Prices" toggle above to switch between nominal and today's purchasing power. Income columns show net (headline) with gross and tax sub-lines.</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
         <span style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Scenario percentile:</span>
         <input type="range" id="ann-pctile" min="0" max="4" step="1" value="2" style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);height:4px">
@@ -397,16 +398,16 @@
         <thead style="position:sticky;top:0;z-index:2;background:var(--surface)">
           <tr>
             <th style="text-align:left">Age</th>
-            <th>Cash Pots /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>DC Pension /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>State Pension /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>Other Income /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>Cash Drawn<br><small style="font-weight:400;color:var(--text2)">from cash pot · today's £</small></th>
-            <th>Pension Drawn (gross)<br><small style="font-weight:400;color:var(--text2)">from pension pot · today's £</small></th>
-            <th>Gross Portfolio Growth<br><small style="font-weight:400;color:var(--text2)">before withdrawal · nominal/today's £</small></th>
-            <th>Net Pot Change<br><small style="font-weight:400;color:var(--text2)">after withdrawal · nominal/today's £</small></th>
-            <th>Pot Balance (median)<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
+            <th>Cash Pots /mo<br><small style="font-weight:400;color:var(--text2)">tax-free</small></th>
+            <th>DC Pension /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th>State Pension /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th>Other Income /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th>Cash Drawn<br><small style="font-weight:400;color:var(--text2)">from cash pot</small></th>
+            <th>Pension Drawn (gross)<br><small style="font-weight:400;color:var(--text2)">from pension pot</small></th>
+            <th>Gross Portfolio Growth<br><small style="font-weight:400;color:var(--text2)">before withdrawal</small></th>
+            <th>Net Pot Change<br><small style="font-weight:400;color:var(--text2)">after withdrawal</small></th>
+            <th>Pot Balance (median)</th>
           </tr>
         </thead>
         <tbody id="annual-income-tbody">
