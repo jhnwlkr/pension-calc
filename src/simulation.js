@@ -316,7 +316,7 @@ export function runSimulation(p) {
   const baseInflFactor = 1 + p.inflation / 100;
   const realDeflatorRetirement = Math.pow(1 / baseInflFactor, yearsToRetirement);
   // Median pot at target (retirement) age, adjusted to today's money
-  const medianReal = percentileData[2][yearsToRetirement] * realDeflatorRetirement;
+  const medianReal = percentileData[2][0] * realDeflatorRetirement;
 
   function successRateForTarget(dd, runs400) {
     const pp = Object.assign({}, p, { drawdown: dd });
