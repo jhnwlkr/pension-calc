@@ -617,9 +617,9 @@ function renderCards(r) {
   const cMonthlySub = document.getElementById('c-monthly-sub');
   if (cMonthlySub) {
     cMonthlySub.innerHTML = `at retirement (after tax)<br>
-      <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross monthly: ${fmtGBP(r.grossMonthly, 0)}</span>
-      <span style="display:block;font-size:0.72rem;color:var(--text2)">Net annual: ${fmtGBP(r.netAnnual, 0)}</span>
-      <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross annual: ${fmtGBP(r.grossAnnual, 0)}</span>`;
+      <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross monthly: <strong>${fmtGBP(r.grossMonthly, 0)}</strong></span>
+      <span style="display:block;font-size:0.72rem;color:var(--text2)">Net annual: <strong>${fmtGBP(r.netAnnual, 0)}</strong></span>
+      <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross annual: <strong>${fmtGBP(r.grossAnnual, 0)}</strong></span>`;
   }
 
   const lsaAlert = document.getElementById('lsa-alert');
