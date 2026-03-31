@@ -504,14 +504,15 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor;
-    const spNominal = hasStatePension ? p.sp : 0;
-    const neededFromPots = Math.max(0, targetNominal - spNominal);
+    // Use inflation-adjusted state pension for correct annual increase
+    const spInflated = hasStatePension ? p.sp * ci : 0;
+    const neededFromPots = Math.max(0, targetNominal - spInflated);
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
     }
 
-    const notionalTcAnn = calcPensionTax(neededFromPots, p.sp, hasStatePension, r.taxFreeFrac);
+    const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac);
     const netTargetAnn = notionalTcAnn.pensionNet;
     let cashContrib = 0;
     for (let ci2 = 0; ci2 < cashBals.length && cashContrib < netTargetAnn; ci2++) {
@@ -527,7 +528,7 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
-    const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, r.taxFreeFrac);
+    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac);
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
 
     const potBalNom = pensionAtPctile;
