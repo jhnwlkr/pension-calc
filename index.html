@@ -370,15 +370,14 @@
             <th>State Pension /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Other Income /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>Annual Cash Income<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>Annual Pension Income<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>Annual Other Income<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
+            <th>Cash Drawn<br><small style="font-weight:400;color:var(--text2)">from cash pot · today's £</small></th>
+            <th>Pension Drawn (gross)<br><small style="font-weight:400;color:var(--text2)">from pension pot · today's £</small></th>
             <th>Portfolio Growth<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Pot Balance (median)<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
           </tr>
         </thead>
         <tbody id="annual-income-tbody">
-          <tr><td colspan="11" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          <tr><td colspan="10" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
         </tbody>
       </table>
       </div>
@@ -1048,6 +1047,12 @@ function buildAnnualIncomeData(r, pctileIdx) {
       spReal: hasStatePension ? (tc.spNet * todayDeflator) / 12 : 0,
       otherReal: (otherNet.netTotal * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
+      // Gross pension withdrawal = what physically leaves the pension pot
+      pensionWithdrawalNom: potWithdrawNominal,
+      pensionWithdrawalReal: potWithdrawNominal * todayDeflator,
+      // Net cash drawn = what physically leaves the cash pot (cash is already post-tax)
+      cashWithdrawalNom: cashContrib,
+      cashWithdrawalReal: cashContrib * todayDeflator,
       potBalNom, potBalReal,
       withdrawalNom, withdrawalReal,
       growthNom, growthReal,
@@ -1636,9 +1641,8 @@ function renderAnnualIncomeTable(r) {
       ${dualCell(d.spNom, d.spReal)}
       ${dualCell(d.otherNom, d.otherReal)}
       ${dualCell(d.netNom, d.netReal)}
-      ${dualCell(d.cashNom * 12, d.cashReal * 12)}
-      ${dualCell(d.pensionNom * 12, d.pensionReal * 12)}
-      ${dualCell(d.otherNom * 12, d.otherReal * 12)}
+      ${dualCell(d.cashWithdrawalNom, d.cashWithdrawalReal)}
+      ${dualCell(d.pensionWithdrawalNom, d.pensionWithdrawalReal)}
       ${growthCell(d.growthNom, d.growthReal)}
       ${dualCell(d.potBalNom, d.potBalReal)}
     </tr>`;
