@@ -372,12 +372,13 @@
             <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Cash Drawn<br><small style="font-weight:400;color:var(--text2)">from cash pot · today's £</small></th>
             <th>Pension Drawn (gross)<br><small style="font-weight:400;color:var(--text2)">from pension pot · today's £</small></th>
-            <th>Portfolio Growth<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
+            <th>Gross Portfolio Growth<br><small style="font-weight:400;color:var(--text2)">before withdrawal · nominal/today's £</small></th>
+            <th>Net Pot Change<br><small style="font-weight:400;color:var(--text2)">after withdrawal · nominal/today's £</small></th>
             <th>Pot Balance (median)<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
           </tr>
         </thead>
         <tbody id="annual-income-tbody">
-          <tr><td colspan="10" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          <tr><td colspan="11" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
         </tbody>
       </table>
       </div>
@@ -1015,24 +1016,28 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, r.taxFreeFrac);
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
 
-    const potBalNom = combinedAtPctile;
-    const potBalReal = combinedAtPctile * todayDeflator;
+    // Pot balance = pension pot only. Cash pot is tracked separately.
+    const potBalNom = pensionAtPctile;
+    const potBalReal = pensionAtPctile * todayDeflator;
 
-    // Total outflow from all pots this year (cash net + pension gross)
+    // Total outflow (kept for internal reference; not used in growth formula)
     const withdrawalNom = cashContrib + potWithdrawNominal;
     const withdrawalReal = withdrawalNom * todayDeflator;
 
-    // Portfolio growth: derived so the identity always holds:
-    //   potBal[yi] = potBal[yi-1] + growth[yi] - withdrawal[yi]
-    // => growth[yi] = potBal[yi] - potBal[yi-1] + withdrawal[yi]
-    // For yi=0: shows pre-retirement growth of all pots combined.
+    // Portfolio growth: pension pot only, so identity holds exactly:
+    //   pensionPotBal[yi] = pensionPotBal[yi-1] + growth[yi] - pensionDrawn[yi]
+    // => growth[yi] = pensionPotBal[yi] - pensionPotBal[yi-1] + pensionDrawn[yi]
     const prevCombined = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
-    const allInitialValues = p.pots.reduce((s, pot) => s + pot.value, 0)
-                           + (p.cashPots || []).reduce((s, cp) => s + cp.value, 0);
+    const prevCashBal  = yi === 0 ? (r.startCashTotal || 0) : (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0);
+    const prevPension  = Math.max(0, prevCombined - prevCashBal);
+    const pensionInitialValues = p.pots.reduce((s, pot) => s + pot.value, 0);
     const growthNom = potDepleted ? 0 : yi === 0
-      ? (yearsToRetirement > 0 ? r.startPot - allInitialValues : 0)
-      : combinedAtPctile - prevCombined + withdrawalNom;
+      ? (yearsToRetirement > 0 ? r.startPensionPot - pensionInitialValues : 0)
+      : pensionAtPctile - prevPension + potWithdrawNominal;
     const growthReal = growthNom * todayDeflator;
+
+    const netPotChangeNom = potDepleted ? 0 : yi === 0 ? 0 : pensionAtPctile - prevPension;
+    const netPotChangeReal = netPotChangeNom * todayDeflator;
 
     result.push({
       age,
@@ -1056,6 +1061,7 @@ function buildAnnualIncomeData(r, pctileIdx) {
       potBalNom, potBalReal,
       withdrawalNom, withdrawalReal,
       growthNom, growthReal,
+      netPotChangeNom, netPotChangeReal,
       guardrailActive,
       isSpStart: age === p.spAge,
       isReductionStart: age === p.reductionAge,
@@ -1644,6 +1650,7 @@ function renderAnnualIncomeTable(r) {
       ${dualCell(d.cashWithdrawalNom, d.cashWithdrawalReal)}
       ${dualCell(d.pensionWithdrawalNom, d.pensionWithdrawalReal)}
       ${growthCell(d.growthNom, d.growthReal)}
+      ${growthCell(d.netPotChangeNom, d.netPotChangeReal)}
       ${dualCell(d.potBalNom, d.potBalReal)}
     </tr>`;
   }).join('');
