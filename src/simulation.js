@@ -43,6 +43,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const age = r.ages[yi];
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
+    const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + yi);
     const todayDeflator = Math.pow(1 / baseInflFactor, yearsToRetirement + yi);
 
     const combinedAtPctile = r.percentileData[pctileIdx][yi];
@@ -78,7 +79,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
-    const otherNet = calcOtherIncomesNet(p.incomes, ci);
+    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
     const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac);
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
 
@@ -410,7 +411,7 @@ export function runSimulation(p) {
   const grossNeededRet = potWithdrawal(p.retirementAge, p, 1.0);
   const potWAtRetirement = pensionGrossAfterCash(grossNeededRet, cashAtRetirement, hasSpAtRetirement);
   taxCalc = calcPensionTax(potWAtRetirement, hasSpAtRetirement ? p.sp : 0, hasSpAtRetirement, taxFreeFrac);
-  const otherAtRetirement = calcOtherIncomesNet(p.incomes, 1.0);
+  const otherAtRetirement = calcOtherIncomesNet(p.incomes, Math.pow(baseInflFactor, yearsToRetirement));
   netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + otherAtRetirement.netTotal) / 12;
 
   function pensionGrossAfterCash(grossNeeded, cashC, hasSP, spInfl = p.sp) {
@@ -424,8 +425,9 @@ export function runSimulation(p) {
   const realIncomeByAge = ages.map((age, yi) => {
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
+    const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + yi);
     const spInfl = hasStatePension ? p.sp * ci : 0;
-    const otherNet = calcOtherIncomesNet(p.incomes, ci);
+    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
     const cashC = cashContribByYear[yi] || 0;
     // Use median percentile to check whether the pension pot is depleted at this year
     const medianPension = Math.max(0, percentileData[2][yi] - (cashBalByYear[yi] || 0));
@@ -444,8 +446,9 @@ export function runSimulation(p) {
   const netMonthlyByAge = ages.map((age, yi) => {
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
+    const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + yi);
     const spInfl = hasStatePension ? p.sp * ci : 0;
-    const otherNet = calcOtherIncomesNet(p.incomes, ci);
+    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
     const cashC = cashContribByYear[yi] || 0;
     // Use median percentile to check whether the pension pot is depleted at this year
     const medianPension = Math.max(0, percentileData[2][yi] - (cashBalByYear[yi] || 0));

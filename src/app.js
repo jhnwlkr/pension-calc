@@ -463,6 +463,7 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const age = r.ages[yi];
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
+    const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + yi);
     const todayDeflator = Math.pow(1 / baseInflFactor, yearsToRetirement + yi);
 
     const combinedAtPctile = r.percentileData[pctileIdx][yi];
@@ -498,7 +499,7 @@ function buildAnnualIncomeData(r, pctileIdx) {
       : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
-    const otherNet = calcOtherIncomesNet(p.incomes, ci);
+    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
     const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, r.taxFreeFrac);
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
 
@@ -620,6 +621,7 @@ function renderIncomeTable(r) {
     return drainYear(targetYearIdx);
   }
 
+  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
   const ci0 = 1.0;
   const spYears = Math.max(0, p.spAge - p.retirementAge);
   const ci2 = Math.pow(baseInfl, spYears);
@@ -709,9 +711,9 @@ function renderIncomeTable(r) {
   if (p.incomes.length > 0) {
     p.incomes.forEach(inc => {
       const annAmt = inc.frequency === 'monthly' ? inc.amount * 12 : inc.amount;
-      const f1 = inc.inflationLinked ? ci0 : 1;
-      const f2 = inc.inflationLinked ? ci2 : 1;
-      const f3 = inc.inflationLinked ? ci3 : 1;
+      const f1 = inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement) : 1;
+      const f2 = inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement + spYears) : 1;
+      const f3 = inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement + redYears) : 1;
       const g1i = annAmt * f1, t1i = g1i * (inc.taxPct/100), n1i = g1i - t1i;
       const g2i = annAmt * f2, t2i = g2i * (inc.taxPct/100), n2i = g2i - t2i;
       const g3i = annAmt * f3, t3i = g3i * (inc.taxPct/100), n3i = g3i - t3i;
