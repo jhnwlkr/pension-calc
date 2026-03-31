@@ -325,7 +325,7 @@ function setTodayMoney(checked, r) {
     else if (tab === 'survival') renderSurvivalChart(r);
     else if (tab === 'realincome') renderRealIncomeChart(r);
     else if (tab === 'netmonthly') renderNetMonthlyChart(r);
-    else if (tab === 'annualincome') renderAnnualIncomeChart(r);
+    else if (tab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
     else if (tab === 'monthlybreakdown') renderIncomeTable(r);
   }
 }
