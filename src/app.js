@@ -599,9 +599,9 @@ function renderIncomeTable(r) {
       const inflF = p.drawdownInflation ? Math.pow(baseInfl, y) : 1.0;
       const redF = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
       const hasSP = age >= p.spAge;
-      const spN = hasSP ? p.sp : 0;
+      const spN = hasSP ? p.sp * Math.pow(baseInfl, y) : 0;
       const grossNeeded = Math.max(0, p.drawdown * inflF * redF - spN);
-      const ntc = calcPensionTax(grossNeeded, p.sp, hasSP, taxFreeFrac);
+      const ntc = calcPensionTax(grossNeeded, spN, hasSP, taxFreeFrac);
       const netTarget = ntc.pensionNet;
       let remaining = netTarget;
       for (let ci = 0; ci < bals.length && remaining > 0; ci++) {
@@ -626,30 +626,35 @@ function renderIncomeTable(r) {
   const cash3 = cashContribAtYear(redYears);
 
   // Helper: gross-up pension withdrawal after cash covers the net shortfall
-  function pensionGrossTable(grossNeeded, cashNet, hasSP) {
-    const ntc = calcPensionTax(grossNeeded, p.sp, hasSP, taxFreeFrac);
+  function pensionGrossTable(grossNeeded, cashNet, hasSP, spInfl = 0) {
+    const ntc = calcPensionTax(grossNeeded, spInfl, hasSP, taxFreeFrac);
     const netTarget = ntc.pensionNet;
     const cashUsed = Math.min(cashNet, netTarget);
     const remainingNet = Math.max(0, netTarget - cashUsed);
     return netTarget > 0 ? remainingNet * (grossNeeded / netTarget) : 0;
   }
 
+  // Inflated state pension at each snapshot
+  const sp1 = 0;           // no state pension at retirement (column 1 assumes pre-SP)
+  const sp2 = p.sp * ci2;  // state pension at SP start age, in nominal terms
+  const sp3 = hasSpAtReduction ? p.sp * ci3 : 0;
+
   // Column 1: at retirement (no state pension yet)
   const gross1 = Math.max(0, p.drawdown * ci0);
-  const potW1Full = pensionGrossTable(gross1, cash1, false);
+  const potW1Full = pensionGrossTable(gross1, cash1, false, 0);
   const tc1 = calcPensionTax(potW1Full, 0, false, taxFreeFrac);
   const other1 = calcOtherIncomesNet(p.incomes, ci0);
 
   // Column 2: once state pension starts
-  const gross2 = potWithdrawal(p.spAge, p, ci2); // gross needed from pots after SP
-  const potW2 = pensionGrossTable(gross2, cash2, true);
-  const tc2 = calcPensionTax(potW2, p.sp, true, taxFreeFrac);
+  const gross2 = potWithdrawal(p.spAge, p, ci2); // gross needed from pots after SP (already uses inflated SP)
+  const potW2 = pensionGrossTable(gross2, cash2, true, sp2);
+  const tc2 = calcPensionTax(potW2, sp2, true, taxFreeFrac);
   const other2 = calcOtherIncomesNet(p.incomes, ci2);
 
   // Column 3: after income reduction
   const gross3 = potWithdrawal(p.reductionAge, p, ci3);
-  const potW3 = pensionGrossTable(gross3, cash3, hasSpAtReduction);
-  const tc3 = calcPensionTax(potW3, p.sp, hasSpAtReduction, taxFreeFrac);
+  const potW3 = pensionGrossTable(gross3, cash3, hasSpAtReduction, sp3);
+  const tc3 = calcPensionTax(potW3, sp3, hasSpAtReduction, taxFreeFrac);
   const other3 = calcOtherIncomesNet(p.incomes, ci3);
 
   document.getElementById('th-after-reduction').innerHTML =
@@ -689,10 +694,8 @@ function renderIncomeTable(r) {
       lsaBadge + ltaBadge);
 
   rows += row('State pension',
-      0,0,0, p.sp, tc2.spTax, tc2.spNet,
-      hasSpAtReduction ? p.sp : 0,
-      hasSpAtReduction ? tc3.spTax : 0,
-      hasSpAtReduction ? tc3.spNet : 0,
+      0,0,0, sp2, tc2.spTax, tc2.spNet,
+      sp3, sp3 > 0 ? tc3.spTax : 0, sp3 > 0 ? tc3.spNet : 0,
       `From age ${p.spAge}`);
 
   // Dynamic other income rows
@@ -708,10 +711,9 @@ function renderIncomeTable(r) {
 
   // Total row
   const tot1g = cash1 + potW1Full + other1.grossTotal, tot1t = tc1.pensionTax + other1.taxTotal, tot1n = cash1 + tc1.pensionNet + other1.netTotal;
-  const tot2g = cash2 + potW2 + p.sp + other2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + other2.taxTotal, tot2n = cash2 + tc2.pensionNet + tc2.spNet + other2.netTotal;
-  const sp3 = hasSpAtReduction ? p.sp : 0;
-  const spTax3 = hasSpAtReduction ? tc3.spTax : 0;
-  const spNet3 = hasSpAtReduction ? tc3.spNet : 0;
+  const tot2g = cash2 + potW2 + sp2 + other2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + other2.taxTotal, tot2n = cash2 + tc2.pensionNet + tc2.spNet + other2.netTotal;
+  const spTax3 = sp3 > 0 ? tc3.spTax : 0;
+  const spNet3 = sp3 > 0 ? tc3.spNet : 0;
   const tot3g = cash3 + potW3 + sp3 + other3.grossTotal, tot3t = tc3.pensionTax + spTax3 + other3.taxTotal, tot3n = cash3 + tc3.pensionNet + spNet3 + other3.netTotal;
 
   rows += `<tr>

@@ -24,7 +24,7 @@ export function targetIncome(age, p, cumulInfl) {
 }
 
 export function potWithdrawal(age, p, cumulInfl) {
-  const stateP = age >= p.spAge ? p.sp : 0;
+  const stateP = age >= p.spAge ? p.sp * cumulInfl : 0;
   return Math.max(0, targetIncome(age, p, cumulInfl) - stateP);
 }
 
@@ -56,14 +56,14 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor;
-    const spNominal = hasStatePension ? p.sp : 0;
-    const neededFromPots = Math.max(0, targetNominal - spNominal);
+    const spInflated = hasStatePension ? p.sp * ci : 0;
+    const neededFromPots = Math.max(0, targetNominal - spInflated);
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
     }
 
-    const notionalTcAnn = calcPensionTax(neededFromPots, p.sp, hasStatePension, r.taxFreeFrac);
+    const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac);
     const netTargetAnn = notionalTcAnn.pensionNet;
     let cashContrib = 0;
     for (let ci2 = 0; ci2 < cashBals.length && cashContrib < netTargetAnn; ci2++) {
@@ -79,7 +79,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
-    const tc = calcPensionTax(potWithdrawNominal, p.sp, hasStatePension, r.taxFreeFrac);
+    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac);
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
 
     const potBalNom = pensionAtPctile;
@@ -256,10 +256,10 @@ export function runSimulation(p) {
       const inflFactor = p.drawdownInflation ? cumulInfl : 1.0;
       const targetNominal = p.drawdown * inflFactor * reductionFactor;
       const hasSPthisYear = age >= p.spAge;
-      const spNominal = hasSPthisYear ? p.sp : 0;
-      const grossWithdrawal = Math.max(0, targetNominal - spNominal);
+      const spNomMC = hasSPthisYear ? p.sp * cumulInfl : 0;
+      const grossWithdrawal = Math.max(0, targetNominal - spNomMC);
 
-      const notionalTc = calcPensionTax(grossWithdrawal, p.sp, hasSPthisYear, taxFreeFrac);
+      const notionalTc = calcPensionTax(grossWithdrawal, spNomMC, hasSPthisYear, taxFreeFrac);
       const netTarget = notionalTc.pensionNet;
       let cashRemaining = netTarget;
       for (let ci = 0; ci < numCashPots && cashRemaining > 0; ci++) {
@@ -391,9 +391,9 @@ export function runSimulation(p) {
       const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
       const inflFactor = p.drawdownInflation ? Math.pow(inflF, y) : 1.0;
       const hasSP = age >= p.spAge;
-      const spNom = hasSP ? p.sp : 0;
-      const grossNeeded = Math.max(0, p.drawdown * inflFactor * reductionFactor - spNom);
-      const ntc = calcPensionTax(grossNeeded, p.sp, hasSP, taxFreeFrac);
+      const spNomDet = hasSP ? p.sp * Math.pow(inflF, y) : 0;
+      const grossNeeded = Math.max(0, p.drawdown * inflFactor * reductionFactor - spNomDet);
+      const ntc = calcPensionTax(grossNeeded, spNomDet, hasSP, taxFreeFrac);
       const netTarget = ntc.pensionNet;
       let remaining = netTarget;
       for (let ci = 0; ci < numCashPots && remaining > 0; ci++) {
@@ -409,12 +409,12 @@ export function runSimulation(p) {
   const cashAtRetirement = cashContribByYear[0] || 0;
   const grossNeededRet = potWithdrawal(p.retirementAge, p, 1.0);
   const potWAtRetirement = pensionGrossAfterCash(grossNeededRet, cashAtRetirement, hasSpAtRetirement);
-  taxCalc = calcPensionTax(potWAtRetirement, p.sp, hasSpAtRetirement, taxFreeFrac);
+  taxCalc = calcPensionTax(potWAtRetirement, hasSpAtRetirement ? p.sp : 0, hasSpAtRetirement, taxFreeFrac);
   const otherAtRetirement = calcOtherIncomesNet(p.incomes, 1.0);
   netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + otherAtRetirement.netTotal) / 12;
 
-  function pensionGrossAfterCash(grossNeeded, cashC, hasSP) {
-    const ntc = calcPensionTax(grossNeeded, p.sp, hasSP, taxFreeFrac);
+  function pensionGrossAfterCash(grossNeeded, cashC, hasSP, spInfl = p.sp) {
+    const ntc = calcPensionTax(grossNeeded, spInfl, hasSP, taxFreeFrac);
     const netTarget = ntc.pensionNet;
     const cashUsed = Math.min(cashC, netTarget);
     const remainingNet = Math.max(0, netTarget - cashUsed);
@@ -424,16 +424,16 @@ export function runSimulation(p) {
   const realIncomeByAge = ages.map((age, yi) => {
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
+    const spInfl = hasStatePension ? p.sp * ci : 0;
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
     const cashC = cashContribByYear[yi] || 0;
     const grossNeeded = potWithdrawal(age, p, ci);
-    const potW = pensionGrossAfterCash(grossNeeded, cashC, hasStatePension);
-    const stateP = hasStatePension ? p.sp : 0;
-    const tc = calcPensionTax(potW, p.sp, hasStatePension, taxFreeFrac);
+    const potW = pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
+    const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
     return {
       age,
-      gross: (cashC + potW + stateP + otherNet.grossTotal) * realF,
+      gross: (cashC + potW + spInfl + otherNet.grossTotal) * realF,
       net: (cashC + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal) * realF
     };
   });
@@ -441,11 +441,12 @@ export function runSimulation(p) {
   const netMonthlyByAge = ages.map((age, yi) => {
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
+    const spInfl = hasStatePension ? p.sp * ci : 0;
     const otherNet = calcOtherIncomesNet(p.incomes, ci);
     const cashC = cashContribByYear[yi] || 0;
     const grossNeeded = potWithdrawal(age, p, ci);
-    const potW = pensionGrossAfterCash(grossNeeded, cashC, hasStatePension);
-    const tc = calcPensionTax(potW, p.sp, hasStatePension, taxFreeFrac);
+    const potW = pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
+    const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
     return {
       age,
