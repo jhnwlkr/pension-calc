@@ -989,18 +989,22 @@ function buildAnnualIncomeData(r, pctileIdx) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
     }
 
-    // Cash pot contribution (drain first), deducting notional pension tax
-    // so cash only provides the net-of-tax equivalent of the gross withdrawal
+    // Cash satisfies net income need; gross-up remaining shortfall for pension.
     const notionalTcAnn = calcPensionTax(neededFromPots, p.sp, hasStatePension, r.taxFreeFrac);
-    const cashNeededAnn = Math.max(0, neededFromPots - notionalTcAnn.pensionTax);
+    const netTargetAnn = notionalTcAnn.pensionNet;
     let cashContrib = 0;
-    for (let ci2 = 0; ci2 < cashBals.length && cashContrib < cashNeededAnn; ci2++) {
-      const take = Math.min(cashBals[ci2], cashNeededAnn - cashContrib);
+    for (let ci2 = 0; ci2 < cashBals.length && cashContrib < netTargetAnn; ci2++) {
+      const take = Math.min(cashBals[ci2], netTargetAnn - cashContrib);
       cashBals[ci2] -= take;
       cashContrib += take;
     }
 
-    const intendedPensionWithdrawal = Math.max(0, neededFromPots - cashContrib);
+    // Gross-up remaining net shortfall → gross pension withdrawal.
+    // If cash covers netTargetAnn fully, intendedPensionWithdrawal = 0.
+    const remainingNetAnn = Math.max(0, netTargetAnn - cashContrib);
+    const intendedPensionWithdrawal = netTargetAnn > 0
+      ? remainingNetAnn * (neededFromPots / netTargetAnn)
+      : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
     // Other incomes (CPI-linked, flat tax per source)
@@ -1198,21 +1202,26 @@ function runSimulation() {
       const spNominal = hasSPthisYear ? p.sp : 0;
       const grossWithdrawal = Math.max(0, targetNominal - spNominal);
 
-      // e) Drain cash pots first, but only up to the net-of-tax equivalent:
-      //    cash is post-tax money, so we deduct the notional pension tax that
-      //    would have applied had the same amount come from the pension pot.
+      // e) Drain cash pots first.
+      //    Cash is post-tax, so each £1 satisfies £1 of NET income need.
+      //    Compute the net income target from pots, satisfy as much as possible
+      //    from cash, then gross-up only the remaining net shortfall back to a
+      //    gross pension withdrawal (so pension is 0 when cash fully covers it).
       const notionalTc = calcPensionTax(grossWithdrawal, p.sp, hasSPthisYear, taxFreeFrac);
-      const cashNeeded = Math.max(0, grossWithdrawal - notionalTc.pensionTax);
-      let cashRemaining = cashNeeded;
+      const netTarget = notionalTc.pensionNet; // net income pots must deliver
+      let cashRemaining = netTarget;
       for (let ci = 0; ci < numCashPots && cashRemaining > 0; ci++) {
         const take = Math.min(runCashPots[ci], cashRemaining);
         runCashPots[ci] -= take;
         cashRemaining -= take;
       }
-      const cashTaken = cashNeeded - cashRemaining;
+      const cashTaken = netTarget - cashRemaining;
 
-      // f) Cascade remaining gross withdrawal from lowest-equity pension pot first
-      let pensionWithdrawal = Math.max(0, grossWithdrawal - cashTaken);
+      // f) Gross-up remaining net shortfall → gross pension withdrawal,
+      //    using the same effective rate as the full withdrawal.
+      //    When cash covers netTarget fully, pensionWithdrawal = 0.
+      const remainingNet = Math.max(0, netTarget - cashTaken);
+      let pensionWithdrawal = netTarget > 0 ? remainingNet * (grossWithdrawal / netTarget) : 0;
       for (let rank = 0; rank < numPots && pensionWithdrawal > 0; rank++) {
         const take = Math.min(runPots[rank], pensionWithdrawal);
         runPots[rank] -= take;
@@ -1340,14 +1349,14 @@ function runSimulation() {
       const hasSP = age >= p.spAge;
       const spNom = hasSP ? p.sp : 0;
       const grossNeeded = Math.max(0, p.drawdown * inflFactor * reductionFactor - spNom);
-      // Deduct notional pension tax — cash is post-tax so only take the net equivalent
+      // Cash satisfies net income need; gross-up remaining shortfall for pension.
       const ntc = calcPensionTax(grossNeeded, p.sp, hasSP, taxFreeFrac);
-      const cashNeeded = Math.max(0, grossNeeded - ntc.pensionTax);
-      let remaining = cashNeeded;
+      const netTarget = ntc.pensionNet;
+      let remaining = netTarget;
       for (let ci = 0; ci < numCashPots && remaining > 0; ci++) {
         const take = Math.min(cb[ci], remaining); cb[ci] -= take; remaining -= take;
       }
-      cashContribByYear[y] = cashNeeded - remaining;
+      cashContribByYear[y] = netTarget - remaining;
       cashBalByYear[y + 1] = cb.reduce((s,v) => s+v, 0);
     }
     if (years > 0) cashContribByYear[years] = 0;
@@ -1454,12 +1463,12 @@ function renderIncomeTable(r) {
       const spN = hasSP ? p.sp : 0;
       const grossNeeded = Math.max(0, p.drawdown * inflF * redF - spN);
       const ntc = calcPensionTax(grossNeeded, p.sp, hasSP, taxFreeFrac);
-      const cashNeeded = Math.max(0, grossNeeded - ntc.pensionTax);
-      let remaining = cashNeeded;
+      const netTarget = ntc.pensionNet;
+      let remaining = netTarget;
       for (let ci = 0; ci < bals.length && remaining > 0; ci++) {
         const take = Math.min(bals[ci], remaining); bals[ci] -= take; remaining -= take;
       }
-      return cashNeeded - remaining;
+      return netTarget - remaining;
     }
     for (let y = 0; y < targetYearIdx; y++) drainYear(y);
     return drainYear(targetYearIdx);
