@@ -370,13 +370,15 @@
             <th>State Pension /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Other Income /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>Pot Balance (median)<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
-            <th>Annual Withdrawal<br><small style="font-weight:400;color:var(--text2)">all pots · today's £</small></th>
+            <th>Annual Cash Income<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
+            <th>Annual Pension Income<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
+            <th>Annual Other Income<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
             <th>Portfolio Growth<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
+            <th>Pot Balance (median)<br><small style="font-weight:400;color:var(--text2)">nominal · today's £</small></th>
           </tr>
         </thead>
         <tbody id="annual-income-tbody">
-          <tr><td colspan="9" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          <tr><td colspan="11" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
         </tbody>
       </table>
       </div>
@@ -1622,6 +1624,11 @@ function renderAnnualIncomeTable(r) {
     const ageLabel = d.age === r.p.retirementAge && r.p.retirementAge > r.p.currentAge
       ? `${d.age}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear} · pre-ret. growth →</span>`
       : `${d.age}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear}</span>`;
+    function growthCell(nom, real) {
+      const nomStr  = nom  >= 0 ? fmtGBP(nom)  : `<span style="color:var(--red)">${fmtGBP(nom)}</span>`;
+      const realStr = real >= 0 ? fmtGBP(real) : `<span style="color:var(--red)">${fmtGBP(real)}</span>`;
+      return `<td style="text-align:right">${nomStr}<span class="ann-real">${realStr}</span></td>`;
+    }
     return `<tr class="${cls}">
       <td>${ageLabel}</td>
       ${dualCell(d.cashNom, d.cashReal)}
@@ -1629,9 +1636,11 @@ function renderAnnualIncomeTable(r) {
       ${dualCell(d.spNom, d.spReal)}
       ${dualCell(d.otherNom, d.otherReal)}
       ${dualCell(d.netNom, d.netReal)}
+      ${dualCell(d.cashNom * 12, d.cashReal * 12)}
+      ${dualCell(d.pensionNom * 12, d.pensionReal * 12)}
+      ${dualCell(d.otherNom * 12, d.otherReal * 12)}
+      ${growthCell(d.growthNom, d.growthReal)}
       ${dualCell(d.potBalNom, d.potBalReal)}
-      ${dualCell(d.withdrawalNom, d.withdrawalReal)}
-      <td style="text-align:right">${d.growthNom >= 0 ? fmtGBP(d.growthNom) : '<span style="color:var(--red)">' + fmtGBP(d.growthNom) + '</span>'}<span class="ann-real">${d.growthReal >= 0 ? fmtGBP(d.growthReal) : '<span style="color:var(--red)">' + fmtGBP(d.growthReal) + '</span>'}</span></td>
     </tr>`;
   }).join('');
 }
