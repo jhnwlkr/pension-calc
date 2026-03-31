@@ -989,10 +989,13 @@ function buildAnnualIncomeData(r, pctileIdx) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
     }
 
-    // Cash pot contribution (drain first)
+    // Cash pot contribution (drain first), deducting notional pension tax
+    // so cash only provides the net-of-tax equivalent of the gross withdrawal
+    const notionalTcAnn = calcPensionTax(neededFromPots, p.sp, hasStatePension, r.taxFreeFrac);
+    const cashNeededAnn = Math.max(0, neededFromPots - notionalTcAnn.pensionTax);
     let cashContrib = 0;
-    for (let ci2 = 0; ci2 < cashBals.length && cashContrib < neededFromPots; ci2++) {
-      const take = Math.min(cashBals[ci2], neededFromPots - cashContrib);
+    for (let ci2 = 0; ci2 < cashBals.length && cashContrib < cashNeededAnn; ci2++) {
+      const take = Math.min(cashBals[ci2], cashNeededAnn - cashContrib);
       cashBals[ci2] -= take;
       cashContrib += take;
     }
@@ -1191,21 +1194,29 @@ function runSimulation() {
       const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
       const inflFactor = p.drawdownInflation ? cumulInfl : 1.0;
       const targetNominal = p.drawdown * inflFactor * reductionFactor * guardrailFactor;
-      const spNominal = age >= p.spAge ? p.sp : 0;
-      let withdrawal = Math.max(0, targetNominal - spNominal);
+      const hasSPthisYear = age >= p.spAge;
+      const spNominal = hasSPthisYear ? p.sp : 0;
+      const grossWithdrawal = Math.max(0, targetNominal - spNominal);
 
-      // e) Drain cash pots first (in order added)
-      for (let ci = 0; ci < numCashPots && withdrawal > 0; ci++) {
-        const take = Math.min(runCashPots[ci], withdrawal);
+      // e) Drain cash pots first, but only up to the net-of-tax equivalent:
+      //    cash is post-tax money, so we deduct the notional pension tax that
+      //    would have applied had the same amount come from the pension pot.
+      const notionalTc = calcPensionTax(grossWithdrawal, p.sp, hasSPthisYear, taxFreeFrac);
+      const cashNeeded = Math.max(0, grossWithdrawal - notionalTc.pensionTax);
+      let cashRemaining = cashNeeded;
+      for (let ci = 0; ci < numCashPots && cashRemaining > 0; ci++) {
+        const take = Math.min(runCashPots[ci], cashRemaining);
         runCashPots[ci] -= take;
-        withdrawal -= take;
+        cashRemaining -= take;
       }
+      const cashTaken = cashNeeded - cashRemaining;
 
-      // f) Cascade remaining withdrawal from lowest-equity pension pot first
-      for (let rank = 0; rank < numPots && withdrawal > 0; rank++) {
-        const take = Math.min(runPots[rank], withdrawal);
+      // f) Cascade remaining gross withdrawal from lowest-equity pension pot first
+      let pensionWithdrawal = Math.max(0, grossWithdrawal - cashTaken);
+      for (let rank = 0; rank < numPots && pensionWithdrawal > 0; rank++) {
+        const take = Math.min(runPots[rank], pensionWithdrawal);
         runPots[rank] -= take;
-        withdrawal -= take;
+        pensionWithdrawal -= take;
       }
 
       // g) Rebalance: if pension pot falls below 50% of its startValue, draw from next pot
@@ -1320,32 +1331,23 @@ function runSimulation() {
   {
     const cb = Float64Array.from(startCashPotVals);
     cashBalByYear[0] = cb.reduce((s,v) => s+v, 0);
-    // Year 0: grow then take
-    for (let ci = 0; ci < numCashPots; ci++) cb[ci] *= (1 + p.cashPots[ci].interestPct / 100);
-    const age0 = p.retirementAge;
-    const inflFactor0 = p.drawdownInflation ? 1.0 : 1.0;
-    const redF0 = age0 >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
-    const spN0 = age0 >= p.spAge ? p.sp : 0;
-    let needed0 = Math.max(0, p.drawdown * inflFactor0 * redF0 - spN0);
-    let taken0 = 0;
-    for (let ci = 0; ci < numCashPots && needed0 > 0; ci++) {
-      const take = Math.min(cb[ci], needed0); cb[ci] -= take; needed0 -= take; taken0 += take;
-    }
-    cashContribByYear[0] = taken0;
-    cashBalByYear[1] = cb.reduce((s,v) => s+v, 0);
     const inflF = 1 + p.inflation / 100;
-    for (let y = 1; y < years; y++) {
+    for (let y = 0; y < years; y++) {
       const age = p.retirementAge + y;
       for (let ci = 0; ci < numCashPots; ci++) cb[ci] *= (1 + p.cashPots[ci].interestPct / 100);
       const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
       const inflFactor = p.drawdownInflation ? Math.pow(inflF, y) : 1.0;
-      const spNom = age >= p.spAge ? p.sp : 0;
-      let needed = Math.max(0, p.drawdown * inflFactor * reductionFactor - spNom);
-      let taken = 0;
-      for (let ci = 0; ci < numCashPots && needed > 0; ci++) {
-        const take = Math.min(cb[ci], needed); cb[ci] -= take; needed -= take; taken += take;
+      const hasSP = age >= p.spAge;
+      const spNom = hasSP ? p.sp : 0;
+      const grossNeeded = Math.max(0, p.drawdown * inflFactor * reductionFactor - spNom);
+      // Deduct notional pension tax — cash is post-tax so only take the net equivalent
+      const ntc = calcPensionTax(grossNeeded, p.sp, hasSP, taxFreeFrac);
+      const cashNeeded = Math.max(0, grossNeeded - ntc.pensionTax);
+      let remaining = cashNeeded;
+      for (let ci = 0; ci < numCashPots && remaining > 0; ci++) {
+        const take = Math.min(cb[ci], remaining); cb[ci] -= take; remaining -= take;
       }
-      cashContribByYear[y] = taken;
+      cashContribByYear[y] = cashNeeded - remaining;
       cashBalByYear[y + 1] = cb.reduce((s,v) => s+v, 0);
     }
     if (years > 0) cashContribByYear[years] = 0;
@@ -1443,29 +1445,24 @@ function renderIncomeTable(r) {
   // Helper: deterministically simulate cash pot contribution at a given year index
   function cashContribAtYear(targetYearIdx) {
     const bals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
-    for (let y = 0; y < targetYearIdx; y++) {
+    function drainYear(y) {
       const age = p.retirementAge + y;
       for (let ci = 0; ci < bals.length; ci++) bals[ci] *= (1 + p.cashPots[ci].interestPct / 100);
       const inflF = p.drawdownInflation ? Math.pow(baseInfl, y) : 1.0;
       const redF = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
-      const spN = age >= p.spAge ? p.sp : 0;
-      let needed = Math.max(0, p.drawdown * inflF * redF - spN);
-      for (let ci = 0; ci < bals.length && needed > 0; ci++) {
-        const take = Math.min(bals[ci], needed); bals[ci] -= take; needed -= take;
+      const hasSP = age >= p.spAge;
+      const spN = hasSP ? p.sp : 0;
+      const grossNeeded = Math.max(0, p.drawdown * inflF * redF - spN);
+      const ntc = calcPensionTax(grossNeeded, p.sp, hasSP, taxFreeFrac);
+      const cashNeeded = Math.max(0, grossNeeded - ntc.pensionTax);
+      let remaining = cashNeeded;
+      for (let ci = 0; ci < bals.length && remaining > 0; ci++) {
+        const take = Math.min(bals[ci], remaining); bals[ci] -= take; remaining -= take;
       }
+      return cashNeeded - remaining;
     }
-    // Now grow for targetYearIdx
-    const age = p.retirementAge + targetYearIdx;
-    for (let ci = 0; ci < bals.length; ci++) bals[ci] *= (1 + p.cashPots[ci].interestPct / 100);
-    const inflF = p.drawdownInflation ? Math.pow(baseInfl, targetYearIdx) : 1.0;
-    const redF = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
-    const spN = age >= p.spAge ? p.sp : 0;
-    let needed = Math.max(0, p.drawdown * inflF * redF - spN);
-    let contrib = 0;
-    for (let ci = 0; ci < bals.length && contrib < needed; ci++) {
-      const take = Math.min(bals[ci], needed - contrib); contrib += take;
-    }
-    return contrib;
+    for (let y = 0; y < targetYearIdx; y++) drainYear(y);
+    return drainYear(targetYearIdx);
   }
 
   const ci0 = 1.0;
