@@ -569,9 +569,13 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor;
-    // p.sp is pre-inflated to retirement value by runSimulation; multiply by ci (years since retirement)
+    // p.sp and p.partner.sp are both pre-inflated to retirement; multiply by ci
     const spInflated = hasStatePension ? p.sp * ci : 0;
-    const neededFromPots = Math.max(0, targetNominal - spInflated);
+    const partner = p.partner;
+    const partnerAge = partner ? partner.currentAge + (age - p.currentAge) : null;
+    const hasPartnerSP = !!(partner && partnerAge >= partner.spAge);
+    const partnerSpInflated = hasPartnerSP ? partner.sp * ci : 0;
+    const neededFromPots = Math.max(0, targetNominal - spInflated - partnerSpInflated);
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
