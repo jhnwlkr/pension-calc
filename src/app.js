@@ -1231,11 +1231,13 @@ function renderAnnualIncomeTable(r) {
   }
 
   // Income cell — net headline with gross and tax as sub-lines
-  function incomeCell(netNom, netReal, grossNom, grossReal, taxNom, taxReal) {
+  // hidden=true keeps the <td> in the DOM (preserving column count) but hides it visually
+  function incomeCell(netNom, netReal, grossNom, grossReal, taxNom, taxReal, hidden = false) {
     const net   = isToday ? netReal   : netNom;
     const gross = isToday ? grossReal : grossNom;
     const tax   = isToday ? taxReal   : taxNom;
-    return `<td style="text-align:right">${fmtGBP(net)}<span class="ann-sub">Gross: ${fmtGBP(gross)}</span><span class="ann-sub ann-tax">Tax: ${fmtGBP(tax)}</span></td>`;
+    const style = hidden ? 'text-align:right;display:none' : 'text-align:right';
+    return `<td style="${style}">${fmtGBP(net)}<span class="ann-sub">Gross: ${fmtGBP(gross)}</span><span class="ann-sub ann-tax">Tax: ${fmtGBP(tax)}</span></td>`;
   }
 
   // Growth cell — coloured red for negative values
@@ -1260,11 +1262,11 @@ function renderAnnualIncomeTable(r) {
       <td>${ageLabel}</td>
       ${cell(d.cashNom, d.cashReal)}
       ${incomeCell(d.pensionNom, d.pensionReal, d.pensionGrossNom, d.pensionGrossReal, d.pensionTaxNom, d.pensionTaxReal)}
-      ${incomeCell(0, 0, 0, 0, 0, 0)}
+      ${incomeCell(0, 0, 0, 0, 0, 0, !hasPartner)}
       ${incomeCell(d.spNom, d.spReal, d.spGrossNom, d.spGrossReal, d.spTaxNom, d.spTaxReal)}
-      ${incomeCell(d.partnerSpNom || 0, d.partnerSpReal || 0, d.partnerSpGrossNom || 0, d.partnerSpGrossReal || 0, 0, 0)}
+      ${incomeCell(d.partnerSpNom || 0, d.partnerSpReal || 0, d.partnerSpGrossNom || 0, d.partnerSpGrossReal || 0, 0, 0, !hasPartner)}
       ${incomeCell(d.otherNom, d.otherReal, d.otherGrossNom, d.otherGrossReal, d.otherTaxNom, d.otherTaxReal)}
-      ${incomeCell(d.partnerOtherNom || 0, d.partnerOtherReal || 0, d.partnerOtherGrossNom || 0, d.partnerOtherGrossReal || 0, d.partnerOtherTaxNom || 0, d.partnerOtherTaxReal || 0)}
+      ${incomeCell(d.partnerOtherNom || 0, d.partnerOtherReal || 0, d.partnerOtherGrossNom || 0, d.partnerOtherGrossReal || 0, d.partnerOtherTaxNom || 0, d.partnerOtherTaxReal || 0, !hasPartner)}
       ${incomeCell(d.netNom, d.netReal, d.netGrossNom, d.netGrossReal, d.netTaxNom, d.netTaxReal)}
       ${cell(d.cashWithdrawalNom, d.cashWithdrawalReal)}
       ${cell(d.pensionWithdrawalNom, d.pensionWithdrawalReal)}
