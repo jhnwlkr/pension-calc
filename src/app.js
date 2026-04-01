@@ -262,6 +262,236 @@ function renderCashPotsUI() {
 
 // add-cash-pot button wiring is initialized in initApp().
 
+// ── Partner dynamic data ──────────────────────────────────────────────────
+let nextPartnerPotId = 1;
+let partnerPotsData = [];
+let nextPartnerCashPotId = 1;
+let partnerCashPotsData = [];
+let nextPartnerIncomeId = 1;
+let partnerIncomesData = [];
+
+function addPartnerPot(value, annualContrib, equityPct) {
+  const id = nextPartnerPotId++;
+  partnerPotsData.push({
+    id,
+    value: (value !== undefined && value !== null) ? +value : 0,
+    annualContrib: (annualContrib !== undefined && annualContrib !== null) ? +annualContrib : 0,
+    equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
+  });
+  renderPartnerPotsUI();
+}
+
+function removePartnerPot(id) {
+  partnerPotsData = partnerPotsData.filter(p => p.id !== id);
+  renderPartnerPotsUI();
+  persistParams();
+}
+
+function renderPartnerPotsUI() {
+  const container = document.getElementById('partner-pots-container');
+  if (!container) return;
+  container.innerHTML = '';
+  if (partnerPotsData.length === 0) {
+    container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:4px 0">No pension pots added.</div>';
+    return;
+  }
+  partnerPotsData.forEach((pot, idx) => {
+    const div = document.createElement('div');
+    div.className = 'pot-card';
+    div.innerHTML = `
+      <div class="pot-card-header">
+        <span class="pot-card-title">Pot ${idx + 1}</span>
+        <button class="remove-btn" data-ppartner-pot-id="${pot.id}">✕</button>
+      </div>
+      <div class="two-col" style="margin-bottom:8px">
+        <div>
+          <span class="field-label">Current value</span>
+          <div class="input-group"><span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="1000" data-ppartner-pot-id="${pot.id}" data-field="value" value="${pot.value}">
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Annual contribution</span>
+          <div class="input-group"><span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="100" data-ppartner-pot-id="${pot.id}" data-field="annualContrib" value="${pot.annualContrib}">
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="slider-label" style="margin-bottom:4px">
+          <span class="slider-name">Equity / Bond</span>
+          <span class="slider-val" id="v-ppartner-pot-equity-${pot.id}">${pot.equityPct}% / ${100 - pot.equityPct}%</span>
+        </div>
+        <input type="range" min="0" max="100" step="5" value="${pot.equityPct}" data-ppartner-pot-id="${pot.id}" data-field="equityPct" class="ppartner-pot-equity-slider">
+      </div>`;
+    container.appendChild(div);
+  });
+  container.querySelectorAll('.remove-btn[data-ppartner-pot-id]').forEach(btn => {
+    btn.addEventListener('click', () => removePartnerPot(+btn.dataset.ppartnerPotId));
+  });
+  container.querySelectorAll('.dyn-input[data-ppartner-pot-id]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const pot = partnerPotsData.find(p => p.id === +inp.dataset.ppartnerPotId);
+      if (pot) { pot[inp.dataset.field] = +inp.value; }
+      persistParams();
+    });
+  });
+  container.querySelectorAll('.ppartner-pot-equity-slider').forEach(slider => {
+    slider.addEventListener('input', () => {
+      const pot = partnerPotsData.find(p => p.id === +slider.dataset.ppartnerPotId);
+      if (pot) {
+        pot.equityPct = +slider.value;
+        const lbl = document.getElementById('v-ppartner-pot-equity-' + pot.id);
+        if (lbl) lbl.textContent = pot.equityPct + '% / ' + (100 - pot.equityPct) + '%';
+      }
+      persistParams();
+    });
+  });
+}
+
+function addPartnerCashPot(value, interestPct) {
+  const id = nextPartnerCashPotId++;
+  partnerCashPotsData.push({
+    id,
+    value: (value !== undefined && value !== null) ? +value : 0,
+    interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
+  });
+  renderPartnerCashPotsUI();
+}
+
+function removePartnerCashPot(id) {
+  partnerCashPotsData = partnerCashPotsData.filter(p => p.id !== id);
+  renderPartnerCashPotsUI();
+  persistParams();
+}
+
+function renderPartnerCashPotsUI() {
+  const container = document.getElementById('partner-cash-pots-container');
+  if (!container) return;
+  container.innerHTML = '';
+  if (partnerCashPotsData.length === 0) {
+    container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:4px 0">No cash pots added.</div>';
+    return;
+  }
+  partnerCashPotsData.forEach((pot, idx) => {
+    const div = document.createElement('div');
+    div.className = 'pot-card';
+    div.innerHTML = `
+      <div class="pot-card-header">
+        <span class="pot-card-title">Cash Pot ${idx + 1}</span>
+        <button class="remove-btn" data-ppartner-cash-id="${pot.id}">✕</button>
+      </div>
+      <div class="two-col">
+        <div>
+          <span class="field-label">Current value</span>
+          <div class="input-group"><span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="1000" data-ppartner-cash-id="${pot.id}" data-field="value" value="${pot.value}">
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Interest rate</span>
+          <div class="input-group">
+            <input class="dyn-input" type="number" min="0" max="20" step="0.1" data-ppartner-cash-id="${pot.id}" data-field="interestPct" value="${pot.interestPct}" style="text-align:right">
+            <span class="input-suffix">%</span>
+          </div>
+        </div>
+      </div>`;
+    container.appendChild(div);
+  });
+  container.querySelectorAll('.remove-btn[data-ppartner-cash-id]').forEach(btn => {
+    btn.addEventListener('click', () => removePartnerCashPot(+btn.dataset.ppartnerCashId));
+  });
+  container.querySelectorAll('.dyn-input[data-ppartner-cash-id]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const pot = partnerCashPotsData.find(p => p.id === +inp.dataset.ppartnerCashId);
+      if (pot) { pot[inp.dataset.field] = +inp.value; }
+      persistParams();
+    });
+  });
+}
+
+function addPartnerIncome(name, amount, frequency, taxPct, inflationLinked) {
+  const id = nextPartnerIncomeId++;
+  partnerIncomesData.push({
+    id,
+    name: name || 'Income source',
+    amount: amount !== undefined ? amount : 0,
+    frequency: frequency || 'annual',
+    taxPct: taxPct !== undefined ? taxPct : 20,
+    inflationLinked: inflationLinked === true,
+  });
+  renderPartnerIncomesUI();
+}
+
+function removePartnerIncome(id) {
+  partnerIncomesData = partnerIncomesData.filter(i => i.id !== id);
+  renderPartnerIncomesUI();
+  persistParams();
+}
+
+function renderPartnerIncomesUI() {
+  const container = document.getElementById('partner-incomes-container');
+  if (!container) return;
+  container.innerHTML = '';
+  if (partnerIncomesData.length === 0) {
+    container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:4px 0">No other income added.</div>';
+    return;
+  }
+  partnerIncomesData.forEach(inc => {
+    const div = document.createElement('div');
+    div.className = 'income-card';
+    div.innerHTML = `
+      <div class="income-card-header">
+        <div class="input-group" style="flex:1;margin-right:6px">
+          <input class="dyn-input" type="text" placeholder="Name" data-pinc-id="${inc.id}" data-field="name" value="${inc.name.replace(/"/g,'&quot;')}" style="font-weight:600">
+        </div>
+        <button class="remove-btn" data-pinc-id="${inc.id}">✕</button>
+      </div>
+      <div class="two-col">
+        <div>
+          <span class="field-label">Amount</span>
+          <div class="input-group"><span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="100" data-pinc-id="${inc.id}" data-field="amount" value="${inc.amount}">
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Frequency</span>
+          <select class="dyn-select" data-pinc-id="${inc.id}" data-field="frequency">
+            <option value="annual" ${inc.frequency === 'annual' ? 'selected' : ''}>Annual</option>
+            <option value="monthly" ${inc.frequency === 'monthly' ? 'selected' : ''}>Monthly</option>
+          </select>
+        </div>
+        <div>
+          <span class="field-label">Tax rate</span>
+          <div class="input-group">
+            <input class="dyn-input" type="number" min="0" max="100" step="1" data-pinc-id="${inc.id}" data-field="taxPct" value="${inc.taxPct}" style="text-align:right">
+            <span class="input-suffix">%</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+        <input type="checkbox" data-pinc-id="${inc.id}" data-field="inflationLinked" ${inc.inflationLinked ? 'checked' : ''} style="cursor:pointer;width:14px;height:14px">
+        <span style="font-size:0.78rem;color:var(--text2)">Increases with inflation</span>
+      </div>`;
+    container.appendChild(div);
+  });
+  container.querySelectorAll('.remove-btn[data-pinc-id]').forEach(btn => {
+    btn.addEventListener('click', () => removePartnerIncome(+btn.dataset.pincId));
+  });
+  container.querySelectorAll('[data-pinc-id]').forEach(el => {
+    const evName = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
+    el.addEventListener(evName, () => {
+      const inc = partnerIncomesData.find(i => i.id === +el.dataset.pincId);
+      if (inc) {
+        if (el.dataset.field === 'inflationLinked') inc[el.dataset.field] = el.checked;
+        else if (el.dataset.field === 'name' || el.dataset.field === 'frequency') inc[el.dataset.field] = el.value;
+        else inc[el.dataset.field] = +el.value;
+      }
+      persistParams();
+    });
+  });
+}
+
 // ── Slider wiring ──────────────────────────────────────────────────────────
 function getPartnerEnabled() {
   return document.getElementById('partner-enabled')?.checked || false;
@@ -274,6 +504,9 @@ function getPartnerParams() {
     retirementAge: +document.getElementById('partner-retirement-age').value,
     spAge: +document.getElementById('partner-sp-age').value,
     sp: +document.getElementById('partner-sp').value,
+    pots: partnerPotsData.map(p => Object.assign({}, p)),
+    cashPots: partnerCashPotsData.map(p => Object.assign({}, p)),
+    incomes: partnerIncomesData.map(i => Object.assign({}, i)),
   };
 }
 
@@ -391,7 +624,7 @@ document.getElementById('retirement-age').addEventListener('input', () => {
 });
 
 // ── Persistence ────────────────────────────────────────────────────────────
-const LS_KEY = 'pension-forecast-v6';
+const LS_KEY = 'pension-forecast-v7';
 const SLIDER_IDS = sliders.map(([id]) => id);
 
 function persistParams() {
@@ -406,6 +639,9 @@ function persistParams() {
   obj['cashPots'] = JSON.stringify(cashPotsData);
   obj['partner-enabled'] = getPartnerEnabled() ? '1' : '0';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) obj[id] = el.value; });
+  obj['partner-pots'] = JSON.stringify(partnerPotsData);
+  obj['partner-cashPots'] = JSON.stringify(partnerCashPotsData);
+  obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
   try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e) {}
   // URL hash only for slider values (pots/incomes too complex)
   const urlObj = {};
@@ -430,6 +666,9 @@ function loadPersistedParams() {
             if (ls['pots']) obj['pots'] = ls['pots'];
             if (ls['incomes']) obj['incomes'] = ls['incomes'];
             if (ls['cashPots']) obj['cashPots'] = ls['cashPots'];
+            if (ls['partner-pots']) obj['partner-pots'] = ls['partner-pots'];
+            if (ls['partner-cashPots']) obj['partner-cashPots'] = ls['partner-cashPots'];
+            if (ls['partner-incomes']) obj['partner-incomes'] = ls['partner-incomes'];
           }
         } catch(e) {}
         return obj;
@@ -518,6 +757,45 @@ function restoreParams(obj) {
     const label = document.getElementById('v-' + id);
     if (el) { el.value = obj[id]; if (label) label.textContent = formatter(+obj[id]); }
   });
+  if (obj['partner-pots']) {
+    try {
+      const saved = JSON.parse(obj['partner-pots']);
+      if (Array.isArray(saved) && saved.length > 0) {
+        partnerPotsData = [];
+        saved.forEach(p => {
+          const id = nextPartnerPotId++;
+          partnerPotsData.push({ id, value: +p.value || 0, annualContrib: +p.annualContrib || 0, equityPct: p.equityPct !== undefined ? +p.equityPct : 80 });
+        });
+        renderPartnerPotsUI();
+      }
+    } catch(e) {}
+  }
+  if (obj['partner-cashPots']) {
+    try {
+      const saved = JSON.parse(obj['partner-cashPots']);
+      if (Array.isArray(saved)) {
+        partnerCashPotsData = [];
+        saved.forEach(p => {
+          const id = nextPartnerCashPotId++;
+          partnerCashPotsData.push({ id, value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+        });
+        renderPartnerCashPotsUI();
+      }
+    } catch(e) {}
+  }
+  if (obj['partner-incomes']) {
+    try {
+      const saved = JSON.parse(obj['partner-incomes']);
+      if (Array.isArray(saved)) {
+        partnerIncomesData = [];
+        saved.forEach(inc => {
+          const id = nextPartnerIncomeId++;
+          partnerIncomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', taxPct: inc.taxPct !== undefined ? inc.taxPct : 20, inflationLinked: inc.inflationLinked === true });
+        });
+        renderPartnerIncomesUI();
+      }
+    } catch(e) {}
+  }
 }
 
 // ── Drawdown mode UI toggle ────────────────────────────────────────────────
@@ -597,9 +875,12 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
+    const partnerRetiredAID = !!(partner && partnerAge >= partner.retirementAge);
+    const partnerOtherAID = (partner?.incomes?.length && partnerRetiredAID)
+      ? calcOtherIncomesNet(partner.incomes, ciFromNow) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
     const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac);
 
-    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal + partnerSpInflated;
+    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal + partnerSpInflated + partnerOtherAID.netTotal;
 
     const potBalNom = pensionAtPctile;
     const potBalReal = pensionAtPctile * todayDeflator;
@@ -610,7 +891,7 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const prevCombined = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
     const prevCashBal = yi === 0 ? (r.startCashTotal || 0) : (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0);
     const prevPension = Math.max(0, prevCombined - prevCashBal);
-    const pensionInitialValues = p.pots.reduce((s, pot) => s + pot.value, 0);
+    const pensionInitialValues = r.startInitialPotValues ?? p.pots.reduce((s, pot) => s + pot.value, 0);
     const growthNom = potDepleted ? 0 : yi === 0
       ? (yearsToRetirement > 0 ? r.startPensionPot - pensionInitialValues : 0)
       : pensionAtPctile - prevPension + potWithdrawNominal;
@@ -652,10 +933,10 @@ function buildAnnualIncomeData(r, pctileIdx) {
       otherTaxNom: otherNet.taxTotal / 12,
       otherGrossReal: (otherNet.grossTotal * todayDeflator) / 12,
       otherTaxReal: (otherNet.taxTotal * todayDeflator) / 12,
-      netGrossNom: (cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal) / 12,
-      netTaxNom: (tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal) / 12,
-      netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal) * todayDeflator) / 12,
-      netTaxReal: ((tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal) * todayDeflator) / 12,
+      netGrossNom: (cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal + partnerOtherAID.grossTotal) / 12,
+      netTaxNom: (tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal + partnerOtherAID.taxTotal) / 12,
+      netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal + partnerOtherAID.grossTotal) * todayDeflator) / 12,
+      netTaxReal: ((tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal + partnerOtherAID.taxTotal) * todayDeflator) / 12,
       pensionWithdrawalNom: potWithdrawNominal,
       pensionWithdrawalReal: potWithdrawNominal * todayDeflator,
       cashWithdrawalNom: cashContrib,
@@ -801,6 +1082,13 @@ function renderIncomeTable(r) {
   const potW1Full = pensionGrossTable(gross1, cash1, false, 0);
   const tc1 = calcPensionTax(potW1Full, 0, false, taxFreeFrac);
   const other1 = calcOtherIncomesNet(p.incomes, ci0);
+  // Partner other income active at each snapshot?
+  const pIncActive1 = !!(p.partner && partnerAgeAt1 >= p.partner.retirementAge);
+  const pIncActive2 = !!(p.partner && partnerAgeAt2 >= p.partner.retirementAge);
+  const pIncActive3 = !!(p.partner && partnerAgeAt3 >= p.partner.retirementAge);
+  const pInc1 = (p.partner?.incomes?.length && pIncActive1) ? calcOtherIncomesNet(p.partner.incomes, ci0) : { grossTotal:0, taxTotal:0, netTotal:0 };
+  const pInc2 = (p.partner?.incomes?.length && pIncActive2) ? calcOtherIncomesNet(p.partner.incomes, ci2) : { grossTotal:0, taxTotal:0, netTotal:0 };
+  const pInc3 = (p.partner?.incomes?.length && pIncActive3) ? calcOtherIncomesNet(p.partner.incomes, ci3) : { grossTotal:0, taxTotal:0, netTotal:0 };
 
   // Column 2: once state pension starts
   const gross2 = potWithdrawal(p.spAge, p, ci2); // gross needed from pots after SP (already uses inflated SP)
@@ -861,6 +1149,20 @@ function renderIncomeTable(r) {
         pSp2, 0, pSp2,
         pSp3, 0, pSp3,
         `From age ${p.partner.spAge}`);
+    if (p.partner.incomes?.length > 0) {
+      p.partner.incomes.forEach(inc => {
+        const annAmt = inc.frequency === 'monthly' ? inc.amount * 12 : inc.amount;
+        const f1 = pIncActive1 ? (inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement) : 1) : 0;
+        const f2 = pIncActive2 ? (inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement + spYears) : 1) : 0;
+        const f3 = pIncActive3 ? (inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement + redYears) : 1) : 0;
+        const g1i = annAmt * f1, t1i = g1i * (inc.taxPct/100), n1i = g1i - t1i;
+        const g2i = annAmt * f2, t2i = g2i * (inc.taxPct/100), n2i = g2i - t2i;
+        const g3i = annAmt * f3, t3i = g3i * (inc.taxPct/100), n3i = g3i - t3i;
+        const fromAge = p.partner.retirementAge > p.retirementAge ? ` · from age ${p.partner.retirementAge}` : '';
+        rows += row(inc.name, g1i,t1i,n1i, g2i,t2i,n2i, g3i,t3i,n3i,
+          `Partner · ${inc.taxPct}% flat tax · ${inc.inflationLinked ? 'CPI-linked' : 'Fixed'}${fromAge}`);
+      });
+    }
   }
 
   // Dynamic other income rows
@@ -879,11 +1181,11 @@ function renderIncomeTable(r) {
   }
 
   // Total row
-  const tot1g = cash1 + potW1Full + pSp1 + other1.grossTotal, tot1t = tc1.pensionTax + other1.taxTotal, tot1n = cash1 + tc1.pensionNet + pSp1 + other1.netTotal;
-  const tot2g = cash2 + potW2 + sp2 + pSp2 + other2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + other2.taxTotal, tot2n = cash2 + tc2.pensionNet + tc2.spNet + pSp2 + other2.netTotal;
+  const tot1g = cash1 + potW1Full + pSp1 + other1.grossTotal + pInc1.grossTotal, tot1t = tc1.pensionTax + other1.taxTotal + pInc1.taxTotal, tot1n = cash1 + tc1.pensionNet + pSp1 + other1.netTotal + pInc1.netTotal;
+  const tot2g = cash2 + potW2 + sp2 + pSp2 + other2.grossTotal + pInc2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + other2.taxTotal + pInc2.taxTotal, tot2n = cash2 + tc2.pensionNet + tc2.spNet + pSp2 + other2.netTotal + pInc2.netTotal;
   const spTax3 = sp3 > 0 ? tc3.spTax : 0;
   const spNet3 = sp3 > 0 ? tc3.spNet : 0;
-  const tot3g = cash3 + potW3 + sp3 + pSp3 + other3.grossTotal, tot3t = tc3.pensionTax + spTax3 + other3.taxTotal, tot3n = cash3 + tc3.pensionNet + spNet3 + pSp3 + other3.netTotal;
+  const tot3g = cash3 + potW3 + sp3 + pSp3 + other3.grossTotal + pInc3.grossTotal, tot3t = tc3.pensionTax + spTax3 + other3.taxTotal + pInc3.taxTotal, tot3n = cash3 + tc3.pensionNet + spNet3 + pSp3 + other3.netTotal + pInc3.netTotal;
 
   rows += `<tr>
     <td><strong>Total</strong></td>
@@ -1132,6 +1434,7 @@ function renderNetMonthlyChart(r) {
         { label: 'Pension', data: makeSeries('pension'), backgroundColor: '#2563eb', stack: 'a' },
         { label: 'State Pension', data: makeSeries('sp'), backgroundColor: '#16a34a', stack: 'a' },
         ...(r.p?.partner ? [{ label: 'Partner SP', data: makeSeries('partnerSp'), backgroundColor: '#86efac', stack: 'a' }] : []),
+        ...(r.p?.partner?.incomes?.length ? [{ label: 'Partner Income', data: makeSeries('partnerOther'), backgroundColor: '#f59e0b', stack: 'a' }] : []),
         { label: 'Other Income', data: makeSeries('other'), backgroundColor: '#d97706', stack: 'a' },
       ]
     },
@@ -1278,6 +1581,15 @@ function initApp() {
   const addCashPotBtn = document.getElementById('add-cash-pot-btn');
   if (addCashPotBtn) addCashPotBtn.addEventListener('click', () => { addCashPot(0, 3.5); persistParams(); });
 
+  const addPartnerPotBtn = document.getElementById('add-partner-pot-btn');
+  if (addPartnerPotBtn) addPartnerPotBtn.addEventListener('click', () => { addPartnerPot(0, 0, 80); persistParams(); });
+
+  const addPartnerCashPotBtn = document.getElementById('add-partner-cash-pot-btn');
+  if (addPartnerCashPotBtn) addPartnerCashPotBtn.addEventListener('click', () => { addPartnerCashPot(0, 3.5); persistParams(); });
+
+  const addPartnerIncomeBtn = document.getElementById('add-partner-income-btn');
+  if (addPartnerIncomeBtn) addPartnerIncomeBtn.addEventListener('click', () => { addPartnerIncome('Income source', 0, 'annual', 20); persistParams(); });
+
   // Partner toggle
   const partnerCb = document.getElementById('partner-enabled');
   if (partnerCb) {
@@ -1335,6 +1647,9 @@ function initApp() {
     addPot(500000, 10000, 70);
     addIncome('Property income', 12000, 'annual', 22, true);
     addCashPot(50000, 3.5);
+    // Partner first-run defaults (disabled)
+    addPartnerPot(250000, 5000, 70);
+    addPartnerCashPot(25000, 3.5);
   }
 
   document.getElementById('run-btn').click();

@@ -86,8 +86,11 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
+    const partnerRetiredAID = !!(p.partner && partnerAge >= p.partner.retirementAge);
+    const partnerOtherAID = (p.partner?.incomes?.length && partnerRetiredAID)
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
     const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac);
-    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + partnerSpInflated + otherNet.netTotal;
+    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + partnerSpInflated + otherNet.netTotal + partnerOtherAID.netTotal;
 
     const potBalNom = pensionAtPctile;
     const potBalReal = pensionAtPctile * todayDeflator;
@@ -98,7 +101,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const prevCombined = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
     const prevCashBal = yi === 0 ? (r.startCashTotal || 0) : (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0);
     const prevPension = Math.max(0, prevCombined - prevCashBal);
-    const pensionInitialValues = p.pots.reduce((s, pot) => s + pot.value, 0);
+    const pensionInitialValues = r.startInitialPotValues ?? p.pots.reduce((s, pot) => s + pot.value, 0);
     const growthNom = potDepleted ? 0 : yi === 0
       ? (yearsToRetirement > 0 ? r.startPensionPot - pensionInitialValues : 0)
       : pensionAtPctile - prevPension + potWithdrawNominal;
@@ -138,10 +141,10 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       otherTaxNom: otherNet.taxTotal / 12,
       otherGrossReal: (otherNet.grossTotal * todayDeflator) / 12,
       otherTaxReal: (otherNet.taxTotal * todayDeflator) / 12,
-      netGrossNom: (cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal) / 12,
-      netTaxNom: (tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal) / 12,
-      netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal) * todayDeflator) / 12,
-      netTaxReal: ((tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal) * todayDeflator) / 12,
+      netGrossNom: (cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal + partnerOtherAID.grossTotal) / 12,
+      netTaxNom: (tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal + partnerOtherAID.taxTotal) / 12,
+      netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal + partnerOtherAID.grossTotal) * todayDeflator) / 12,
+      netTaxReal: ((tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal + partnerOtherAID.taxTotal) * todayDeflator) / 12,
       pensionWithdrawalNom: potWithdrawNominal,
       pensionWithdrawalReal: potWithdrawNominal * todayDeflator,
       cashWithdrawalNom: cashContrib,
@@ -172,29 +175,42 @@ export function runSimulation(p) {
 
   const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
 
-  const numPots = p.pots.length;
+  // Partner pots: contributions stop at partner.retirementAge; then pure growth to primary retirement
+  const partnerPots = p.partner?.pots || [];
+  const yearsToPartnerRet = p.partner
+    ? Math.max(0, Math.min(p.partner.retirementAge - p.currentAge, yearsToRetirement))
+    : yearsToRetirement;
+  const numPrimaryPots = p.pots.length;
+  // Merged pots: primary (contributions all the way) then partner (contributions stop at partner retirement)
+  const allPotsConfig = [
+    ...p.pots.map(pot => ({ ...pot, contribStopYear: yearsToRetirement })),
+    ...partnerPots.map(pot => ({ ...pot, contribStopYear: yearsToPartnerRet })),
+  ];
+  const numPots = allPotsConfig.length;
   const startPotsPerRun = Array.from({ length: nRuns }, () => new Float64Array(numPots));
 
   if (yearsToRetirement === 0) {
     for (let r = 0; r < nRuns; r++) {
-      p.pots.forEach((pot, pi) => { startPotsPerRun[r][pi] = Math.max(0, pot.value); });
+      allPotsConfig.forEach((pot, pi) => { startPotsPerRun[r][pi] = Math.max(0, pot.value); });
     }
   } else {
     for (let r = 0; r < nRuns; r++) {
-      p.pots.forEach((pot, pi) => {
+      allPotsConfig.forEach((pot, pi) => {
         let val = pot.value;
-        const eq = pot.equityPct / 100;
+        const eq = (pot.equityPct || 80) / 100;
         for (let y = 0; y < yearsToRetirement; y++) {
-          val = val * historicalReturn(eq) + pot.annualContrib;
+          val = val * historicalReturn(eq) + (y < pot.contribStopYear ? (pot.annualContrib || 0) : 0);
         }
         startPotsPerRun[r][pi] = Math.max(0, val);
       });
     }
   }
 
-  const numCashPots = p.cashPots.length;
+  // Combined cash pots (primary + partner)
+  const allCashPots = [...(p.cashPots || []), ...(p.partner?.cashPots || [])];
+  const numCashPots = allCashPots.length;
   const startCashPotVals = new Float64Array(numCashPots);
-  p.cashPots.forEach((cp, ci) => {
+  allCashPots.forEach((cp, ci) => {
     let val = cp.value;
     const rate = 1 + cp.interestPct / 100;
     for (let y = 0; y < yearsToRetirement; y++) val *= rate;
@@ -206,6 +222,15 @@ export function runSimulation(p) {
     let tot = 0;
     for (let pi = 0; pi < numPots; pi++) tot += startPotsPerRun[r][pi];
     startTotals[r] = tot;
+  }
+  // Separate primary / partner medians for per-person LSA calc
+  const primaryStartTotals = new Float64Array(nRuns);
+  const partnerStartTotals = new Float64Array(nRuns);
+  for (let r = 0; r < nRuns; r++) {
+    let pt = 0; for (let pi = 0; pi < numPrimaryPots; pi++) pt += startPotsPerRun[r][pi];
+    let pp = 0; for (let pi = numPrimaryPots; pi < numPots; pi++) pp += startPotsPerRun[r][pi];
+    primaryStartTotals[r] = pt;
+    partnerStartTotals[r] = pp;
   }
   const sortedSP = Float64Array.from(startTotals).sort();
   const startPensionPot = sortedSP[Math.floor(nRuns / 2)];
@@ -222,20 +247,27 @@ export function runSimulation(p) {
   p = Object.assign({}, p, {
     drawdown: effectiveDrawdown,
     sp: spAtRetirement,
+    cashPots: allCashPots,
     ...(p.partner ? { partner: Object.assign({}, p.partner, { sp: partnerSpAtRetirement }) } : {}),
   });
 
-  const taxFreeFrac = startPensionPot > 0 ? Math.min(0.25, LSA / startPensionPot) : 0.25;
-  const potsOrder = p.pots.map((pot, idx) => idx).sort((a, b) => p.pots[a].equityPct - p.pots[b].equityPct);
+  // Each person's pot gets its own LSA (£268,275) — compute weighted combined tax-free fraction
+  const primaryPotMedian = Float64Array.from(primaryStartTotals).sort()[Math.floor(nRuns / 2)];
+  const partnerPotMedian = Float64Array.from(partnerStartTotals).sort()[Math.floor(nRuns / 2)];
+  const primaryTaxFreeAmt = primaryPotMedian > 0 ? primaryPotMedian * Math.min(0.25, LSA / primaryPotMedian) : 0;
+  const partnerTaxFreeAmt = partnerPotMedian > 0 ? partnerPotMedian * Math.min(0.25, LSA / partnerPotMedian) : 0;
+  const taxFreeFrac = startPensionPot > 0 ? (primaryTaxFreeAmt + partnerTaxFreeAmt) / startPensionPot : 0.25;
 
-  const medianPotVals = p.pots.map((pot, pi) => {
+  const potsOrder = allPotsConfig.map((_, idx) => idx).sort((a, b) => (allPotsConfig[a].equityPct || 80) - (allPotsConfig[b].equityPct || 80));
+
+  const medianPotVals = allPotsConfig.map((_, pi) => {
     const vals = Array.from({ length: nRuns }, (_, r) => startPotsPerRun[r][pi]).sort((a, b) => a - b);
     return vals[Math.floor(nRuns / 2)];
   });
   const totalMedianVal = medianPotVals.reduce((s, v) => s + v, 0);
   const weightedEquityW = totalMedianVal > 0
-    ? p.pots.reduce((s, pot, pi) => s + (medianPotVals[pi] / totalMedianVal) * (pot.equityPct / 100), 0)
-    : (p.pots[0]?.equityPct || 80) / 100;
+    ? allPotsConfig.reduce((s, pot, pi) => s + (medianPotVals[pi] / totalMedianVal) * ((pot.equityPct || 80) / 100), 0)
+    : (allPotsConfig[0]?.equityPct || 80) / 100;
 
   const potMatrix = Array.from({ length: nRuns }, () => new Float64Array(years + 1));
   let successCount = 0;
@@ -276,7 +308,7 @@ export function runSimulation(p) {
       const totalForBlend = runPots.reduce((s, v) => s + v, 0);
       for (let rank = 0; rank < numPots; rank++) {
         const origIdx = potsOrder[rank];
-        const eq = p.pots[origIdx].equityPct / 100;
+        const eq = (allPotsConfig[origIdx].equityPct || 80) / 100;
         const ret = 1 + (eq * eqRetYear + (1 - eq) * bdRetYear) / 100;
         const w = totalForBlend > 0 ? runPots[rank] / totalForBlend : 1 / numPots;
         blendedRet += w * ret;
@@ -451,13 +483,17 @@ export function runSimulation(p) {
   const hasSpAtRetirement = p.retirementAge >= p.spAge;
   const partnerAgeAtRet = p.partner ? p.partner.currentAge + (p.retirementAge - p.currentAge) : null;
   const partnerSpAtRet = (p.partner && partnerAgeAtRet >= p.partner.spAge) ? p.partner.sp : 0;
+  const partnerRetiredAtRet = !!(p.partner && partnerAgeAtRet >= p.partner.retirementAge);
   const cashAtRetirement = cashContribByYear[0] || 0;
   const grossNeededRet = potWithdrawal(p.retirementAge, p, 1.0);
   const potWAtRetirement = pensionGrossAfterCash(grossNeededRet, cashAtRetirement, hasSpAtRetirement);
   taxCalc = calcPensionTax(potWAtRetirement, hasSpAtRetirement ? p.sp : 0, hasSpAtRetirement, taxFreeFrac);
   const otherAtRetirement = calcOtherIncomesNet(p.incomes, Math.pow(baseInflFactor, yearsToRetirement));
-  netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + partnerSpAtRet + otherAtRetirement.netTotal) / 12;
-  const grossMonthly = (cashAtRetirement + potWAtRetirement + (hasSpAtRetirement ? p.sp : 0) + partnerSpAtRet + otherAtRetirement.grossTotal) / 12;
+  const partnerOtherAtRet = (partnerRetiredAtRet && p.partner.incomes?.length)
+    ? calcOtherIncomesNet(p.partner.incomes, Math.pow(baseInflFactor, yearsToRetirement))
+    : { netTotal: 0, grossTotal: 0 };
+  netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + partnerSpAtRet + otherAtRetirement.netTotal + partnerOtherAtRet.netTotal) / 12;
+  const grossMonthly = (cashAtRetirement + potWAtRetirement + (hasSpAtRetirement ? p.sp : 0) + partnerSpAtRet + otherAtRetirement.grossTotal + partnerOtherAtRet.grossTotal) / 12;
   const netAnnual = netMonthly * 12;
   const grossAnnual = grossMonthly * 12;
 
@@ -485,10 +521,12 @@ export function runSimulation(p) {
     const realF = Math.pow(1 / baseInflFactor, yi);
     const partnerAgeRI = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
     const partnerSpInflRI = (p.partner && partnerAgeRI >= p.partner.spAge) ? p.partner.sp * ci : 0;
+    const partnerOtherRI = (p.partner?.incomes?.length && partnerAgeRI >= p.partner.retirementAge)
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow) : { grossTotal: 0, netTotal: 0 };
     return {
       age,
-      gross: (cashC + potW + spInfl + partnerSpInflRI + otherNet.grossTotal) * realF,
-      net: (cashC + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + partnerSpInflRI + otherNet.netTotal) * realF
+      gross: (cashC + potW + spInfl + partnerSpInflRI + otherNet.grossTotal + partnerOtherRI.grossTotal) * realF,
+      net: (cashC + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + partnerSpInflRI + otherNet.netTotal + partnerOtherRI.netTotal) * realF
     };
   });
 
@@ -508,20 +546,24 @@ export function runSimulation(p) {
     const realF = Math.pow(1 / baseInflFactor, yi);
     const partnerAgeNM = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
     const partnerSpInflNM = (p.partner && partnerAgeNM >= p.partner.spAge) ? p.partner.sp * ci : 0;
+    const partnerOtherNM = (p.partner?.incomes?.length && partnerAgeNM >= p.partner.retirementAge)
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow) : { netTotal: 0 };
     return {
       age,
       cash: (cashC * realF) / 12,
       pension: (tc.pensionNet * realF) / 12,
       sp: hasStatePension ? (tc.spNet * realF) / 12 : 0,
       partnerSp: (partnerSpInflNM * realF) / 12,
+      partnerOther: (partnerOtherNM.netTotal * realF) / 12,
       other: (otherNet.netTotal * realF) / 12
     };
   });
 
+  const startInitialPotValues = allPotsConfig.reduce((s, pot) => s + (pot.value || 0), 0);
   const result = {
     ages, years, p, prob, guardrailPct, medianReal,
     swrPct, swr, netMonthly, grossMonthly, netAnnual, grossAnnual, startPot, startPensionPot, startCashTotal,
-    startCashPotVals, cashContribByYear, cashBalByYear, taxFreeFrac,
+    startCashPotVals, cashContribByYear, cashBalByYear, taxFreeFrac, startInitialPotValues,
     percentileData, pctiles, survivalByAge, realIncomeByAge,
     netMonthlyByAge, swrByAge, taxCalc
   };
