@@ -82,6 +82,11 @@
   .run-btn:hover { opacity: 0.9; }
   .hidden { display: none !important; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
+  .explain-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
+  .explain-title { font-size: 0.86rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .explain-sub { font-size: 0.78rem; color: var(--text2); margin-bottom: 8px; }
+  .explain-list { margin: 0; padding-left: 18px; }
+  .explain-list li { font-size: 0.79rem; color: var(--text2); margin: 4px 0; }
   .ann-table td { vertical-align: top; }
   .ann-sub { font-size: 0.65rem; color: var(--text2); display: block; margin-top: 1px; line-height: 1.2; }
   .ann-tax { color: var(--red); }
@@ -367,6 +372,14 @@
   </div>
 
   <div class="ai-note" id="planning-disclaimer">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances, so consider professional advice before making decisions.</div>
+
+  <div class="explain-panel" id="explain-panel">
+    <div class="explain-title">Why This Outcome?</div>
+    <div class="explain-sub" id="explain-narrative">Run simulation to see key drivers and practical levers.</div>
+    <ul class="explain-list" id="explain-drivers">
+      <li>Top driver impacts will appear here after running.</li>
+    </ul>
+  </div>
 
   <div class="tabs">
     <button class="tab active" data-tab="pot">Pot Balance</button>

@@ -1021,6 +1021,87 @@ function renderCards(r) {
   lsaAlert.classList.toggle('hidden', r.startPot <= FORMER_LTA);
 }
 
+function cloneParams(p) {
+  if (typeof structuredClone === 'function') return structuredClone(p);
+  return JSON.parse(JSON.stringify(p));
+}
+
+function clamp(n, lo, hi) {
+  return Math.min(hi, Math.max(lo, n));
+}
+
+function renderExplainability(explain, r) {
+  const narrativeEl = document.getElementById('explain-narrative');
+  const driversEl = document.getElementById('explain-drivers');
+  if (!narrativeEl || !driversEl) return;
+
+  if (!explain || !r) {
+    narrativeEl.textContent = 'Run simulation to see key drivers and practical levers.';
+    driversEl.innerHTML = '<li>Top driver impacts will appear here after running.</li>';
+    return;
+  }
+
+  const best = explain.drivers[0];
+  const direction = best.deltaProb >= 0 ? 'improves' : 'reduces';
+  const byPp = Math.abs(best.deltaProb).toFixed(1);
+  narrativeEl.textContent = `${best.label} ${direction} success probability by about ${byPp} percentage points versus your current setup.`;
+
+  driversEl.innerHTML = explain.drivers.map(d => {
+    const sign = d.deltaProb >= 0 ? '+' : '−';
+    const cls = d.deltaProb >= 0 ? 'green' : 'red';
+    return `<li><strong>${d.label}</strong>: <span class="${cls}">${sign}${Math.abs(d.deltaProb).toFixed(1)}pp</span> (vs baseline ${r.prob.toFixed(1)}%)</li>`;
+  }).join('');
+}
+
+function buildExplainability(baseParams, baseline) {
+  const explainRuns = Math.max(250, Math.min(600, Math.floor((baseParams.runs || 1000) * 0.35)));
+
+  const scenarios = [
+    {
+      label: baseParams.drawdownMode === 'pct' ? 'Drawdown rate -0.5pp' : 'Annual drawdown -10%',
+      mutate(p) {
+        if (p.drawdownMode === 'pct') p.drawdownPct = clamp((p.drawdownPct || 0) - 0.5, 1, 12);
+        else p.drawdown = Math.max(0, Math.round((p.drawdown || 0) * 0.90));
+      }
+    },
+    {
+      label: 'Retirement age +1 year',
+      mutate(p) {
+        p.retirementAge = clamp((p.retirementAge || 0) + 1, p.currentAge, p.endAge - 1);
+      }
+    },
+    {
+      label: 'Inflation +1.0pp',
+      mutate(p) {
+        p.inflation = clamp((p.inflation || 0) + 1.0, 0.5, 10);
+      }
+    },
+    {
+      label: 'All pension pots +10% equity',
+      mutate(p) {
+        (p.pots || []).forEach(pt => { pt.equityPct = clamp((pt.equityPct || 0) + 10, 0, 100); });
+        (p.partner?.pots || []).forEach(pt => { pt.equityPct = clamp((pt.equityPct || 0) + 10, 0, 100); });
+      }
+    }
+  ];
+
+  const drivers = [];
+  for (const sc of scenarios) {
+    const p2 = cloneParams(baseParams);
+    p2.runs = explainRuns;
+    sc.mutate(p2);
+    const r2 = runSimulationImpl(p2);
+    if (!r2) continue;
+    drivers.push({
+      label: sc.label,
+      deltaProb: r2.prob - baseline.prob,
+    });
+  }
+
+  drivers.sort((a, b) => Math.abs(b.deltaProb) - Math.abs(a.deltaProb));
+  return { drivers: drivers.slice(0, 3) };
+}
+
 // ── Render Income Table ────────────────────────────────────────────────────
 function renderIncomeTable(r) {
   const p = r.p;
@@ -1530,11 +1611,14 @@ document.getElementById('run-btn').addEventListener('click', () => {
           const el = document.getElementById(id);
           if (el) el.textContent = '—';
         });
+        renderExplainability(null, null);
         return;
       }
       r.annualIncomeData = buildAnnualIncomeData(r, pctileIdx);
 
       renderCards(r);
+      const explain = buildExplainability(getParams(), r);
+      renderExplainability(explain, r);
       renderIncomeTable(r);
 
       if (activeTab === 'pot') renderPotChart(r);
