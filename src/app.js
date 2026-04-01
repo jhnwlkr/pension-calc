@@ -1303,16 +1303,21 @@ function initApp() {
     restoreParams(saved);
     // If no pots were restored, seed defaults
     if (potsData.length === 0) {
-      addPot(775000, 57500, 80);
+      addPot(500000, 10000, 70);
     }
     // If no incomes were restored, seed defaults
     if (incomesData.length === 0) {
-      addIncome('Property income', 15600, 'annual', 22);
+      addIncome('Property income', 12000, 'annual', 0, true);
+    }
+    // If no cash pots were restored, seed defaults
+    if (cashPotsData.length === 0) {
+      addCashPot(50000, 3.5);
     }
   } else {
     // First-run defaults
-    addPot(775000, 57500, 80);
-    addIncome('Property income', 15600, 'annual', 22);
+    addPot(500000, 10000, 70);
+    addIncome('Property income', 12000, 'annual', 0, true);
+    addCashPot(50000, 3.5);
   }
 
   document.getElementById('run-btn').click();
