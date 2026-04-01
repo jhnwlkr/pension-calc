@@ -58,14 +58,10 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor;
     const spInflated = hasStatePension ? p.sp * ci : 0;
-    const partnerSp = p.partner ? p.partner.sp : 0;
-    const partnerSpAge = p.partner ? p.partner.spAge : Infinity;
-    const partnerYearsToRet = p.partner ? Math.max(0, p.partner.retirementAge - p.partner.currentAge) : 0;
-    const partnerSpAtRetirement = p.partner ? partnerSp * Math.pow(baseInflFactor, partnerYearsToRet) : 0;
-    const hasPartnerSP = !!(p.partner && age >= partnerSpAge);
-    const partnerSpYearsSinceRet = p.partner ? Math.max(0, age - p.partner.retirementAge) : 0;
-    const partnerCiForSp = p.partner ? Math.pow(baseInflFactor, partnerSpYearsSinceRet) : 1;
-    const partnerSpInflated = hasPartnerSP ? partnerSpAtRetirement * partnerCiForSp : 0;
+    // Partner state pension — use partner's actual age for SP eligibility
+    const partnerAge = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+    const hasPartnerSP = !!(p.partner && partnerAge >= p.partner.spAge);
+    const partnerSpInflated = hasPartnerSP ? p.partner.sp * ci : 0;
     const neededFromPots = Math.max(0, targetNominal - spInflated);
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
@@ -155,8 +151,10 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       growthReal,
       netPotChangeNom,
       netPotChangeReal,
+      partnerAge,
       guardrailActive,
       isSpStart: age === p.spAge,
+      isPartnerSpStart: !!(p.partner && partnerAge === p.partner.spAge),
       isReductionStart: age === p.reductionAge,
     });
   }

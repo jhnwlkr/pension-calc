@@ -593,15 +593,12 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
     const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac);
 
-    // Partner state pension (inflated from today, shown separately, not included in pot drawdown calc)
+    // Partner state pension — use partner's actual age to determine SP eligibility
     const partner = p.partner;
-    const partnerYearsToRet = partner ? Math.max(0, partner.retirementAge - partner.currentAge) : 0;
-    const partnerSpAtRetirement = partner ? partner.sp * Math.pow(baseInflFactor, partnerYearsToRet) : 0;
-    const hasPartnerSP = partner && age >= partner.spAge;
-    // ci here is years since primary retirement; partner SP inflates from their retirement onwards
-    const partnerSpYearsSinceRet = partner ? Math.max(0, age - partner.retirementAge) : 0;
-    const partnerCi = partner ? Math.pow(baseInflFactor, partnerSpYearsSinceRet) : 1;
-    const partnerSpInflated = hasPartnerSP ? partnerSpAtRetirement * partnerCi : 0;
+    const partnerAge = partner ? partner.currentAge + (age - p.currentAge) : null;
+    const hasPartnerSP = !!(partner && partnerAge >= partner.spAge);
+    // Inflate partner SP the same way as primary SP: partner.sp is today's value, inflated by ci from primary's retirement
+    const partnerSpInflated = hasPartnerSP ? partner.sp * ci : 0;
 
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal + partnerSpInflated;
 
@@ -670,8 +667,10 @@ function buildAnnualIncomeData(r, pctileIdx) {
       growthReal,
       netPotChangeNom,
       netPotChangeReal,
+      partnerAge,
       guardrailActive,
       isSpStart: age === p.spAge,
+      isPartnerSpStart: !!(partner && partnerAge === partner.spAge),
       isReductionStart: age === p.reductionAge,
     });
   }
@@ -923,9 +922,13 @@ function renderAnnualIncomeTable(r) {
     let cls = '';
     if (d.guardrailActive) cls = 'guardrail-row';
     else if (d.isSpStart) cls = 'sp-start-row';
+    else if (d.isPartnerSpStart) cls = 'partner-sp-start-row';
+    const ageDisplay = hasPartner
+      ? `${d.age}<span style="color:var(--text2)">/${d.partnerAge}</span>`
+      : `${d.age}`;
     const ageLabel = d.age === r.p.retirementAge && r.p.retirementAge > r.p.currentAge
-      ? `${d.age}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear} · pre-ret. growth →</span>`
-      : `${d.age}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear}</span>`;
+      ? `${ageDisplay}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear} · pre-ret. growth →</span>`
+      : `${ageDisplay}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear}</span>`;
     return `<tr class="${cls}">
       <td>${ageLabel}</td>
       ${cell(d.cashNom, d.cashReal)}

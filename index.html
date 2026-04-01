@@ -88,6 +88,7 @@
   .guardrail-row td:first-child::after { content: ' ⚡'; color: var(--red); font-size: 0.75rem; }
   .guardrail-row { background: rgba(220,38,38,0.04); }
   .sp-start-row td:first-child::after { content: ' 🏛'; font-size: 0.75rem; }
+  .partner-sp-start-row td:first-child::after { content: ' 🏛'; font-size: 0.75rem; color: var(--text2); }
 
   /* Dynamic pots & incomes */
   .add-btn { padding: 4px 10px; background: var(--accent); color: #fff; border: none; border-radius: 5px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -438,7 +439,7 @@
           <input type="checkbox" id="today-money-toggle-annualincome" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
         </label>
       </div>
-      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts. Use the "Today's Prices" toggle above to switch between nominal and today's purchasing power. Income columns show net (headline) with gross and tax sub-lines.</div>
+      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts (greyed = partner's SP). When a partner is added, the Age column shows your age / partner's age. Use the "Today's Prices" toggle above to switch between nominal and today's purchasing power. Income columns show net (headline) with gross and tax sub-lines.</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
         <span style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Scenario percentile:</span>
         <input type="range" id="ann-pctile" min="0" max="4" step="1" value="2" style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);height:4px">
