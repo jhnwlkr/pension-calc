@@ -1217,7 +1217,7 @@ function renderAnnualIncomeTable(r) {
   const hasPartner = !!r.p?.partner;
 
   // Show/hide partner columns based on hasPartner
-  ['ann-th-partner-sp', 'ann-th-partner-other'].forEach(id => {
+  ['ann-th-partner-pension', 'ann-th-partner-sp', 'ann-th-partner-other'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = hasPartner ? '' : 'none';
   });
@@ -1258,10 +1258,11 @@ function renderAnnualIncomeTable(r) {
       <td>${ageLabel}</td>
       ${cell(d.cashNom, d.cashReal)}
       ${incomeCell(d.pensionNom, d.pensionReal, d.pensionGrossNom, d.pensionGrossReal, d.pensionTaxNom, d.pensionTaxReal)}
+      ${incomeCell(0, 0, 0, 0, 0, 0)}
       ${incomeCell(d.spNom, d.spReal, d.spGrossNom, d.spGrossReal, d.spTaxNom, d.spTaxReal)}
+      ${incomeCell(d.partnerSpNom || 0, d.partnerSpReal || 0, d.partnerSpGrossNom || 0, d.partnerSpGrossReal || 0, 0, 0)}
       ${incomeCell(d.otherNom, d.otherReal, d.otherGrossNom, d.otherGrossReal, d.otherTaxNom, d.otherTaxReal)}
-      ${hasPartner ? incomeCell(d.partnerSpNom, d.partnerSpReal, d.partnerSpGrossNom, d.partnerSpGrossReal, 0, 0) : ''}
-      ${hasPartner ? incomeCell(d.partnerOtherNom, d.partnerOtherReal, d.partnerOtherGrossNom, d.partnerOtherGrossReal, d.partnerOtherTaxNom, d.partnerOtherTaxReal) : ''}
+      ${incomeCell(d.partnerOtherNom || 0, d.partnerOtherReal || 0, d.partnerOtherGrossNom || 0, d.partnerOtherGrossReal || 0, d.partnerOtherTaxNom || 0, d.partnerOtherTaxReal || 0)}
       ${incomeCell(d.netNom, d.netReal, d.netGrossNom, d.netGrossReal, d.netTaxNom, d.netTaxReal)}
       ${cell(d.cashWithdrawalNom, d.cashWithdrawalReal)}
       ${cell(d.pensionWithdrawalNom, d.pensionWithdrawalReal)}
