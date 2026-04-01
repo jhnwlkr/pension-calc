@@ -57,11 +57,13 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor;
-    const spInflated = hasStatePension ? p.sp * ci : 0;
+    // SP inflated from today (ciFromNow) so both SPs share the same nominal base and
+    // "Today's Prices" always shows exactly the slider value regardless of retirement timing
+    const spInflated = hasStatePension ? p.sp * ciFromNow : 0;
     // Partner state pension — use partner's actual age for SP eligibility
     const partnerAge = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
     const hasPartnerSP = !!(p.partner && partnerAge >= p.partner.spAge);
-    const partnerSpInflated = hasPartnerSP ? p.partner.sp * ci : 0;
+    const partnerSpInflated = hasPartnerSP ? p.partner.sp * ciFromNow : 0;
     const neededFromPots = Math.max(0, targetNominal - spInflated);
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
