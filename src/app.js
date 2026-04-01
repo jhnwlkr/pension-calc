@@ -1036,20 +1036,21 @@ function renderExplainability(explain, r) {
   if (!narrativeEl || !driversEl) return;
 
   if (!explain || !r) {
-    narrativeEl.textContent = 'Run simulation to see key drivers and practical levers.';
-    driversEl.innerHTML = '<li>Top driver impacts will appear here after running.</li>';
+    narrativeEl.textContent = 'Run the model to see what is helping or hurting your plan the most.';
+    driversEl.innerHTML = '<li>We will show the top 3 things to tweak, and how much each may change success odds.</li>';
     return;
   }
 
   const best = explain.drivers[0];
-  const direction = best.deltaProb >= 0 ? 'improves' : 'reduces';
+  const direction = best.deltaProb >= 0 ? 'could improve' : 'could lower';
   const byPp = Math.abs(best.deltaProb).toFixed(1);
-  narrativeEl.textContent = `${best.label} ${direction} success probability by about ${byPp} percentage points versus your current setup.`;
+  narrativeEl.textContent = `Biggest lever right now: ${best.label}. This ${direction} your success chance by about ${byPp} points in our estimate.`;
 
   driversEl.innerHTML = explain.drivers.map(d => {
-    const sign = d.deltaProb >= 0 ? '+' : '−';
+    const sign = d.deltaProb >= 0 ? '+' : '-';
     const cls = d.deltaProb >= 0 ? 'green' : 'red';
-    return `<li><strong>${d.label}</strong>: <span class="${cls}">${sign}${Math.abs(d.deltaProb).toFixed(1)}pp</span> (vs baseline ${r.prob.toFixed(1)}%)</li>`;
+    const effect = d.deltaProb >= 0 ? 'better' : 'worse';
+    return `<li>If you try <strong>${d.label}</strong>, success is estimated at <strong>${(r.prob + d.deltaProb).toFixed(1)}%</strong> (<span class="${cls}">${sign}${Math.abs(d.deltaProb).toFixed(1)} points</span>, ${effect} than current ${r.prob.toFixed(1)}%).</li>`;
   }).join('');
 }
 
@@ -1058,26 +1059,26 @@ function buildExplainability(baseParams, baseline) {
 
   const scenarios = [
     {
-      label: baseParams.drawdownMode === 'pct' ? 'Drawdown rate -0.5pp' : 'Annual drawdown -10%',
+      label: baseParams.drawdownMode === 'pct' ? 'reduce drawdown rate by 0.5%' : 'reduce annual drawdown by 10%',
       mutate(p) {
         if (p.drawdownMode === 'pct') p.drawdownPct = clamp((p.drawdownPct || 0) - 0.5, 1, 12);
         else p.drawdown = Math.max(0, Math.round((p.drawdown || 0) * 0.90));
       }
     },
     {
-      label: 'Retirement age +1 year',
+      label: 'retire 1 year later',
       mutate(p) {
         p.retirementAge = clamp((p.retirementAge || 0) + 1, p.currentAge, p.endAge - 1);
       }
     },
     {
-      label: 'Inflation +1.0pp',
+      label: 'assume inflation is 1% higher',
       mutate(p) {
         p.inflation = clamp((p.inflation || 0) + 1.0, 0.5, 10);
       }
     },
     {
-      label: 'All pension pots +10% equity',
+      label: 'hold 10% more equities in pension pots',
       mutate(p) {
         (p.pots || []).forEach(pt => { pt.equityPct = clamp((pt.equityPct || 0) + 10, 0, 100); });
         (p.partner?.pots || []).forEach(pt => { pt.equityPct = clamp((pt.equityPct || 0) + 10, 0, 100); });
