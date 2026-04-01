@@ -113,11 +113,12 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       cashNom: cashContrib / 12,
       cashReal: (cashContrib * todayDeflator) / 12,
       pensionNom: tc.pensionNet / 12,
-      spNom: hasStatePension ? tc.spNet / 12 : 0,
+      // SP: show gross as headline so both SP columns are directly comparable
+      spNom: spInflated / 12,
+      spReal: (spInflated * todayDeflator) / 12,
       otherNom: otherNet.netTotal / 12,
       netNom: totalNetNominal / 12,
       pensionReal: (tc.pensionNet * todayDeflator) / 12,
-      spReal: hasStatePension ? (tc.spNet * todayDeflator) / 12 : 0,
       otherReal: (otherNet.netTotal * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
       // Gross/tax breakdown for income column sub-lines

@@ -567,8 +567,8 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor;
-    // Use inflation-adjusted state pension for correct annual increase
-    const spInflated = hasStatePension ? p.sp * ci : 0;
+    // SP inflated from today (ciFromNow) so nominal values are comparable across different retirement ages
+    const spInflated = hasStatePension ? p.sp * ciFromNow : 0;
     const neededFromPots = Math.max(0, targetNominal - spInflated);
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
@@ -597,8 +597,8 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const partner = p.partner;
     const partnerAge = partner ? partner.currentAge + (age - p.currentAge) : null;
     const hasPartnerSP = !!(partner && partnerAge >= partner.spAge);
-    // Inflate partner SP the same way as primary SP: partner.sp is today's value, inflated by ci from primary's retirement
-    const partnerSpInflated = hasPartnerSP ? partner.sp * ci : 0;
+    // Inflate partner SP the same way as primary SP: ciFromNow (from today) so same slider = same nominal value
+    const partnerSpInflated = hasPartnerSP ? partner.sp * ciFromNow : 0;
 
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal + partnerSpInflated;
 
@@ -626,11 +626,13 @@ function buildAnnualIncomeData(r, pctileIdx) {
       cashNom: cashContrib / 12,
       cashReal: (cashContrib * todayDeflator) / 12,
       pensionNom: tc.pensionNet / 12,
-      spNom: hasStatePension ? tc.spNet / 12 : 0,
+      // SP: show gross as headline so both SP columns are directly comparable;
+      // tax on primary SP is a sub-line; the correct after-tax total is in Total Net
+      spNom: spInflated / 12,
+      spReal: (spInflated * todayDeflator) / 12,
       otherNom: otherNet.netTotal / 12,
       netNom: totalNetNominal / 12,
       pensionReal: (tc.pensionNet * todayDeflator) / 12,
-      spReal: hasStatePension ? (tc.spNet * todayDeflator) / 12 : 0,
       otherReal: (otherNet.netTotal * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
       // Partner SP
