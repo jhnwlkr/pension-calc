@@ -950,6 +950,18 @@ function buildAnnualIncomeData(r, pctileIdx) {
       netPotChangeNom,
       netPotChangeReal,
       partnerAge,
+      // Partner pot/cash balance informational columns
+      partnerPotBalNom: partnerPotBalance,
+      partnerPotBalReal: partnerPotBalance * todayDeflator,
+      partnerCashBalNom: partnerCashBalance,
+      partnerCashBalReal: partnerCashBalance * todayDeflator,
+      // Partner other income breakdown (net/gross/tax)
+      partnerOtherNom: partnerOtherAID.netTotal / 12,
+      partnerOtherReal: (partnerOtherAID.netTotal * todayDeflator) / 12,
+      partnerOtherGrossNom: partnerOtherAID.grossTotal / 12,
+      partnerOtherGrossReal: (partnerOtherAID.grossTotal * todayDeflator) / 12,
+      partnerOtherTaxNom: partnerOtherAID.taxTotal / 12,
+      partnerOtherTaxReal: (partnerOtherAID.taxTotal * todayDeflator) / 12,
       guardrailActive,
       isSpStart: age === p.spAge,
       isPartnerSpStart: !!(partner && partnerAge === partner.spAge),
@@ -1204,19 +1216,11 @@ function renderAnnualIncomeTable(r) {
   const isToday = isTodayMoney();
   const hasPartner = !!r.p?.partner;
 
-  // Update partner SP column header visibility
-  let partnerSpTh = document.getElementById('ann-th-partner-sp');
-  if (hasPartner && !partnerSpTh) {
-    const spTh = document.querySelector('#annual-income-tbody').closest('table').querySelector('thead tr th:nth-child(4)');
-    if (spTh) {
-      const th = document.createElement('th');
-      th.id = 'ann-th-partner-sp';
-      th.innerHTML = 'Partner SP /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small>';
-      spTh.after(th);
-    }
-  } else if (!hasPartner && partnerSpTh) {
-    partnerSpTh.remove();
-  }
+  // Show/hide partner columns based on hasPartner
+  ['ann-th-partner-sp', 'ann-th-partner-other'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = hasPartner ? '' : 'none';
+  });
 
   // Single-value cell — picks nominal or today's money based on toggle
   function cell(nom, real) {
@@ -1255,8 +1259,9 @@ function renderAnnualIncomeTable(r) {
       ${cell(d.cashNom, d.cashReal)}
       ${incomeCell(d.pensionNom, d.pensionReal, d.pensionGrossNom, d.pensionGrossReal, d.pensionTaxNom, d.pensionTaxReal)}
       ${incomeCell(d.spNom, d.spReal, d.spGrossNom, d.spGrossReal, d.spTaxNom, d.spTaxReal)}
-      ${hasPartner ? incomeCell(d.partnerSpNom, d.partnerSpReal, d.partnerSpGrossNom, d.partnerSpGrossReal, 0, 0) : ''}
       ${incomeCell(d.otherNom, d.otherReal, d.otherGrossNom, d.otherGrossReal, d.otherTaxNom, d.otherTaxReal)}
+      ${hasPartner ? incomeCell(d.partnerSpNom, d.partnerSpReal, d.partnerSpGrossNom, d.partnerSpGrossReal, 0, 0) : ''}
+      ${hasPartner ? incomeCell(d.partnerOtherNom, d.partnerOtherReal, d.partnerOtherGrossNom, d.partnerOtherGrossReal, d.partnerOtherTaxNom, d.partnerOtherTaxReal) : ''}
       ${incomeCell(d.netNom, d.netReal, d.netGrossNom, d.netGrossReal, d.netTaxNom, d.netTaxReal)}
       ${cell(d.cashWithdrawalNom, d.cashWithdrawalReal)}
       ${cell(d.pensionWithdrawalNom, d.pensionWithdrawalReal)}
