@@ -825,6 +825,8 @@ function buildAnnualIncomeData(r, pctileIdx) {
   const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
   const currentYear = new Date().getFullYear();
   const startPensionPot = r.startPensionPot || r.startPot;
+  const partnerPotBalance = 0;
+  const partnerCashBalance = 0;
 
   const cashBals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
 
@@ -1542,6 +1544,8 @@ document.getElementById('run-btn').addEventListener('click', () => {
       else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
 
       setActiveTab(activeTab);
+    } catch (err) {
+      console.error('Run simulation failed', err);
     } finally {
       btn.disabled = false; spinner.style.display = 'none';
     }
