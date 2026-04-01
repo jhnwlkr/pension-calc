@@ -534,7 +534,9 @@ function targetIncome(age, p, cumulInfl) {
 
 function potWithdrawal(age, p, cumulInfl) {
   const stateP = age >= p.spAge ? p.sp : 0;
-  return Math.max(0, targetIncome(age, p, cumulInfl) - stateP);
+  const partnerAgeW = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+  const partnerSPW = (p.partner && partnerAgeW >= p.partner.spAge) ? p.partner.sp : 0;
+  return Math.max(0, targetIncome(age, p, cumulInfl) - stateP - partnerSPW);
 }
 
 const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
@@ -592,13 +594,6 @@ function buildAnnualIncomeData(r, pctileIdx) {
 
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
     const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac);
-
-    // Partner state pension — use partner's actual age to determine SP eligibility
-    const partner = p.partner;
-    const partnerAge = partner ? partner.currentAge + (age - p.currentAge) : null;
-    const hasPartnerSP = !!(partner && partnerAge >= partner.spAge);
-    // Inflate partner SP the same way as primary SP: ciFromNow (from today) so same slider = same nominal value
-    const partnerSpInflated = hasPartnerSP ? partner.sp * ciFromNow : 0;
 
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal + partnerSpInflated;
 
@@ -743,7 +738,9 @@ function renderIncomeTable(r) {
       const redF = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
       const hasSP = age >= p.spAge;
       const spN = hasSP ? p.sp * Math.pow(baseInfl, y) : 0;
-      const grossNeeded = Math.max(0, p.drawdown * inflF * redF - spN);
+      const partnerAgeDrain = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+      const partnerSpNDrain = (p.partner && partnerAgeDrain >= p.partner.spAge) ? p.partner.sp * Math.pow(baseInfl, y) : 0;
+      const grossNeeded = Math.max(0, p.drawdown * inflF * redF - spN - partnerSpNDrain);
       const ntc = calcPensionTax(grossNeeded, spN, hasSP, taxFreeFrac);
       const netTarget = ntc.pensionNet;
       let remaining = netTarget;
@@ -767,6 +764,14 @@ function renderIncomeTable(r) {
   const ci0 = 1.0;
   const ci2 = Math.pow(baseInfl, spYears);
   const ci3 = Math.pow(baseInfl, redYears);
+
+  // Partner SP at each snapshot (0 if no partner or not yet in payment)
+  const partnerAgeAt1 = p.partner ? p.partner.currentAge + (p.retirementAge - p.currentAge) : null;
+  const partnerAgeAt2 = p.partner ? p.partner.currentAge + (p.spAge - p.currentAge) : null;
+  const partnerAgeAt3 = p.partner ? p.partner.currentAge + (p.reductionAge - p.currentAge) : null;
+  const pSp1 = (p.partner && partnerAgeAt1 >= p.partner.spAge) ? p.partner.sp * ci0 : 0;
+  const pSp2 = (p.partner && partnerAgeAt2 >= p.partner.spAge) ? p.partner.sp * ci2 : 0;
+  const pSp3 = (p.partner && partnerAgeAt3 >= p.partner.spAge) ? p.partner.sp * ci3 : 0;
 
   // Cash contributions at each snapshot (NET values — cash is post-tax)
   const cash1 = cashContribAtYear(0);
@@ -846,6 +851,14 @@ function renderIncomeTable(r) {
       sp3, sp3 > 0 ? tc3.spTax : 0, sp3 > 0 ? tc3.spNet : 0,
       `From age ${p.spAge}`);
 
+  if (p.partner) {
+    rows += row('Partner state pension',
+        pSp1, 0, pSp1,
+        pSp2, 0, pSp2,
+        pSp3, 0, pSp3,
+        `From age ${p.partner.spAge}`);
+  }
+
   // Dynamic other income rows
   if (p.incomes.length > 0) {
     p.incomes.forEach(inc => {
@@ -862,11 +875,11 @@ function renderIncomeTable(r) {
   }
 
   // Total row
-  const tot1g = cash1 + potW1Full + other1.grossTotal, tot1t = tc1.pensionTax + other1.taxTotal, tot1n = cash1 + tc1.pensionNet + other1.netTotal;
-  const tot2g = cash2 + potW2 + sp2 + other2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + other2.taxTotal, tot2n = cash2 + tc2.pensionNet + tc2.spNet + other2.netTotal;
+  const tot1g = cash1 + potW1Full + pSp1 + other1.grossTotal, tot1t = tc1.pensionTax + other1.taxTotal, tot1n = cash1 + tc1.pensionNet + pSp1 + other1.netTotal;
+  const tot2g = cash2 + potW2 + sp2 + pSp2 + other2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + other2.taxTotal, tot2n = cash2 + tc2.pensionNet + tc2.spNet + pSp2 + other2.netTotal;
   const spTax3 = sp3 > 0 ? tc3.spTax : 0;
   const spNet3 = sp3 > 0 ? tc3.spNet : 0;
-  const tot3g = cash3 + potW3 + sp3 + other3.grossTotal, tot3t = tc3.pensionTax + spTax3 + other3.taxTotal, tot3n = cash3 + tc3.pensionNet + spNet3 + other3.netTotal;
+  const tot3g = cash3 + potW3 + sp3 + pSp3 + other3.grossTotal, tot3t = tc3.pensionTax + spTax3 + other3.taxTotal, tot3n = cash3 + tc3.pensionNet + spNet3 + pSp3 + other3.netTotal;
 
   rows += `<tr>
     <td><strong>Total</strong></td>
@@ -1114,6 +1127,7 @@ function renderNetMonthlyChart(r) {
         { label: 'Cash Pots', data: makeSeries('cash'), backgroundColor: '#0891b2', stack: 'a' },
         { label: 'Pension', data: makeSeries('pension'), backgroundColor: '#2563eb', stack: 'a' },
         { label: 'State Pension', data: makeSeries('sp'), backgroundColor: '#16a34a', stack: 'a' },
+        ...(r.p?.partner ? [{ label: 'Partner SP', data: makeSeries('partnerSp'), backgroundColor: '#86efac', stack: 'a' }] : []),
         { label: 'Other Income', data: makeSeries('other'), backgroundColor: '#d97706', stack: 'a' },
       ]
     },

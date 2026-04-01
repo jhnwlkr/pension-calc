@@ -25,7 +25,9 @@ export function targetIncome(age, p, cumulInfl) {
 
 export function potWithdrawal(age, p, cumulInfl) {
   const stateP = age >= p.spAge ? p.sp * cumulInfl : 0;
-  return Math.max(0, targetIncome(age, p, cumulInfl) - stateP);
+  const partnerAge = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+  const partnerSP = (p.partner && partnerAge >= p.partner.spAge) ? p.partner.sp * cumulInfl : 0;
+  return Math.max(0, targetIncome(age, p, cumulInfl) - stateP - partnerSP);
 }
 
 export const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
@@ -57,14 +59,12 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor;
-    // p.sp is pre-inflated to retirement value; multiply by ci (years since retirement)
-    // partner.sp is today's value, so multiply by ciFromNow
+    // p.sp and p.partner.sp are both pre-inflated to retirement; multiply by ci
     const spInflated = hasStatePension ? p.sp * ci : 0;
-    // Partner state pension — use partner's actual age for SP eligibility
     const partnerAge = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
     const hasPartnerSP = !!(p.partner && partnerAge >= p.partner.spAge);
-    const partnerSpInflated = hasPartnerSP ? p.partner.sp * ciFromNow : 0;
-    const neededFromPots = Math.max(0, targetNominal - spInflated);
+    const partnerSpInflated = hasPartnerSP ? p.partner.sp * ci : 0;
+    const neededFromPots = Math.max(0, targetNominal - spInflated - partnerSpInflated);
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
@@ -218,7 +218,12 @@ export function runSimulation(p) {
   // Inflate state pension from today to retirement so it correctly grows with
   // triple-lock inflation through the pre-retirement years, not just from retirement.
   const spAtRetirement = p.sp * Math.pow(1 + p.inflation / 100, yearsToRetirement);
-  p = Object.assign({}, p, { drawdown: effectiveDrawdown, sp: spAtRetirement });
+  const partnerSpAtRetirement = p.partner ? p.partner.sp * Math.pow(1 + p.inflation / 100, yearsToRetirement) : null;
+  p = Object.assign({}, p, {
+    drawdown: effectiveDrawdown,
+    sp: spAtRetirement,
+    ...(p.partner ? { partner: Object.assign({}, p.partner, { sp: partnerSpAtRetirement }) } : {}),
+  });
 
   const taxFreeFrac = startPensionPot > 0 ? Math.min(0.25, LSA / startPensionPot) : 0.25;
   const potsOrder = p.pots.map((pot, idx) => idx).sort((a, b) => p.pots[a].equityPct - p.pots[b].equityPct);
@@ -291,7 +296,9 @@ export function runSimulation(p) {
       const targetNominal = p.drawdown * inflFactor * reductionFactor;
       const hasSPthisYear = age >= p.spAge;
       const spNomMC = hasSPthisYear ? p.sp * cumulInfl : 0;
-      const grossWithdrawal = Math.max(0, targetNominal - spNomMC);
+      const partnerAgeMC = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+      const partnerSpNomMC = (p.partner && partnerAgeMC >= p.partner.spAge) ? p.partner.sp * cumulInfl : 0;
+      const grossWithdrawal = Math.max(0, targetNominal - spNomMC - partnerSpNomMC);
 
       const notionalTc = calcPensionTax(grossWithdrawal, spNomMC, hasSPthisYear, taxFreeFrac);
       const netTarget = notionalTc.pensionNet;
@@ -426,7 +433,9 @@ export function runSimulation(p) {
       const inflFactor = p.drawdownInflation ? Math.pow(inflF, y) : 1.0;
       const hasSP = age >= p.spAge;
       const spNomDet = hasSP ? p.sp * Math.pow(inflF, y) : 0;
-      const grossNeeded = Math.max(0, p.drawdown * inflFactor * reductionFactor - spNomDet);
+      const partnerAgeDet = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+      const partnerSpNomDet = (p.partner && partnerAgeDet >= p.partner.spAge) ? p.partner.sp * Math.pow(inflF, y) : 0;
+      const grossNeeded = Math.max(0, p.drawdown * inflFactor * reductionFactor - spNomDet - partnerSpNomDet);
       const ntc = calcPensionTax(grossNeeded, spNomDet, hasSP, taxFreeFrac);
       const netTarget = ntc.pensionNet;
       let remaining = netTarget;
@@ -440,13 +449,15 @@ export function runSimulation(p) {
   }
 
   const hasSpAtRetirement = p.retirementAge >= p.spAge;
+  const partnerAgeAtRet = p.partner ? p.partner.currentAge + (p.retirementAge - p.currentAge) : null;
+  const partnerSpAtRet = (p.partner && partnerAgeAtRet >= p.partner.spAge) ? p.partner.sp : 0;
   const cashAtRetirement = cashContribByYear[0] || 0;
   const grossNeededRet = potWithdrawal(p.retirementAge, p, 1.0);
   const potWAtRetirement = pensionGrossAfterCash(grossNeededRet, cashAtRetirement, hasSpAtRetirement);
   taxCalc = calcPensionTax(potWAtRetirement, hasSpAtRetirement ? p.sp : 0, hasSpAtRetirement, taxFreeFrac);
   const otherAtRetirement = calcOtherIncomesNet(p.incomes, Math.pow(baseInflFactor, yearsToRetirement));
-  netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + otherAtRetirement.netTotal) / 12;
-  const grossMonthly = (cashAtRetirement + potWAtRetirement + (hasSpAtRetirement ? p.sp : 0) + otherAtRetirement.grossTotal) / 12;
+  netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + partnerSpAtRet + otherAtRetirement.netTotal) / 12;
+  const grossMonthly = (cashAtRetirement + potWAtRetirement + (hasSpAtRetirement ? p.sp : 0) + partnerSpAtRet + otherAtRetirement.grossTotal) / 12;
   const netAnnual = netMonthly * 12;
   const grossAnnual = grossMonthly * 12;
 
@@ -472,10 +483,12 @@ export function runSimulation(p) {
     const potW = pensionDepleted ? 0 : pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
     const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
+    const partnerAgeRI = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+    const partnerSpInflRI = (p.partner && partnerAgeRI >= p.partner.spAge) ? p.partner.sp * ci : 0;
     return {
       age,
-      gross: (cashC + potW + spInfl + otherNet.grossTotal) * realF,
-      net: (cashC + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal) * realF
+      gross: (cashC + potW + spInfl + partnerSpInflRI + otherNet.grossTotal) * realF,
+      net: (cashC + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + partnerSpInflRI + otherNet.netTotal) * realF
     };
   });
 
@@ -493,11 +506,14 @@ export function runSimulation(p) {
     const potW = pensionDepleted ? 0 : pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
     const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac);
     const realF = Math.pow(1 / baseInflFactor, yi);
+    const partnerAgeNM = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+    const partnerSpInflNM = (p.partner && partnerAgeNM >= p.partner.spAge) ? p.partner.sp * ci : 0;
     return {
       age,
       cash: (cashC * realF) / 12,
       pension: (tc.pensionNet * realF) / 12,
       sp: hasStatePension ? (tc.spNet * realF) / 12 : 0,
+      partnerSp: (partnerSpInflNM * realF) / 12,
       other: (otherNet.netTotal * realF) / 12
     };
   });
