@@ -288,13 +288,41 @@
     </div>
   </div>
 
+  <!-- Partner -->
+  <div class="section">
+    <div class="section-header" style="margin-bottom:0">
+      <h3 style="margin:0">Partner</h3>
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="partner-enabled" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"> Add partner
+      </label>
+    </div>
+    <div id="partner-section" class="hidden" style="margin-top:14px">
+      <div style="font-size:0.72rem;color:var(--text2);margin-bottom:10px;padding:6px 8px;background:var(--surface2);border-radius:4px;border-left:3px solid var(--accent)">Partner's state pension is added to joint income. Survival probability reflects either partner outliving the plan.</div>
+      <div class="slider-row">
+        <div class="slider-label"><span class="slider-name">Partner current age</span><span class="slider-val" id="v-partner-age">52</span></div>
+        <input type="range" id="partner-age" min="40" max="75" value="52">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span class="slider-name">Partner retirement age</span><span class="slider-val" id="v-partner-retirement-age">55</span></div>
+        <input type="range" id="partner-retirement-age" min="40" max="75" value="55">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span class="slider-name">Partner SP from age</span><span class="slider-val" id="v-partner-sp-age">67</span></div>
+        <input type="range" id="partner-sp-age" min="60" max="70" value="67">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span class="slider-name">Partner SP (annual)</span><span class="slider-val" id="v-partner-sp">£12,540</span></div>
+        <input type="range" id="partner-sp" min="0" max="12900" step="10" value="12540">
+      </div>
+    </div>
+  </div>
 
 </div>
 
 <div class="main">
   <div class="cards">
     <div class="card">
-      <div class="card-label">Probability of Success</div>
+      <div class="card-label" id="c-prob-label">Probability of Success</div>
       <div class="card-value" id="c-prob">—</div>
       <div class="card-sub" id="c-guardrail-sub">pot survives to target age</div>
     </div>

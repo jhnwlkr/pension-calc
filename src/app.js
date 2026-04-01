@@ -263,6 +263,20 @@ function renderCashPotsUI() {
 // add-cash-pot button wiring is initialized in initApp().
 
 // ── Slider wiring ──────────────────────────────────────────────────────────
+function getPartnerEnabled() {
+  return document.getElementById('partner-enabled')?.checked || false;
+}
+
+function getPartnerParams() {
+  if (!getPartnerEnabled()) return null;
+  return {
+    currentAge: +document.getElementById('partner-age').value,
+    retirementAge: +document.getElementById('partner-retirement-age').value,
+    spAge: +document.getElementById('partner-sp-age').value,
+    sp: +document.getElementById('partner-sp').value,
+  };
+}
+
 function getParams() {
   return {
     currentAge: +document.getElementById('current-age').value,
@@ -282,6 +296,7 @@ function getParams() {
     pots: potsData.map(p => Object.assign({}, p)),
     incomes: incomesData.map(i => Object.assign({}, i)),
     cashPots: cashPotsData.map(p => Object.assign({}, p)),
+    partner: getPartnerParams(),
   };
 }
 
@@ -338,10 +353,21 @@ const sliders = [
   ['sp', v => fmtGBP(v), ''], ['inflation', v => fmtPct(v), ''],
   ['runs', v => fmt(v), ''],
 ];
+const partnerSliders = [
+  ['partner-age', v => v],
+  ['partner-retirement-age', v => v],
+  ['partner-sp-age', v => v],
+  ['partner-sp', v => fmtGBP(v)],
+];
 sliders.forEach(([id, formatter]) => {
   const el = document.getElementById(id);
   const label = document.getElementById('v-' + id);
   el.addEventListener('input', () => { label.textContent = formatter(+el.value); persistParams(); });
+});
+partnerSliders.forEach(([id, formatter]) => {
+  const el = document.getElementById(id);
+  const label = document.getElementById('v-' + id);
+  if (el && label) el.addEventListener('input', () => { label.textContent = formatter(+el.value); persistParams(); });
 });
 
 // Keep retirement-age min in sync with current-age, and end-age min with retirement-age
@@ -378,6 +404,8 @@ function persistParams() {
   obj['pots'] = JSON.stringify(potsData);
   obj['incomes'] = JSON.stringify(incomesData);
   obj['cashPots'] = JSON.stringify(cashPotsData);
+  obj['partner-enabled'] = getPartnerEnabled() ? '1' : '0';
+  partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) obj[id] = el.value; });
   try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e) {}
   // URL hash only for slider values (pots/incomes too complex)
   const urlObj = {};
@@ -475,6 +503,21 @@ function restoreParams(obj) {
       }
     } catch(e) {}
   }
+  // Restore partner
+  if (obj['partner-enabled'] !== undefined) {
+    const enabled = obj['partner-enabled'] !== '0';
+    const cb = document.getElementById('partner-enabled');
+    if (cb) {
+      cb.checked = enabled;
+      document.getElementById('partner-section').classList.toggle('hidden', !enabled);
+    }
+  }
+  partnerSliders.forEach(([id, formatter]) => {
+    if (obj[id] === undefined) return;
+    const el = document.getElementById(id);
+    const label = document.getElementById('v-' + id);
+    if (el) { el.value = obj[id]; if (label) label.textContent = formatter(+obj[id]); }
+  });
 }
 
 // ── Drawdown mode UI toggle ────────────────────────────────────────────────
@@ -549,7 +592,18 @@ function buildAnnualIncomeData(r, pctileIdx) {
 
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
     const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac);
-    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
+
+    // Partner state pension (inflated from today, shown separately, not included in pot drawdown calc)
+    const partner = p.partner;
+    const partnerYearsToRet = partner ? Math.max(0, partner.retirementAge - partner.currentAge) : 0;
+    const partnerSpAtRetirement = partner ? partner.sp * Math.pow(baseInflFactor, partnerYearsToRet) : 0;
+    const hasPartnerSP = partner && age >= partner.spAge;
+    // ci here is years since primary retirement; partner SP inflates from their retirement onwards
+    const partnerSpYearsSinceRet = partner ? Math.max(0, age - partner.retirementAge) : 0;
+    const partnerCi = partner ? Math.pow(baseInflFactor, partnerSpYearsSinceRet) : 1;
+    const partnerSpInflated = hasPartnerSP ? partnerSpAtRetirement * partnerCi : 0;
+
+    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal + partnerSpInflated;
 
     const potBalNom = pensionAtPctile;
     const potBalReal = pensionAtPctile * todayDeflator;
@@ -582,6 +636,11 @@ function buildAnnualIncomeData(r, pctileIdx) {
       spReal: hasStatePension ? (tc.spNet * todayDeflator) / 12 : 0,
       otherReal: (otherNet.netTotal * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
+      // Partner SP
+      partnerSpNom: partnerSpInflated / 12,
+      partnerSpReal: (partnerSpInflated * todayDeflator) / 12,
+      partnerSpGrossNom: partnerSpInflated / 12,
+      partnerSpGrossReal: (partnerSpInflated * todayDeflator) / 12,
       // Gross/tax breakdown for income column sub-lines
       pensionGrossNom: potWithdrawNominal / 12,
       pensionTaxNom: tc.pensionTax / 12,
@@ -595,9 +654,9 @@ function buildAnnualIncomeData(r, pctileIdx) {
       otherTaxNom: otherNet.taxTotal / 12,
       otherGrossReal: (otherNet.grossTotal * todayDeflator) / 12,
       otherTaxReal: (otherNet.taxTotal * todayDeflator) / 12,
-      netGrossNom: (cashContrib + potWithdrawNominal + spInflated + otherNet.grossTotal) / 12,
+      netGrossNom: (cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal) / 12,
       netTaxNom: (tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal) / 12,
-      netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + otherNet.grossTotal) * todayDeflator) / 12,
+      netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal) * todayDeflator) / 12,
       netTaxReal: ((tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal) * todayDeflator) / 12,
       pensionWithdrawalNom: potWithdrawNominal,
       pensionWithdrawalReal: potWithdrawNominal * todayDeflator,
@@ -632,13 +691,16 @@ function runSimulation() {
 
 // ── Render Cards ───────────────────────────────────────────────────────────
 function renderCards(r) {
+  const isJoint = !!r.p.partner;
   const probEl = document.getElementById('c-prob');
   probEl.textContent = r.prob.toFixed(1) + '%';
   probEl.className = 'card-value ' + (r.prob >= 90 ? 'green' : r.prob >= 70 ? 'amber' : 'red');
+  const probLabel = document.getElementById('c-prob-label');
+  if (probLabel) probLabel.textContent = isJoint ? 'Joint Probability of Success' : 'Probability of Success';
 
   document.getElementById('c-guardrail-sub').textContent = r.p.guardrails
-    ? `pot survives · guardrail in ${r.guardrailPct.toFixed(0)}% of runs`
-    : 'pot survives · guardrails off';
+    ? `${isJoint ? 'joint plan' : 'pot'} survives · guardrail in ${r.guardrailPct.toFixed(0)}% of runs`
+    : `${isJoint ? 'joint plan' : 'pot'} survives · guardrails off`;
 
   document.getElementById('c-median').textContent = fmtGBP(r.medianReal);
 
@@ -820,6 +882,21 @@ function renderIncomeTable(r) {
 function renderAnnualIncomeTable(r) {
   const tbody = document.getElementById('annual-income-tbody');
   const isToday = isTodayMoney();
+  const hasPartner = !!r.p?.partner;
+
+  // Update partner SP column header visibility
+  let partnerSpTh = document.getElementById('ann-th-partner-sp');
+  if (hasPartner && !partnerSpTh) {
+    const spTh = document.querySelector('#annual-income-tbody').closest('table').querySelector('thead tr th:nth-child(4)');
+    if (spTh) {
+      const th = document.createElement('th');
+      th.id = 'ann-th-partner-sp';
+      th.innerHTML = 'Partner SP /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small>';
+      spTh.after(th);
+    }
+  } else if (!hasPartner && partnerSpTh) {
+    partnerSpTh.remove();
+  }
 
   // Single-value cell — picks nominal or today's money based on toggle
   function cell(nom, real) {
@@ -854,6 +931,7 @@ function renderAnnualIncomeTable(r) {
       ${cell(d.cashNom, d.cashReal)}
       ${incomeCell(d.pensionNom, d.pensionReal, d.pensionGrossNom, d.pensionGrossReal, d.pensionTaxNom, d.pensionTaxReal)}
       ${incomeCell(d.spNom, d.spReal, d.spGrossNom, d.spGrossReal, d.spTaxNom, d.spTaxReal)}
+      ${hasPartner ? incomeCell(d.partnerSpNom, d.partnerSpReal, d.partnerSpGrossNom, d.partnerSpGrossReal, 0, 0) : ''}
       ${incomeCell(d.otherNom, d.otherReal, d.otherGrossNom, d.otherGrossReal, d.otherTaxNom, d.otherTaxReal)}
       ${incomeCell(d.netNom, d.netReal, d.netGrossNom, d.netGrossReal, d.netTaxNom, d.netTaxReal)}
       ${cell(d.cashWithdrawalNom, d.cashWithdrawalReal)}
@@ -1176,6 +1254,30 @@ function initApp() {
 
   const addCashPotBtn = document.getElementById('add-cash-pot-btn');
   if (addCashPotBtn) addCashPotBtn.addEventListener('click', () => { addCashPot(0, 3.5); persistParams(); });
+
+  // Partner toggle
+  const partnerCb = document.getElementById('partner-enabled');
+  if (partnerCb) {
+    partnerCb.addEventListener('change', () => {
+      document.getElementById('partner-section').classList.toggle('hidden', !partnerCb.checked);
+      persistParams();
+    });
+  }
+
+  // Partner age validation: retirement age min tracks current age
+  const partnerAgeEl = document.getElementById('partner-age');
+  const partnerRetEl = document.getElementById('partner-retirement-age');
+  if (partnerAgeEl && partnerRetEl) {
+    partnerAgeEl.addEventListener('input', () => {
+      const minAge = +partnerAgeEl.value;
+      if (+partnerRetEl.value < minAge) {
+        partnerRetEl.value = minAge;
+        const label = document.getElementById('v-partner-retirement-age');
+        if (label) label.textContent = minAge;
+      }
+      partnerRetEl.min = minAge;
+    });
+  }
 
   // Annual income percentile slider
   const annPctileSlider = document.getElementById('ann-pctile');

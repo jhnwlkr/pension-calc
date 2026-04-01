@@ -58,6 +58,14 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor;
     const spInflated = hasStatePension ? p.sp * ci : 0;
+    const partnerSp = p.partner ? p.partner.sp : 0;
+    const partnerSpAge = p.partner ? p.partner.spAge : Infinity;
+    const partnerYearsToRet = p.partner ? Math.max(0, p.partner.retirementAge - p.partner.currentAge) : 0;
+    const partnerSpAtRetirement = p.partner ? partnerSp * Math.pow(baseInflFactor, partnerYearsToRet) : 0;
+    const hasPartnerSP = !!(p.partner && age >= partnerSpAge);
+    const partnerSpYearsSinceRet = p.partner ? Math.max(0, age - p.partner.retirementAge) : 0;
+    const partnerCiForSp = p.partner ? Math.pow(baseInflFactor, partnerSpYearsSinceRet) : 1;
+    const partnerSpInflated = hasPartnerSP ? partnerSpAtRetirement * partnerCiForSp : 0;
     const neededFromPots = Math.max(0, targetNominal - spInflated);
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
@@ -81,7 +89,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
 
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
     const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac);
-    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal;
+    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + partnerSpInflated + otherNet.netTotal;
 
     const potBalNom = pensionAtPctile;
     const potBalReal = pensionAtPctile * todayDeflator;
@@ -123,13 +131,17 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       spTaxNom: hasStatePension ? tc.spTax / 12 : 0,
       spGrossReal: (spInflated * todayDeflator) / 12,
       spTaxReal: hasStatePension ? (tc.spTax * todayDeflator) / 12 : 0,
+      partnerSpNom: partnerSpInflated / 12,
+      partnerSpReal: (partnerSpInflated * todayDeflator) / 12,
+      partnerSpGrossNom: partnerSpInflated / 12,
+      partnerSpGrossReal: (partnerSpInflated * todayDeflator) / 12,
       otherGrossNom: otherNet.grossTotal / 12,
       otherTaxNom: otherNet.taxTotal / 12,
       otherGrossReal: (otherNet.grossTotal * todayDeflator) / 12,
       otherTaxReal: (otherNet.taxTotal * todayDeflator) / 12,
-      netGrossNom: (cashContrib + potWithdrawNominal + spInflated + otherNet.grossTotal) / 12,
+      netGrossNom: (cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal) / 12,
       netTaxNom: (tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal) / 12,
-      netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + otherNet.grossTotal) * todayDeflator) / 12,
+      netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal) * todayDeflator) / 12,
       netTaxReal: ((tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal) * todayDeflator) / 12,
       pensionWithdrawalNom: potWithdrawNominal,
       pensionWithdrawalReal: potWithdrawNominal * todayDeflator,
