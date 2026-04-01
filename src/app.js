@@ -567,8 +567,8 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const targetNominal = p.drawdown * inflFactor * reductionFactor;
-    // SP inflated from today (ciFromNow) so nominal values are comparable across different retirement ages
-    const spInflated = hasStatePension ? p.sp * ciFromNow : 0;
+    // p.sp is pre-inflated to retirement value by runSimulation; multiply by ci (years since retirement)
+    const spInflated = hasStatePension ? p.sp * ci : 0;
     const neededFromPots = Math.max(0, targetNominal - spInflated);
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
