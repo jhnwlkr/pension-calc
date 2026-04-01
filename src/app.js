@@ -1326,6 +1326,7 @@ function initApp() {
     // If no incomes were restored, seed defaults
     if (incomesData.length === 0) {
       addIncome('Property income', 12000, 'annual', 22, true);
+    }
     if (cashPotsData.length === 0) {
       addCashPot(50000, 3.5);
     }
