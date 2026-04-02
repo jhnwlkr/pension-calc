@@ -101,14 +101,13 @@ function renderPotsUI() {
 let nextIncomeId = 1;
 let incomesData = [];
 
-function addIncome(name, amount, frequency, taxPct, inflationLinked = false) {
+function addIncome(name, amount, frequency, inflationLinked = false) {
   const id = nextIncomeId++;
   incomesData.push({
     id,
     name: name || 'Income source',
     amount: amount !== undefined ? amount : 0,
     frequency: frequency || 'annual',
-    taxPct: taxPct !== undefined ? taxPct : 20,
     inflationLinked,
   });
   renderIncomesUI();
@@ -151,13 +150,6 @@ function renderIncomesUI() {
             <option value="annual" ${inc.frequency === 'annual' ? 'selected' : ''}>Annual</option>
             <option value="monthly" ${inc.frequency === 'monthly' ? 'selected' : ''}>Monthly</option>
           </select>
-        </div>
-        <div>
-          <span class="field-label">Tax rate</span>
-          <div class="input-group">
-            <input class="dyn-input" type="number" min="0" max="100" step="1" data-inc-id="${inc.id}" data-field="taxPct" value="${inc.taxPct}" style="text-align:right">
-            <span class="input-suffix">%</span>
-          </div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
@@ -410,14 +402,13 @@ function renderPartnerCashPotsUI() {
   });
 }
 
-function addPartnerIncome(name, amount, frequency, taxPct, inflationLinked) {
+function addPartnerIncome(name, amount, frequency, inflationLinked) {
   const id = nextPartnerIncomeId++;
   partnerIncomesData.push({
     id,
     name: name || 'Income source',
     amount: amount !== undefined ? amount : 0,
     frequency: frequency || 'annual',
-    taxPct: taxPct !== undefined ? taxPct : 20,
     inflationLinked: inflationLinked === true,
   });
   renderPartnerIncomesUI();
@@ -460,13 +451,6 @@ function renderPartnerIncomesUI() {
             <option value="annual" ${inc.frequency === 'annual' ? 'selected' : ''}>Annual</option>
             <option value="monthly" ${inc.frequency === 'monthly' ? 'selected' : ''}>Monthly</option>
           </select>
-        </div>
-        <div>
-          <span class="field-label">Tax rate</span>
-          <div class="input-group">
-            <input class="dyn-input" type="number" min="0" max="100" step="1" data-pinc-id="${inc.id}" data-field="taxPct" value="${inc.taxPct}" style="text-align:right">
-            <span class="input-suffix">%</span>
-          </div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
@@ -722,7 +706,7 @@ function restoreParams(obj) {
         incomesData = [];
         saved.forEach(inc => {
           const id = nextIncomeId++;
-          incomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', taxPct: inc.taxPct !== undefined ? inc.taxPct : 20, inflationLinked: inc.inflationLinked === true });
+          incomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
         });
         renderIncomesUI();
       }
@@ -790,7 +774,7 @@ function restoreParams(obj) {
         partnerIncomesData = [];
         saved.forEach(inc => {
           const id = nextPartnerIncomeId++;
-          partnerIncomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', taxPct: inc.taxPct !== undefined ? inc.taxPct : 20, inflationLinked: inc.inflationLinked === true });
+          partnerIncomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
         });
         renderPartnerIncomesUI();
       }
@@ -861,7 +845,12 @@ function buildAnnualIncomeData(r, pctileIdx) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
     }
 
-    const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac);
+    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
+    const partnerRetiredAID = !!(partner && partnerAge >= partner.retirementAge);
+    const partnerOtherAID = (partner?.incomes?.length && partnerRetiredAID)
+      ? calcOtherIncomesNet(partner.incomes, ciFromNow) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
+
+    const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.grossTotal);
     const netTargetAnn = notionalTcAnn.pensionNet;
     let cashContrib = 0;
     for (let ci2 = 0; ci2 < cashBals.length && cashContrib < netTargetAnn; ci2++) {
@@ -876,13 +865,9 @@ function buildAnnualIncomeData(r, pctileIdx) {
       : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
-    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
-    const partnerRetiredAID = !!(partner && partnerAge >= partner.retirementAge);
-    const partnerOtherAID = (partner?.incomes?.length && partnerRetiredAID)
-      ? calcOtherIncomesNet(partner.incomes, ciFromNow) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
-    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac);
+    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac, otherNet.grossTotal);
 
-    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + otherNet.netTotal + partnerSpInflated + partnerOtherAID.netTotal;
+    const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + tc.otherNet + partnerSpInflated + partnerOtherAID.netTotal;
 
     const potBalNom = pensionAtPctile;
     const potBalReal = pensionAtPctile * todayDeflator;
@@ -912,10 +897,10 @@ function buildAnnualIncomeData(r, pctileIdx) {
       // tax on primary SP is a sub-line; the correct after-tax total is in Total Net
       spNom: spInflated / 12,
       spReal: (spInflated * todayDeflator) / 12,
-      otherNom: otherNet.netTotal / 12,
+      otherNom: tc.otherNet / 12,
       netNom: totalNetNominal / 12,
       pensionReal: (tc.pensionNet * todayDeflator) / 12,
-      otherReal: (otherNet.netTotal * todayDeflator) / 12,
+      otherReal: (tc.otherNet * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
       // Partner SP
       partnerSpNom: partnerSpInflated / 12,
@@ -932,13 +917,13 @@ function buildAnnualIncomeData(r, pctileIdx) {
       spGrossReal: (spInflated * todayDeflator) / 12,
       spTaxReal: hasStatePension ? (tc.spTax * todayDeflator) / 12 : 0,
       otherGrossNom: otherNet.grossTotal / 12,
-      otherTaxNom: otherNet.taxTotal / 12,
+      otherTaxNom: tc.otherTax / 12,
       otherGrossReal: (otherNet.grossTotal * todayDeflator) / 12,
-      otherTaxReal: (otherNet.taxTotal * todayDeflator) / 12,
+      otherTaxReal: (tc.otherTax * todayDeflator) / 12,
       netGrossNom: (cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal + partnerOtherAID.grossTotal) / 12,
-      netTaxNom: (tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal + partnerOtherAID.taxTotal) / 12,
+      netTaxNom: (tc.pensionTax + (hasStatePension ? tc.spTax : 0) + tc.otherTax + partnerOtherAID.taxTotal) / 12,
       netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal + partnerOtherAID.grossTotal) * todayDeflator) / 12,
-      netTaxReal: ((tc.pensionTax + (hasStatePension ? tc.spTax : 0) + otherNet.taxTotal + partnerOtherAID.taxTotal) * todayDeflator) / 12,
+      netTaxReal: ((tc.pensionTax + (hasStatePension ? tc.spTax : 0) + tc.otherTax + partnerOtherAID.taxTotal) * todayDeflator) / 12,
       pensionWithdrawalNom: potWithdrawNominal,
       pensionWithdrawalReal: potWithdrawNominal * todayDeflator,
       cashWithdrawalNom: cashContrib,
@@ -1176,8 +1161,8 @@ function renderIncomeTable(r) {
   // Column 1: at retirement (no state pension yet)
   const gross1 = Math.max(0, p.drawdown * ci0);
   const potW1Full = pensionGrossTable(gross1, cash1, false, 0);
-  const tc1 = calcPensionTax(potW1Full, 0, false, taxFreeFrac);
   const other1 = calcOtherIncomesNet(p.incomes, ci0);
+  const tc1 = calcPensionTax(potW1Full, 0, false, taxFreeFrac, other1.grossTotal);
   // Partner other income active at each snapshot?
   const pIncActive1 = !!(p.partner && partnerAgeAt1 >= p.partner.retirementAge);
   const pIncActive2 = !!(p.partner && partnerAgeAt2 >= p.partner.retirementAge);
@@ -1189,14 +1174,14 @@ function renderIncomeTable(r) {
   // Column 2: once state pension starts
   const gross2 = potWithdrawal(p.spAge, p, ci2); // gross needed from pots after SP (already uses inflated SP)
   const potW2 = pensionGrossTable(gross2, cash2, true, sp2);
-  const tc2 = calcPensionTax(potW2, sp2, true, taxFreeFrac);
   const other2 = calcOtherIncomesNet(p.incomes, ci2);
+  const tc2 = calcPensionTax(potW2, sp2, true, taxFreeFrac, other2.grossTotal);
 
   // Column 3: after income reduction
   const gross3 = potWithdrawal(p.reductionAge, p, ci3);
   const potW3 = pensionGrossTable(gross3, cash3, hasSpAtReduction, sp3);
-  const tc3 = calcPensionTax(potW3, sp3, hasSpAtReduction, taxFreeFrac);
   const other3 = calcOtherIncomesNet(p.incomes, ci3);
+  const tc3 = calcPensionTax(potW3, sp3, hasSpAtReduction, taxFreeFrac, other3.grossTotal);
 
   document.getElementById('th-after-reduction').innerHTML =
     `After Reduction (age ${p.reductionAge})<br><small style="font-weight:400">Gross / Tax / Net</small>`;
@@ -1251,12 +1236,12 @@ function renderIncomeTable(r) {
         const f1 = pIncActive1 ? (inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement) : 1) : 0;
         const f2 = pIncActive2 ? (inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement + spYears) : 1) : 0;
         const f3 = pIncActive3 ? (inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement + redYears) : 1) : 0;
-        const g1i = annAmt * f1, t1i = g1i * (inc.taxPct/100), n1i = g1i - t1i;
-        const g2i = annAmt * f2, t2i = g2i * (inc.taxPct/100), n2i = g2i - t2i;
-        const g3i = annAmt * f3, t3i = g3i * (inc.taxPct/100), n3i = g3i - t3i;
+        const g1i = annAmt * f1, t1i = pInc1.grossTotal > 0 ? tc1.otherTax * (g1i / pInc1.grossTotal) : 0, n1i = g1i - t1i;
+        const g2i = annAmt * f2, t2i = pInc2.grossTotal > 0 ? tc2.otherTax * (g2i / pInc2.grossTotal) : 0, n2i = g2i - t2i;
+        const g3i = annAmt * f3, t3i = pInc3.grossTotal > 0 ? tc3.otherTax * (g3i / pInc3.grossTotal) : 0, n3i = g3i - t3i;
         const fromAge = p.partner.retirementAge > p.retirementAge ? ` · from age ${p.partner.retirementAge}` : '';
         rows += row(inc.name, g1i,t1i,n1i, g2i,t2i,n2i, g3i,t3i,n3i,
-          `Partner · ${inc.taxPct}% flat tax · ${inc.inflationLinked ? 'CPI-linked' : 'Fixed'}${fromAge}`);
+          `Partner · ${inc.inflationLinked ? 'CPI-linked' : 'Fixed'}${fromAge}`);
       });
     }
   }
@@ -1268,20 +1253,20 @@ function renderIncomeTable(r) {
       const f1 = inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement) : 1;
       const f2 = inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement + spYears) : 1;
       const f3 = inc.inflationLinked ? Math.pow(baseInfl, yearsToRetirement + redYears) : 1;
-      const g1i = annAmt * f1, t1i = g1i * (inc.taxPct/100), n1i = g1i - t1i;
-      const g2i = annAmt * f2, t2i = g2i * (inc.taxPct/100), n2i = g2i - t2i;
-      const g3i = annAmt * f3, t3i = g3i * (inc.taxPct/100), n3i = g3i - t3i;
-      const note = `${inc.taxPct}% flat tax · ${inc.inflationLinked ? 'CPI-linked' : 'Fixed'}`;
+      const g1i = annAmt * f1, t1i = other1.grossTotal > 0 ? tc1.otherTax * (g1i / other1.grossTotal) : 0, n1i = g1i - t1i;
+      const g2i = annAmt * f2, t2i = other2.grossTotal > 0 ? tc2.otherTax * (g2i / other2.grossTotal) : 0, n2i = g2i - t2i;
+      const g3i = annAmt * f3, t3i = other3.grossTotal > 0 ? tc3.otherTax * (g3i / other3.grossTotal) : 0, n3i = g3i - t3i;
+      const note = `${inc.inflationLinked ? 'CPI-linked' : 'Fixed'}`;
       rows += row(inc.name, g1i,t1i,n1i, g2i,t2i,n2i, g3i,t3i,n3i, note);
     });
   }
 
   // Total row
-  const tot1g = cash1 + potW1Full + pSp1 + other1.grossTotal + pInc1.grossTotal, tot1t = tc1.pensionTax + other1.taxTotal + pInc1.taxTotal, tot1n = cash1 + tc1.pensionNet + pSp1 + other1.netTotal + pInc1.netTotal;
-  const tot2g = cash2 + potW2 + sp2 + pSp2 + other2.grossTotal + pInc2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + other2.taxTotal + pInc2.taxTotal, tot2n = cash2 + tc2.pensionNet + tc2.spNet + pSp2 + other2.netTotal + pInc2.netTotal;
+  const tot1g = cash1 + potW1Full + pSp1 + other1.grossTotal + pInc1.grossTotal, tot1t = tc1.pensionTax + tc1.otherTax, tot1n = cash1 + tc1.pensionNet + tc1.otherNet + pSp1 + pInc1.netTotal;
+  const tot2g = cash2 + potW2 + sp2 + pSp2 + other2.grossTotal + pInc2.grossTotal, tot2t = tc2.pensionTax + tc2.spTax + tc2.otherTax, tot2n = cash2 + tc2.pensionNet + tc2.spNet + tc2.otherNet + pSp2 + pInc2.netTotal;
   const spTax3 = sp3 > 0 ? tc3.spTax : 0;
   const spNet3 = sp3 > 0 ? tc3.spNet : 0;
-  const tot3g = cash3 + potW3 + sp3 + pSp3 + other3.grossTotal + pInc3.grossTotal, tot3t = tc3.pensionTax + spTax3 + other3.taxTotal + pInc3.taxTotal, tot3n = cash3 + tc3.pensionNet + spNet3 + pSp3 + other3.netTotal + pInc3.netTotal;
+  const tot3g = cash3 + potW3 + sp3 + pSp3 + other3.grossTotal + pInc3.grossTotal, tot3t = tc3.pensionTax + spTax3 + tc3.otherTax, tot3n = cash3 + tc3.pensionNet + spNet3 + tc3.otherNet + pSp3 + pInc3.netTotal;
 
   rows += `<tr>
     <td><strong>Total</strong></td>
@@ -1508,13 +1493,10 @@ function renderTaxBreakdown(r) {
 
   // ── Per-source other income items ──────────────────────────────────────────
   const otherItems = calcOtherIncomesNet(r.p?.incomes || [], ciFromNow).items
-    .map((it, i) => ({ ...it, taxPct: (r.p?.incomes || [])[i]?.taxPct ?? 0 }))
     .filter(it => it.gross > 0);
   const _partnerRetired = !!(hasPartner && d.partnerAge !== null && d.partnerAge >= r.p.partner.retirementAge);
   const partnerOtherItems = (_partnerRetired && r.p.partner?.incomes?.length)
-    ? calcOtherIncomesNet(r.p.partner.incomes, ciFromNow).items
-        .map((it, i) => ({ ...it, taxPct: (r.p.partner?.incomes || [])[i]?.taxPct ?? 0 }))
-        .filter(it => it.gross > 0)
+    ? calcOtherIncomesNet(r.p.partner.incomes, ciFromNow).items.filter(it => it.gross > 0)
     : [];
 
   // ── Per-person pot fractions from simulation ───────────────────────────────
@@ -1535,9 +1517,11 @@ function renderTaxBreakdown(r) {
   const fmtN = v => v > 0 ? fmtGBP(v) + '/yr' : '—';
 
   // ── Per-person tax — each gets their own £12,570 personal allowance ─────────
-  const primTc  = calcPensionTax(primaryDWAnn, spGrossAnn, hasStatePension, primaryTFrac);
+  const yourOtherGross = otherItems.reduce((s, it) => s + it.gross, 0);
+  const partOtherGross = partnerOtherItems.reduce((s, it) => s + it.gross, 0);
+  const primTc  = calcPensionTax(primaryDWAnn, spGrossAnn, hasStatePension, primaryTFrac, yourOtherGross);
   const partnTc = hasPartner
-    ? calcPensionTax(partnerDWAnn, partnerSpGrossAnn, hasPartnerSP, partnerTFrac)
+    ? calcPensionTax(partnerDWAnn, partnerSpGrossAnn, hasPartnerSP, partnerTFrac, partOtherGross)
     : null;
 
   // ── Summary table row helpers ──────────────────────────────────────────────
@@ -1545,20 +1529,18 @@ function renderTaxBreakdown(r) {
     `<tr${indent ? ' class="tx-sub-row"' : ''}><td>${label}</td>` +
     `<td class="num">${fmtGBP(gross)}</td><td class="num">${tax === null ? '—' : fmtGBP(tax)}</td><td class="num">${fmtGBP(net)}</td></tr>`;
 
-  const otherRowsHtml = items => items.map(it =>
-    `<tr class="tx-sub-row"><td>↳ ${it.name || 'Other Income'}<small class="tx-rate">${it.taxPct}% tax rate</small></td>` +
-    `<td class="num">${fmtGBP(m(it.gross))}</td><td class="num">${fmtGBP(m(it.tax))}</td><td class="num">${fmtGBP(m(it.net))}</td></tr>`
-  ).join('');
+  const otherRowsHtml = (items, tcOtherTax, totalGross_) => items.map(it => {
+    const frac = totalGross_ > 0 ? it.gross / totalGross_ : 0;
+    const itemTax = tcOtherTax * frac;
+    const itemNet = it.gross - itemTax;
+    return `<tr class="tx-sub-row"><td>↳ ${it.name || 'Other Income'}</td>` +
+      `<td class="num">${fmtGBP(m(it.gross))}</td><td class="num">${fmtGBP(m(itemTax))}</td><td class="num">${fmtGBP(m(itemNet))}</td></tr>`;
+  }).join('');
 
   const cashRow = cashAnn > 0
     ? `<tr class="tx-sub-row"><td>↳ Cash Savings / ISA<small class="tx-rate">tax-free</small></td>` +
       `<td class="num">${fmtGBP(m(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(m(cashAnn))}</td></tr>`
     : '';
-
-  const yourOtherGross = otherItems.reduce((s, it) => s + it.gross, 0);
-  const yourOtherTax   = otherItems.reduce((s, it) => s + it.tax,   0);
-  const partOtherGross = partnerOtherItems.reduce((s, it) => s + it.gross, 0);
-  const partOtherTax   = partnerOtherItems.reduce((s, it) => s + it.tax,   0);
 
   let summaryTbody, totalGross, totalTax, totalNet;
 
@@ -1567,9 +1549,9 @@ function renderTaxBreakdown(r) {
       incRow('Pension Pots Drawdown', m(primaryDWAnn), m(primTc.pensionTax), m(primTc.pensionNet), false) +
       cashRow +
       (hasStatePension ? incRow('State Pension', m(spGrossAnn), m(primTc.spTax), m(spGrossAnn) - m(primTc.spTax), false) : '') +
-      otherRowsHtml(otherItems);
+      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross);
     totalGross = m(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross);
-    totalTax   = m(primTc.pensionTax + primTc.spTax + yourOtherTax);
+    totalTax   = m(primTc.pensionTax + primTc.spTax + primTc.otherTax);
     totalNet   = totalGross - totalTax;
   } else {
     summaryTbody =
@@ -1577,13 +1559,13 @@ function renderTaxBreakdown(r) {
       incRow('↳ Pension Pots (your share)', m(primaryDWAnn), m(primTc.pensionTax), m(primTc.pensionNet), true) +
       cashRow +
       (hasStatePension ? incRow('↳ State Pension', m(spGrossAnn), m(primTc.spTax), m(spGrossAnn) - m(primTc.spTax), true) : '') +
-      otherRowsHtml(otherItems) +
+      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross) +
       `<tr class="tx-group-header"><th colspan="4">Partner</th></tr>` +
       incRow('↳ Pension Pots (partner share)', m(partnerDWAnn), m(partnTc.pensionTax), m(partnTc.pensionNet), true) +
       (hasPartnerSP ? incRow('↳ State Pension', m(partnerSpGrossAnn), m(partnTc.spTax), m(partnerSpGrossAnn) - m(partnTc.spTax), true) : '') +
-      otherRowsHtml(partnerOtherItems);
+      otherRowsHtml(partnerOtherItems, partnTc.otherTax, partOtherGross);
     totalGross = m(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross + partnerDWAnn + partnerSpGrossAnn + partOtherGross);
-    totalTax   = m(primTc.pensionTax + primTc.spTax + yourOtherTax + partnTc.pensionTax + partnTc.spTax + partOtherTax);
+    totalTax   = m(primTc.pensionTax + primTc.spTax + primTc.otherTax + partnTc.pensionTax + partnTc.spTax + partnTc.otherTax);
     totalNet   = totalGross - totalTax;
   }
 
@@ -1591,12 +1573,15 @@ function renderTaxBreakdown(r) {
   function personWorkings(label, dwAnn, tfFrac, spAnn, hasSP_, items_) {
     const taxFreeAnn_     = dwAnn * tfFrac;
     const pensionTaxable_ = dwAnn - taxFreeAnn_;
-    const totalTaxable_   = pensionTaxable_ + (hasSP_ ? spAnn : 0);
+    const otherGross_     = items_.reduce((s, it) => s + it.gross, 0);
+    const totalTaxable_   = pensionTaxable_ + (hasSP_ ? spAnn : 0) + otherGross_;
     const bands_          = incomeTaxBands(totalTaxable_);
     const pensionFrac_    = totalTaxable_ > 0 ? pensionTaxable_ / totalTaxable_ : 0;
     const spFrac_         = totalTaxable_ > 0 ? (hasSP_ ? spAnn : 0) / totalTaxable_ : 0;
+    const otherFrac_      = totalTaxable_ > 0 ? otherGross_ / totalTaxable_ : 0;
     const pensionTaxAnn_  = bands_.totalTax * pensionFrac_;
     const spTaxAnn_       = bands_.totalTax * spFrac_;
+    const otherTaxAnn_    = bands_.totalTax * otherFrac_;
 
     const tapered_ = bands_.effectivePA < 12570;
     const paNote_  = tapered_
@@ -1613,24 +1598,31 @@ function renderTaxBreakdown(r) {
       ? `<tr><td>${fmtGBP(bands_.arAmount)}/yr × 45% additional rate</td><td class="num">= ${fmtGBP(bands_.arTax)}/yr</td></tr>`
       : '';
 
-    const step4_ = bands_.totalTax > 0 && (pensionTaxAnn_ > 0 || spTaxAnn_ > 0) ? `
+    const step4_ = bands_.totalTax > 0 ? `
       <div class="tw-step">
         <div class="tw-step-title">Step 4 — Tax allocated between income sources</div>
-        <p class="tw-step-note">Tax is shared between pension drawdown and SP in proportion to each source's taxable share.</p>
+        <p class="tw-step-note">Tax is shared between all taxable income sources in proportion to each source's taxable amount.</p>
         <table class="tw-table">
           ${pensionTaxAnn_ > 0 ? `<tr><td>Pension drawdown share (${fmtPct(pensionFrac_ * 100)})</td><td class="num">= ${fmtGBP(pensionTaxAnn_ / 12)}/mo</td></tr>` : ''}
           ${spTaxAnn_ > 0 ? `<tr><td>State pension share (${fmtPct(spFrac_ * 100)})</td><td class="num">= ${fmtGBP(spTaxAnn_ / 12)}/mo</td></tr>` : ''}
-          <tr class="tw-total"><td>Total tax on pension &amp; SP</td><td class="num">${fmtGBP(bands_.totalTax / 12)}/mo</td></tr>
+          ${otherTaxAnn_ > 0 ? `<tr><td>Other income share (${fmtPct(otherFrac_ * 100)})</td><td class="num">= ${fmtGBP(otherTaxAnn_ / 12)}/mo</td></tr>` : ''}
+          <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtGBP(bands_.totalTax / 12)}/mo</td></tr>
         </table>
       </div>` : '';
 
+    const otherRows_ = items_.map(it => {
+      const frac = otherGross_ > 0 ? it.gross / otherGross_ : 0;
+      const itemTax = otherTaxAnn_ * frac;
+      return `<tr><td>${it.name || 'Income'}</td><td class="num">${fmtGBP(it.gross)}/yr</td><td class="num">${fmtGBP(itemTax)}/yr</td><td class="num">${fmtGBP(it.gross - itemTax)}/yr</td></tr>`;
+    }).join('');
+
     const otherBlock_ = items_.length > 0 ? `
       <div class="tw-step">
-        <div class="tw-step-title">Other Income (taxed at configured rates)</div>
+        <div class="tw-step-title">Other Income (taxed via UK bands above)</div>
         <table class="tw-table tw-items">
-          <tr class="tw-nil"><td>Source</td><td class="num">Gross /yr</td><td class="num">Rate</td><td class="num">Tax /yr</td><td class="num">Net /yr</td></tr>
-          ${items_.map(it => `<tr><td>${it.name || 'Income'}</td><td class="num">${fmtGBP(it.gross)}</td><td class="num">${it.taxPct}%</td><td class="num">${fmtGBP(it.tax)}</td><td class="num">${fmtGBP(it.net)}</td></tr>`).join('')}
-          ${items_.length > 1 ? `<tr class="tw-total"><td>Total</td><td class="num">${fmtGBP(items_.reduce((s,it)=>s+it.gross,0))}</td><td></td><td class="num">${fmtGBP(items_.reduce((s,it)=>s+it.tax,0))}</td><td class="num">${fmtGBP(items_.reduce((s,it)=>s+it.net,0))}</td></tr>` : ''}
+          <tr class="tw-nil"><td>Source</td><td class="num">Gross /yr</td><td class="num">Tax /yr</td><td class="num">Net /yr</td></tr>
+          ${otherRows_}
+          ${items_.length > 1 ? `<tr class="tw-total"><td>Total</td><td class="num">${fmtGBP(otherGross_)}/yr</td><td class="num">${fmtGBP(otherTaxAnn_)}/yr</td><td class="num">${fmtGBP(otherGross_ - otherTaxAnn_)}/yr</td></tr>` : ''}
         </table>
       </div>` : '';
 
@@ -1643,6 +1635,7 @@ function renderTaxBreakdown(r) {
           <tr class="tw-sub"><td>↳ Tax-free portion (${Math.round(tfFrac * 100)}% UFPLS / PCLS)</td><td class="num">− ${fmtN(taxFreeAnn_)}</td></tr>
           <tr class="tw-sub tw-subtotal"><td>↳ Taxable pension drawdown</td><td class="num">${fmtN(pensionTaxable_)}</td></tr>` : ''}
           ${hasSP_ ? `<tr><td>State pension</td><td class="num">${fmtN(spAnn)}</td></tr>` : ''}
+          ${items_.map(it => `<tr><td>${it.name || 'Other income'}</td><td class="num">${fmtN(it.gross)}</td></tr>`).join('')}
           <tr class="tw-total"><td>Total taxable income</td><td class="num">${fmtN(totalTaxable_)}</td></tr>
         </table>
       </div>

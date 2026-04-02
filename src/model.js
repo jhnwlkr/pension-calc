@@ -14,20 +14,23 @@ export function incomeTax(taxable) {
   return tax;
 }
 
-export function calcPensionTax(grossDrawdown, statePension, hasStatePension, taxFreeFrac) {
+export function calcPensionTax(grossDrawdown, statePension, hasStatePension, taxFreeFrac, otherGross = 0) {
   const taxFree = grossDrawdown * taxFreeFrac;
   const pensionTaxable = grossDrawdown * (1 - taxFreeFrac);
   const spTaxable = hasStatePension ? statePension : 0;
-  const totalTaxable = pensionTaxable + spTaxable;
+  const totalTaxable = pensionTaxable + spTaxable + otherGross;
   const totalTax = incomeTax(totalTaxable);
   const pensionTaxShare = totalTaxable > 0 ? totalTax * (pensionTaxable / totalTaxable) : 0;
   const spTaxShare = totalTaxable > 0 ? totalTax * (spTaxable / totalTaxable) : 0;
+  const otherTaxShare = totalTaxable > 0 ? totalTax * (otherGross / totalTaxable) : 0;
   return {
     taxFree,
     pensionTaxable,
     pensionTax: pensionTaxShare,
     spTaxable,
     spTax: spTaxShare,
+    otherTax: otherTaxShare,
+    otherNet: otherGross - otherTaxShare,
     pensionNet: grossDrawdown - pensionTaxShare,
     spNet: statePension - spTaxShare,
   };
@@ -52,16 +55,12 @@ export function incomeTaxBands(taxable) {
 }
 
 export function calcOtherIncomesNet(incomes, inflFactor) {
-  let grossTotal = 0, taxTotal = 0, netTotal = 0;
+  let grossTotal = 0;
   const items = incomes.map(inc => {
     const annualAmt = inc.frequency === 'monthly' ? inc.amount * 12 : inc.amount;
     const gross = annualAmt * (inc.inflationLinked ? inflFactor : 1);
-    const tax = gross * (inc.taxPct / 100);
-    const net = gross - tax;
     grossTotal += gross;
-    taxTotal += tax;
-    netTotal += net;
-    return { name: inc.name, gross, tax, net };
+    return { name: inc.name, gross, tax: 0, net: gross };
   });
-  return { grossTotal, taxTotal, netTotal, items };
+  return { grossTotal, taxTotal: 0, netTotal: grossTotal, items };
 }
