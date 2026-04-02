@@ -1497,13 +1497,16 @@ function renderTaxBreakdown(r) {
 
   const d = rows[selectedIdx];
   const useToday = isTodayMoney();
-  const pick = (nom, real) => useToday ? real : nom;
 
-  // ── Per-item other income breakdown ───────────────────────────────────────
-  const _infl2     = 1 + (r.p?.inflation || 0) / 100;
-  const _ytr       = Math.max(0, (r.p?.retirementAge || 0) - (r.p?.currentAge || 0));
-  const ciFromNow  = Math.pow(_infl2, _ytr + selectedIdx);
+  // ── Inflation factors ──────────────────────────────────────────────────────
+  const _infl     = 1 + (r.p?.inflation || 0) / 100;
+  const _ytr      = Math.max(0, (r.p?.retirementAge || 0) - (r.p?.currentAge || 0));
+  const ciFromNow = Math.pow(_infl, _ytr + selectedIdx);
   const todayDeflator = ciFromNow > 0 ? 1 / ciFromNow : 1;
+  const scale     = useToday ? todayDeflator : 1;
+  const m = v => (v * scale) / 12;   // nominal annual → monthly display
+
+  // ── Per-source other income items ──────────────────────────────────────────
   const otherItems = calcOtherIncomesNet(r.p?.incomes || [], ciFromNow).items
     .map((it, i) => ({ ...it, taxPct: (r.p?.incomes || [])[i]?.taxPct ?? 0 }))
     .filter(it => it.gross > 0);
@@ -1514,139 +1517,166 @@ function renderTaxBreakdown(r) {
         .filter(it => it.gross > 0)
     : [];
 
-  // ── Monthly summary (respects Today's Prices toggle) ──────────────────────
-  const pensionGross = pick(d.pensionGrossNom, d.pensionGrossReal);
-  const pensionTax   = pick(d.pensionTaxNom,   d.pensionTaxReal);
-  const pensionNet   = pick(d.pensionNom,       d.pensionReal);
-  const spGross      = pick(d.spGrossNom,       d.spGrossReal);
-  const spTax        = pick(d.spTaxNom,         d.spTaxReal);
-  const spNet        = spGross - spTax;
-  const otherGross   = pick(d.otherGrossNom,    d.otherGrossReal);
-  const otherTax     = pick(d.otherTaxNom,      d.otherTaxReal);
-  const otherNet     = pick(d.otherNom,         d.otherReal);
-  const partnerSpGross    = pick(d.partnerSpGrossNom    || 0, d.partnerSpGrossReal    || 0);
-  const partnerOtherGross = pick(d.partnerOtherGrossNom || 0, d.partnerOtherGrossReal || 0);
-  const partnerOtherTax   = pick(d.partnerOtherTaxNom   || 0, d.partnerOtherTaxReal   || 0);
-  const partnerOtherNet   = pick(d.partnerOtherNom      || 0, d.partnerOtherReal      || 0);
-  const totalGross = pick(d.netGrossNom, d.netGrossReal);
-  const totalTax   = pick(d.netTaxNom,   d.netTaxReal);
-  const totalNet   = pick(d.netNom,      d.netReal);
+  // ── Per-person pot fractions from simulation ───────────────────────────────
+  const primaryPotFrac = r.primaryPotFrac     ?? 1.0;
+  const primaryTFrac   = r.primaryTaxFreeFrac ?? r.taxFreeFrac;
+  const partnerTFrac   = r.partnerTaxFreeFrac ?? r.taxFreeFrac;
 
-  const otherSummaryRows = otherItems.map(it => {
-    const gm = useToday ? (it.gross * todayDeflator) / 12 : it.gross / 12;
-    const xm = useToday ? (it.tax   * todayDeflator) / 12 : it.tax   / 12;
-    const nm = useToday ? (it.net   * todayDeflator) / 12 : it.net   / 12;
-    return `<tr><td>${it.name || 'Other Income'}<br><small style="color:var(--text2);font-size:0.75rem">${it.taxPct}% tax rate</small></td><td class="num">${fmtGBP(gm)}</td><td class="num">${fmtGBP(xm)}</td><td class="num">${fmtGBP(nm)}</td></tr>`;
-  }).join('');
+  // ── Nominal annual income figures (tax is computed nominally, as HMRC would) ─
+  const hasStatePension   = d.spGrossNom > 0;
+  const hasPartnerSP      = (d.partnerSpGrossNom || 0) > 0;
+  const primaryDWAnn      = d.pensionGrossNom * 12 * primaryPotFrac;
+  const partnerDWAnn      = d.pensionGrossNom * 12 * (1 - primaryPotFrac);
+  const spGrossAnn        = d.spGrossNom * 12;
+  const partnerSpGrossAnn = (d.partnerSpGrossNom || 0) * 12;
+  const cashAnn           = (d.cashNom || 0) * 12;   // tax-free savings/ISA withdrawal
 
-  const partnerOtherSummaryRows = partnerOtherItems.map(it => {
-    const gm = useToday ? (it.gross * todayDeflator) / 12 : it.gross / 12;
-    const xm = useToday ? (it.tax   * todayDeflator) / 12 : it.tax   / 12;
-    const nm = useToday ? (it.net   * todayDeflator) / 12 : it.net   / 12;
-    return `<tr><td>Partner — ${it.name || 'Other Income'}<br><small style="color:var(--text2);font-size:0.75rem">${it.taxPct}% tax rate</small></td><td class="num">${fmtGBP(gm)}</td><td class="num">${fmtGBP(xm)}</td><td class="num">${fmtGBP(nm)}</td></tr>`;
-  }).join('');
-
-  const partnerRows = !hasPartner ? '' : `
-    <tr>
-      <td>Partner — State Pension</td>
-      <td class="num">${fmtGBP(partnerSpGross)}</td>
-      <td class="num">—</td>
-      <td class="num">${fmtGBP(partnerSpGross)}</td>
-    </tr>
-    ${partnerOtherSummaryRows}`;
-
-  // ── Tax workings (always nominal annual — that is how UK tax is computed) ─
-  const taxFreeFrac      = r.taxFreeFrac || 0.25;
-  const hasStatePension  = d.spGrossNom > 0;
-  const pensionGrossAnn  = d.pensionGrossNom * 12;   // nominal annual drawdown
-  const spGrossAnn       = d.spGrossNom * 12;        // nominal annual SP
-  const otherTaxAnn      = d.otherTaxNom * 12;       // other income taxed at own rate
-  const taxFreeAnn       = pensionGrossAnn * taxFreeFrac;
-  const pensionTaxableAnn = pensionGrossAnn - taxFreeAnn;
-  const totalTaxableAnn  = pensionTaxableAnn + spGrossAnn;
-  const bands            = incomeTaxBands(totalTaxableAnn);
-  const pensionTaxFrac   = totalTaxableAnn > 0 ? pensionTaxableAnn / totalTaxableAnn : 0;
-  const spTaxFrac        = totalTaxableAnn > 0 ? spGrossAnn / totalTaxableAnn : 0;
-  const pensionTaxAnn    = bands.totalTax * pensionTaxFrac;
-  const spTaxAnn         = bands.totalTax * spTaxFrac;
   const fmtA = v => fmtGBP(v / 12) + '/mo  (' + fmtGBP(v) + '/yr)';
   const fmtN = v => v > 0 ? fmtGBP(v) + '/yr' : 'nil';
 
-  const tapered = bands.effectivePA < 12570;
-  const paNote  = tapered
-    ? `£${bands.effectivePA.toLocaleString()} (tapered — income exceeds £100,000)`
-    : `£${bands.effectivePA.toLocaleString()} (standard)`;
+  // ── Per-person tax — each gets their own £12,570 personal allowance ─────────
+  const primTc  = calcPensionTax(primaryDWAnn, spGrossAnn, hasStatePension, primaryTFrac);
+  const partnTc = hasPartner
+    ? calcPensionTax(partnerDWAnn, partnerSpGrossAnn, hasPartnerSP, partnerTFrac)
+    : null;
 
-  const brRow = bands.brAmount > 0
-    ? `<tr><td>${fmtGBP(bands.brAmount)}/yr × 20% basic rate</td><td class="num">= ${fmtGBP(bands.brTax)}/yr</td></tr>`
-    : `<tr class="tw-nil"><td>Basic rate band</td><td class="num">nil</td></tr>`;
-  const hrRow = bands.hrAmount > 0
-    ? `<tr><td>${fmtGBP(bands.hrAmount)}/yr × 40% higher rate</td><td class="num">= ${fmtGBP(bands.hrTax)}/yr</td></tr>`
-    : `<tr class="tw-nil"><td>Higher rate band</td><td class="num">nil</td></tr>`;
-  const arRow = bands.arAmount > 0
-    ? `<tr><td>${fmtGBP(bands.arAmount)}/yr × 45% additional rate</td><td class="num">= ${fmtGBP(bands.arTax)}/yr</td></tr>`
+  // ── Summary table row helpers ──────────────────────────────────────────────
+  const incRow = (label, gross, tax, net, indent) =>
+    `<tr${indent ? ' class="tx-sub-row"' : ''}><td>${label}</td>` +
+    `<td class="num">${fmtGBP(gross)}</td><td class="num">${tax === null ? '—' : fmtGBP(tax)}</td><td class="num">${fmtGBP(net)}</td></tr>`;
+
+  const otherRowsHtml = items => items.map(it =>
+    `<tr class="tx-sub-row"><td>↳ ${it.name || 'Other Income'}<small class="tx-rate">${it.taxPct}% tax rate</small></td>` +
+    `<td class="num">${fmtGBP(m(it.gross))}</td><td class="num">${fmtGBP(m(it.tax))}</td><td class="num">${fmtGBP(m(it.net))}</td></tr>`
+  ).join('');
+
+  const cashRow = cashAnn > 0
+    ? `<tr class="tx-sub-row"><td>↳ Cash Savings / ISA<small class="tx-rate">tax-free</small></td>` +
+      `<td class="num">${fmtGBP(m(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(m(cashAnn))}</td></tr>`
     : '';
 
-  const otherWorkings = otherItems.length > 0 ? `
-    <div class="tw-step">
-      <div class="tw-step-title">Other Income (taxed at configured rates)</div>
-      <table class="tw-table tw-items">
-        <tr class="tw-nil"><td>Source</td><td class="num">Gross /yr</td><td class="num">Rate</td><td class="num">Tax /yr</td><td class="num">Net /yr</td></tr>
-        ${otherItems.map(it => `<tr><td>${it.name || 'Income'}</td><td class="num">${fmtGBP(it.gross)}</td><td class="num">${it.taxPct}%</td><td class="num">${fmtGBP(it.tax)}</td><td class="num">${fmtGBP(it.net)}</td></tr>`).join('')}
-        ${otherItems.length > 1 ? `<tr class="tw-total"><td>Total</td><td class="num">${fmtGBP(otherItems.reduce((s,it)=>s+it.gross,0))}</td><td></td><td class="num">${fmtGBP(otherItems.reduce((s,it)=>s+it.tax,0))}</td><td class="num">${fmtGBP(otherItems.reduce((s,it)=>s+it.net,0))}</td></tr>` : ''}
-      </table>
-    </div>` : '';
+  const yourOtherGross = otherItems.reduce((s, it) => s + it.gross, 0);
+  const yourOtherTax   = otherItems.reduce((s, it) => s + it.tax,   0);
+  const partOtherGross = partnerOtherItems.reduce((s, it) => s + it.gross, 0);
+  const partOtherTax   = partnerOtherItems.reduce((s, it) => s + it.tax,   0);
 
-  const spSplitRow = hasStatePension && spTaxAnn > 0
-    ? `<tr><td>State pension share (${fmtPct(spTaxFrac * 100)})</td><td class="num">= ${fmtGBP(spTaxAnn / 12)}/mo</td></tr>` : '';
+  let summaryTbody, totalGross, totalTax, totalNet;
+
+  if (!hasPartner) {
+    summaryTbody =
+      incRow('Pension Pots Drawdown', m(primaryDWAnn), m(primTc.pensionTax), m(primTc.pensionNet), false) +
+      cashRow +
+      (hasStatePension ? incRow('State Pension', m(spGrossAnn), m(primTc.spTax), m(spGrossAnn) - m(primTc.spTax), false) : '') +
+      otherRowsHtml(otherItems);
+    totalGross = m(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross);
+    totalTax   = m(primTc.pensionTax + primTc.spTax + yourOtherTax);
+    totalNet   = totalGross - totalTax;
+  } else {
+    summaryTbody =
+      `<tr class="tx-group-header"><th colspan="4">You</th></tr>` +
+      incRow('↳ Pension Pots (your share)', m(primaryDWAnn), m(primTc.pensionTax), m(primTc.pensionNet), true) +
+      cashRow +
+      (hasStatePension ? incRow('↳ State Pension', m(spGrossAnn), m(primTc.spTax), m(spGrossAnn) - m(primTc.spTax), true) : '') +
+      otherRowsHtml(otherItems) +
+      `<tr class="tx-group-header"><th colspan="4">Partner</th></tr>` +
+      incRow('↳ Pension Pots (partner share)', m(partnerDWAnn), m(partnTc.pensionTax), m(partnTc.pensionNet), true) +
+      (hasPartnerSP ? incRow('↳ State Pension', m(partnerSpGrossAnn), m(partnTc.spTax), m(partnerSpGrossAnn) - m(partnTc.spTax), true) : '') +
+      otherRowsHtml(partnerOtherItems);
+    totalGross = m(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross + partnerDWAnn + partnerSpGrossAnn + partOtherGross);
+    totalTax   = m(primTc.pensionTax + primTc.spTax + yourOtherTax + partnTc.pensionTax + partnTc.spTax + partOtherTax);
+    totalNet   = totalGross - totalTax;
+  }
+
+  // ── Per-person tax workings builder ───────────────────────────────────────
+  function personWorkings(label, dwAnn, tfFrac, spAnn, hasSP_, items_) {
+    const taxFreeAnn_     = dwAnn * tfFrac;
+    const pensionTaxable_ = dwAnn - taxFreeAnn_;
+    const totalTaxable_   = pensionTaxable_ + (hasSP_ ? spAnn : 0);
+    const bands_          = incomeTaxBands(totalTaxable_);
+    const pensionFrac_    = totalTaxable_ > 0 ? pensionTaxable_ / totalTaxable_ : 0;
+    const spFrac_         = totalTaxable_ > 0 ? (hasSP_ ? spAnn : 0) / totalTaxable_ : 0;
+    const pensionTaxAnn_  = bands_.totalTax * pensionFrac_;
+    const spTaxAnn_       = bands_.totalTax * spFrac_;
+
+    const tapered_ = bands_.effectivePA < 12570;
+    const paNote_  = tapered_
+      ? `£${bands_.effectivePA.toLocaleString()} (tapered — income exceeds £100,000)`
+      : `£${bands_.effectivePA.toLocaleString()} (standard)`;
+
+    const brRow_ = bands_.brAmount > 0
+      ? `<tr><td>${fmtGBP(bands_.brAmount)}/yr × 20% basic rate</td><td class="num">= ${fmtGBP(bands_.brTax)}/yr</td></tr>`
+      : `<tr class="tw-nil"><td>Basic rate band</td><td class="num">nil</td></tr>`;
+    const hrRow_ = bands_.hrAmount > 0
+      ? `<tr><td>${fmtGBP(bands_.hrAmount)}/yr × 40% higher rate</td><td class="num">= ${fmtGBP(bands_.hrTax)}/yr</td></tr>`
+      : `<tr class="tw-nil"><td>Higher rate band</td><td class="num">nil</td></tr>`;
+    const arRow_ = bands_.arAmount > 0
+      ? `<tr><td>${fmtGBP(bands_.arAmount)}/yr × 45% additional rate</td><td class="num">= ${fmtGBP(bands_.arTax)}/yr</td></tr>`
+      : '';
+
+    const step4_ = bands_.totalTax > 0 && (pensionTaxAnn_ > 0 || spTaxAnn_ > 0) ? `
+      <div class="tw-step">
+        <div class="tw-step-title">Step 4 — Tax allocated between income sources</div>
+        <p class="tw-step-note">Tax is shared between pension drawdown and SP in proportion to each source's taxable share.</p>
+        <table class="tw-table">
+          ${pensionTaxAnn_ > 0 ? `<tr><td>Pension drawdown share (${fmtPct(pensionFrac_ * 100)})</td><td class="num">= ${fmtGBP(pensionTaxAnn_ / 12)}/mo</td></tr>` : ''}
+          ${spTaxAnn_ > 0 ? `<tr><td>State pension share (${fmtPct(spFrac_ * 100)})</td><td class="num">= ${fmtGBP(spTaxAnn_ / 12)}/mo</td></tr>` : ''}
+          <tr class="tw-total"><td>Total tax on pension &amp; SP</td><td class="num">${fmtGBP(bands_.totalTax / 12)}/mo</td></tr>
+        </table>
+      </div>` : '';
+
+    const otherBlock_ = items_.length > 0 ? `
+      <div class="tw-step">
+        <div class="tw-step-title">Other Income (taxed at configured rates)</div>
+        <table class="tw-table tw-items">
+          <tr class="tw-nil"><td>Source</td><td class="num">Gross /yr</td><td class="num">Rate</td><td class="num">Tax /yr</td><td class="num">Net /yr</td></tr>
+          ${items_.map(it => `<tr><td>${it.name || 'Income'}</td><td class="num">${fmtGBP(it.gross)}</td><td class="num">${it.taxPct}%</td><td class="num">${fmtGBP(it.tax)}</td><td class="num">${fmtGBP(it.net)}</td></tr>`).join('')}
+          ${items_.length > 1 ? `<tr class="tw-total"><td>Total</td><td class="num">${fmtGBP(items_.reduce((s,it)=>s+it.gross,0))}</td><td></td><td class="num">${fmtGBP(items_.reduce((s,it)=>s+it.tax,0))}</td><td class="num">${fmtGBP(items_.reduce((s,it)=>s+it.net,0))}</td></tr>` : ''}
+        </table>
+      </div>` : '';
+
+    return `<div class="tw-person-section">
+      <div class="tw-person-heading">${label}</div>
+      <div class="tw-step">
+        <div class="tw-step-title">Step 1 — Gross income &amp; tax-free cash</div>
+        <table class="tw-table">
+          ${dwAnn > 0 ? `<tr><td>Pension pot drawdown (gross)</td><td class="num">${fmtN(dwAnn)}</td></tr>
+          <tr class="tw-sub"><td>↳ Tax-free portion (${Math.round(tfFrac * 100)}% UFPLS / PCLS)</td><td class="num">− ${fmtN(taxFreeAnn_)}</td></tr>
+          <tr class="tw-sub tw-subtotal"><td>↳ Taxable pension drawdown</td><td class="num">${fmtN(pensionTaxable_)}</td></tr>` : ''}
+          ${hasSP_ ? `<tr><td>State pension</td><td class="num">${fmtN(spAnn)}</td></tr>` : ''}
+          <tr class="tw-total"><td>Total taxable income</td><td class="num">${fmtN(totalTaxable_)}</td></tr>
+        </table>
+      </div>
+      <div class="tw-step">
+        <div class="tw-step-title">Step 2 — Personal allowance</div>
+        <table class="tw-table">
+          <tr><td>Personal allowance</td><td class="num">${paNote_}</td></tr>
+          <tr><td>Allowance used</td><td class="num">${fmtN(bands_.paUsed)}</td></tr>
+          <tr class="tw-total"><td>Income above allowance (taxable)</td><td class="num">${fmtN(bands_.above)}</td></tr>
+        </table>
+      </div>
+      <div class="tw-step">
+        <div class="tw-step-title">Step 3 — Tax band calculation</div>
+        <table class="tw-table">
+          ${brRow_}${hrRow_}${arRow_}
+          <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtA(bands_.totalTax)}</td></tr>
+        </table>
+      </div>
+      ${step4_}
+      ${otherBlock_}
+    </div>`;
+  }
+
+  const partnerNote = hasPartner && (1 - primaryPotFrac) > 0.01
+    ? `<p class="tw-note" style="margin-top:4px">Pension drawdown is split between you and your partner in proportion to each person's estimated starting pot value. Each person is taxed independently with their own £12,570 personal allowance.</p>`
+    : '';
 
   const workingsHtml = `
     <div class="tw-wrap">
       <div class="tw-heading">How Your Tax Was Calculated</div>
       <p class="tw-note">Figures below are in nominal (actual) money — the amounts HMRC would assess. Tax bands are set by current UK law.</p>
-
-      <div class="tw-step">
-        <div class="tw-step-title">Step 1 — Gross income &amp; tax-free cash</div>
-        <table class="tw-table">
-          <tr><td>Pension pot drawdown (gross)</td><td class="num">${fmtN(pensionGrossAnn)}</td></tr>
-          <tr class="tw-sub"><td>↳ Tax-free portion (${Math.round(taxFreeFrac * 100)}% UFPLS / PCLS)</td><td class="num">− ${fmtN(taxFreeAnn)}</td></tr>
-          <tr class="tw-sub tw-subtotal"><td>↳ Taxable pension drawdown</td><td class="num">${fmtN(pensionTaxableAnn)}</td></tr>
-          ${hasStatePension ? `<tr><td>State pension</td><td class="num">${fmtN(spGrossAnn)}</td></tr>` : ''}
-          <tr class="tw-total"><td>Total taxable income</td><td class="num">${fmtN(totalTaxableAnn)}</td></tr>
-        </table>
-      </div>
-
-      <div class="tw-step">
-        <div class="tw-step-title">Step 2 — Personal allowance</div>
-        <table class="tw-table">
-          <tr><td>Personal allowance</td><td class="num">${paNote}</td></tr>
-          <tr><td>Allowance used</td><td class="num">${fmtN(bands.paUsed)}</td></tr>
-          <tr class="tw-total"><td>Income above allowance (taxable)</td><td class="num">${fmtN(bands.above)}</td></tr>
-        </table>
-      </div>
-
-      <div class="tw-step">
-        <div class="tw-step-title">Step 3 — Tax band calculation</div>
-        <table class="tw-table">
-          ${brRow}
-          ${hrRow}
-          ${arRow}
-          <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtA(bands.totalTax)}</td></tr>
-        </table>
-      </div>
-
-      ${bands.totalTax > 0 && (pensionTaxAnn > 0 || spTaxAnn > 0) ? `
-      <div class="tw-step">
-        <div class="tw-step-title">Step 4 — Tax allocated between income sources</div>
-        <p class="tw-step-note">Tax is shared between pension and state pension in proportion to each source's share of taxable income.</p>
-        <table class="tw-table">
-          ${pensionTaxAnn > 0 ? `<tr><td>Pension drawdown share (${fmtPct(pensionTaxFrac * 100)})</td><td class="num">= ${fmtGBP(pensionTaxAnn / 12)}/mo</td></tr>` : ''}
-          ${spSplitRow}
-          <tr class="tw-total"><td>Total tax on pension &amp; SP</td><td class="num">${fmtGBP(bands.totalTax / 12)}/mo</td></tr>
-        </table>
-      </div>` : ''}
-
-      ${otherWorkings}
+      ${partnerNote}
+      ${personWorkings('You', primaryDWAnn, primaryTFrac, spGrossAnn, hasStatePension, otherItems)}
+      ${hasPartner ? personWorkings('Partner', partnerDWAnn, partnerTFrac, partnerSpGrossAnn, hasPartnerSP, partnerOtherItems) : ''}
     </div>`;
 
   contentEl.innerHTML = `
@@ -1660,20 +1690,7 @@ function renderTaxBreakdown(r) {
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td>Pension Pots Drawdown</td>
-          <td class="num">${fmtGBP(pensionGross)}</td>
-          <td class="num">${fmtGBP(pensionTax)}</td>
-          <td class="num">${fmtGBP(pensionNet)}</td>
-        </tr>
-        <tr>
-          <td>State Pension</td>
-          <td class="num">${fmtGBP(spGross)}</td>
-          <td class="num">${fmtGBP(spTax)}</td>
-          <td class="num">${fmtGBP(spNet)}</td>
-        </tr>
-        ${otherSummaryRows}
-        ${partnerRows}
+        ${summaryTbody}
         <tr class="tax-total-row">
           <td>Total Household</td>
           <td class="num">${fmtGBP(totalGross)}</td>

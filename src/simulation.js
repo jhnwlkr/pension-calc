@@ -257,6 +257,12 @@ export function runSimulation(p) {
   const primaryTaxFreeAmt = primaryPotMedian > 0 ? primaryPotMedian * Math.min(0.25, LSA / primaryPotMedian) : 0;
   const partnerTaxFreeAmt = partnerPotMedian > 0 ? partnerPotMedian * Math.min(0.25, LSA / partnerPotMedian) : 0;
   const taxFreeFrac = startPensionPot > 0 ? (primaryTaxFreeAmt + partnerTaxFreeAmt) / startPensionPot : 0.25;
+  // Per-person fractions exported so Tax Breakdown can tax each person independently
+  const primaryTaxFreeFrac = primaryPotMedian > 0 ? Math.min(0.25, LSA / primaryPotMedian) : 0.25;
+  const partnerTaxFreeFrac = partnerPotMedian > 0 ? Math.min(0.25, LSA / partnerPotMedian) : 0.25;
+  const primaryPotFrac = (primaryPotMedian + partnerPotMedian) > 0
+    ? primaryPotMedian / (primaryPotMedian + partnerPotMedian)
+    : 1.0;
 
   const potsOrder = allPotsConfig.map((_, idx) => idx).sort((a, b) => (allPotsConfig[a].equityPct || 80) - (allPotsConfig[b].equityPct || 80));
 
@@ -563,7 +569,7 @@ export function runSimulation(p) {
   const result = {
     ages, years, p, prob, guardrailPct, medianReal,
     swrPct, swr, netMonthly, grossMonthly, netAnnual, grossAnnual, startPot, startPensionPot, startCashTotal,
-    startCashPotVals, cashContribByYear, cashBalByYear, taxFreeFrac, startInitialPotValues,
+    startCashPotVals, cashContribByYear, cashBalByYear, taxFreeFrac, primaryTaxFreeFrac, partnerTaxFreeFrac, primaryPotFrac, startInitialPotValues,
     percentileData, pctiles, survivalByAge, realIncomeByAge,
     netMonthlyByAge, swrByAge, taxCalc
   };
