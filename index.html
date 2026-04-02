@@ -386,7 +386,7 @@
     <button class="tab" data-tab="annualincome">Annual Income</button>
     <button class="tab" data-tab="monthlybreakdown">Monthly Breakdown</button>
     <button class="tab" data-tab="swr">Safe Withdrawal Rate</button>
-    <button class="tab" data-tab="survival">Survival Probability</button>
+    <button class="tab" data-tab="taxbreakdown">Tax Breakdown</button>
     <button class="tab" data-tab="realincome">Real Income</button>
     <button class="tab" data-tab="netmonthly">Net Monthly Income</button>
   </div>
@@ -439,9 +439,21 @@
         </div>
       </div>
     </div>
-    <div id="tab-survival" class="hidden">
-      <h2 style="margin-bottom:12px">Survival Probability by Age</h2>
-      <div class="chart-wrap"><canvas id="chart-survival"></canvas></div>
+    <div id="tab-taxbreakdown" class="hidden">
+      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;font-size:1.14rem">Tax Breakdown by Retirement Year</h2>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label for="tax-year-select" style="font-size:0.86rem;color:var(--text2)">Year:</label>
+          <select id="tax-year-select" class="dyn-select" style="min-width:160px"></select>
+          <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
+            <input type="checkbox" id="today-money-toggle-taxbreakdown" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
+          </label>
+        </div>
+      </div>
+      <div class="ai-note">This tab shows an annual tax snapshot for the selected retirement year. Figures are shown monthly for consistency with other tabs.</div>
+      <div id="tax-breakdown-content" class="table-scroll">
+        <div style="text-align:center;color:var(--text2);padding:20px">Run simulation to see tax breakdown.</div>
+      </div>
     </div>
     <div id="tab-realincome" class="hidden">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">

@@ -570,7 +570,7 @@ function setTodayMoney(checked, r) {
     const tab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
     if (tab === 'pot') renderPotChart(r);
     else if (tab === 'swr') renderSWRChart(r);
-    else if (tab === 'survival') renderSurvivalChart(r);
+    else if (tab === 'taxbreakdown') renderTaxBreakdown(r);
     else if (tab === 'realincome') renderRealIncomeChart(r);
     else if (tab === 'netmonthly') renderNetMonthlyChart(r);
     else if (tab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
@@ -1473,6 +1473,115 @@ function renderSurvivalChart(r) {
   });
 }
 
+function renderTaxBreakdown(r) {
+  const selectEl = document.getElementById('tax-year-select');
+  const contentEl = document.getElementById('tax-breakdown-content');
+  if (!selectEl || !contentEl) return;
+
+  const rows = r?.annualIncomeData || [];
+  if (!rows.length) {
+    selectEl.innerHTML = '';
+    contentEl.innerHTML = '<div style="text-align:center;color:var(--text2);padding:20px">Run simulation to see tax breakdown.</div>';
+    return;
+  }
+
+  const prevIdx = Number.parseInt(selectEl.value || '0', 10);
+  const hasPartner = !!r.p?.partner;
+  selectEl.innerHTML = rows.map((d, idx) => {
+    const age = hasPartner ? `${d.age}/${d.partnerAge}` : `${d.age}`;
+    return `<option value="${idx}">${d.calYear} (Age ${age})</option>`;
+  }).join('');
+
+  const selectedIdx = Number.isFinite(prevIdx) ? Math.max(0, Math.min(rows.length - 1, prevIdx)) : 0;
+  selectEl.value = String(selectedIdx);
+
+  const d = rows[selectedIdx];
+  const useToday = isTodayMoney();
+  const pick = (nom, real) => useToday ? real : nom;
+
+  const pensionGross = pick(d.pensionGrossNom, d.pensionGrossReal);
+  const pensionTax = pick(d.pensionTaxNom, d.pensionTaxReal);
+  const pensionNet = pick(d.pensionNom, d.pensionReal);
+  const pensionTaxFreeEst = pensionGross * (r.taxFreeFrac || 0.25);
+
+  const spGross = pick(d.spGrossNom, d.spGrossReal);
+  const spTax = pick(d.spTaxNom, d.spTaxReal);
+  const spNet = spGross - spTax;
+
+  const otherGross = pick(d.otherGrossNom, d.otherGrossReal);
+  const otherTax = pick(d.otherTaxNom, d.otherTaxReal);
+  const otherNet = pick(d.otherNom, d.otherReal);
+
+  const partnerSpGross = pick(d.partnerSpGrossNom || 0, d.partnerSpGrossReal || 0);
+  const partnerOtherGross = pick(d.partnerOtherGrossNom || 0, d.partnerOtherGrossReal || 0);
+  const partnerOtherTax = pick(d.partnerOtherTaxNom || 0, d.partnerOtherTaxReal || 0);
+  const partnerOtherNet = pick(d.partnerOtherNom || 0, d.partnerOtherReal || 0);
+
+  const totalGross = pick(d.netGrossNom, d.netGrossReal);
+  const totalTax = pick(d.netTaxNom, d.netTaxReal);
+  const totalNet = pick(d.netNom, d.netReal);
+
+  const partnerRows = hasPartner ? `
+        <tr>
+          <td>Partner State Pension</td>
+          <td>${fmtGBP(partnerSpGross)}</td>
+          <td>${fmtGBP(0)}</td>
+          <td>${fmtGBP(partnerSpGross)}</td>
+          <td>Included in household total; partner-specific SP tax split is not shown in this phase.</td>
+        </tr>
+        <tr>
+          <td>Partner Other Income</td>
+          <td>${fmtGBP(partnerOtherGross)}</td>
+          <td>${fmtGBP(partnerOtherTax)}</td>
+          <td>${fmtGBP(partnerOtherNet)}</td>
+          <td>Taxed using partner income settings.</td>
+        </tr>` : '';
+
+  contentEl.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:left">Income Source</th>
+          <th>Gross /mo</th>
+          <th>Tax /mo</th>
+          <th>Net /mo</th>
+          <th style="text-align:left">How Tax Is Applied</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Pension Pots Drawdown</td>
+          <td>${fmtGBP(pensionGross)}</td>
+          <td>${fmtGBP(pensionTax)}</td>
+          <td>${fmtGBP(pensionNet)}</td>
+          <td>Estimated tax-free portion: ${fmtGBP(pensionTaxFreeEst)} /mo, with remaining pension drawdown taxed through UK income tax bands.</td>
+        </tr>
+        <tr>
+          <td>State Pension</td>
+          <td>${fmtGBP(spGross)}</td>
+          <td>${fmtGBP(spTax)}</td>
+          <td>${fmtGBP(spNet)}</td>
+          <td>Taxed as income alongside other taxable sources after allowance effects in the model.</td>
+        </tr>
+        <tr>
+          <td>Other Income</td>
+          <td>${fmtGBP(otherGross)}</td>
+          <td>${fmtGBP(otherTax)}</td>
+          <td>${fmtGBP(otherNet)}</td>
+          <td>Uses configured tax rates for each income source.</td>
+        </tr>
+        ${partnerRows}
+        <tr>
+          <td><strong>Total Household</strong></td>
+          <td><strong>${fmtGBP(totalGross)}</strong></td>
+          <td><strong>${fmtGBP(totalTax)}</strong></td>
+          <td><strong>${fmtGBP(totalNet)}</strong></td>
+          <td><strong>Combined across all active income sources for this year.</strong></td>
+        </tr>
+      </tbody>
+    </table>`;
+}
+
 function renderRealIncomeChart(r) {
   if (!chartAvailable()) return;
   destroyChart('realincome');
@@ -1567,7 +1676,7 @@ function renderAnnualIncomeChart(r) {
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
-const tabDefs = ['pot', 'annualincome', 'monthlybreakdown', 'swr', 'survival', 'realincome', 'netmonthly'];
+const tabDefs = ['pot', 'annualincome', 'monthlybreakdown', 'swr', 'taxbreakdown', 'realincome', 'netmonthly'];
 function setActiveTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   tabDefs.forEach(t => {
@@ -1583,7 +1692,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     if (lastResults) {
       if (tab === 'pot') renderPotChart(lastResults);
       else if (tab === 'swr') renderSWRChart(lastResults);
-      else if (tab === 'survival') renderSurvivalChart(lastResults);
+      else if (tab === 'taxbreakdown') renderTaxBreakdown(lastResults);
       else if (tab === 'realincome') renderRealIncomeChart(lastResults);
       else if (tab === 'netmonthly') renderNetMonthlyChart(lastResults);
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
@@ -1612,6 +1721,8 @@ document.getElementById('run-btn').addEventListener('click', () => {
           const el = document.getElementById(id);
           if (el) el.textContent = '—';
         });
+        const taxContent = document.getElementById('tax-breakdown-content');
+        if (taxContent) taxContent.innerHTML = '<div style="text-align:center;color:var(--text2);padding:20px">Run simulation to see tax breakdown.</div>';
         renderExplainability(null, null);
         return;
       }
@@ -1624,7 +1735,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
 
       if (activeTab === 'pot') renderPotChart(r);
       else if (activeTab === 'swr') renderSWRChart(r);
-      else if (activeTab === 'survival') renderSurvivalChart(r);
+      else if (activeTab === 'taxbreakdown') renderTaxBreakdown(r);
       else if (activeTab === 'realincome') renderRealIncomeChart(r);
       else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
       else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
@@ -1720,8 +1831,16 @@ function initApp() {
       lastResults.annualIncomeData = buildAnnualIncomeData(lastResults, idx);
       renderAnnualIncomeChart(lastResults);
       renderAnnualIncomeTable(lastResults);
+      renderTaxBreakdown(lastResults);
     }
   });
+
+  const taxYearSelect = document.getElementById('tax-year-select');
+  if (taxYearSelect) {
+    taxYearSelect.addEventListener('change', () => {
+      if (lastResults) renderTaxBreakdown(lastResults);
+    });
+  }
 
   // Try to restore persisted state; fall back to defaults
   const saved = loadPersistedParams();
