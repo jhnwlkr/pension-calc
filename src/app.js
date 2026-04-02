@@ -1532,7 +1532,7 @@ function renderTaxBreakdown(r) {
   const cashAnn           = (d.cashNom || 0) * 12;   // tax-free savings/ISA withdrawal
 
   const fmtA = v => fmtGBP(v / 12) + '/mo  (' + fmtGBP(v) + '/yr)';
-  const fmtN = v => v > 0 ? fmtGBP(v) + '/yr' : 'nil';
+  const fmtN = v => v > 0 ? fmtGBP(v) + '/yr' : 'N/A';
 
   // ── Per-person tax — each gets their own £12,570 personal allowance ─────────
   const primTc  = calcPensionTax(primaryDWAnn, spGrossAnn, hasStatePension, primaryTFrac);
@@ -1605,10 +1605,10 @@ function renderTaxBreakdown(r) {
 
     const brRow_ = bands_.brAmount > 0
       ? `<tr><td>${fmtGBP(bands_.brAmount)}/yr × 20% basic rate</td><td class="num">= ${fmtGBP(bands_.brTax)}/yr</td></tr>`
-      : `<tr class="tw-nil"><td>Basic rate band</td><td class="num">nil</td></tr>`;
+      : `<tr class="tw-nil"><td>Basic rate band</td><td class="num">N/A</td></tr>`;
     const hrRow_ = bands_.hrAmount > 0
       ? `<tr><td>${fmtGBP(bands_.hrAmount)}/yr × 40% higher rate</td><td class="num">= ${fmtGBP(bands_.hrTax)}/yr</td></tr>`
-      : `<tr class="tw-nil"><td>Higher rate band</td><td class="num">nil</td></tr>`;
+      : `<tr class="tw-nil"><td>Higher rate band</td><td class="num">N/A</td></tr>`;
     const arRow_ = bands_.arAmount > 0
       ? `<tr><td>${fmtGBP(bands_.arAmount)}/yr × 45% additional rate</td><td class="num">= ${fmtGBP(bands_.arTax)}/yr</td></tr>`
       : '';
