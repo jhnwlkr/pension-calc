@@ -1499,6 +1499,21 @@ function renderTaxBreakdown(r) {
   const useToday = isTodayMoney();
   const pick = (nom, real) => useToday ? real : nom;
 
+  // ── Per-item other income breakdown ───────────────────────────────────────
+  const _infl2     = 1 + (r.p?.inflation || 0) / 100;
+  const _ytr       = Math.max(0, (r.p?.retirementAge || 0) - (r.p?.currentAge || 0));
+  const ciFromNow  = Math.pow(_infl2, _ytr + selectedIdx);
+  const todayDeflator = ciFromNow > 0 ? 1 / ciFromNow : 1;
+  const otherItems = calcOtherIncomesNet(r.p?.incomes || [], ciFromNow).items
+    .map((it, i) => ({ ...it, taxPct: (r.p?.incomes || [])[i]?.taxPct ?? 0 }))
+    .filter(it => it.gross > 0);
+  const _partnerRetired = !!(hasPartner && d.partnerAge !== null && d.partnerAge >= r.p.partner.retirementAge);
+  const partnerOtherItems = (_partnerRetired && r.p.partner?.incomes?.length)
+    ? calcOtherIncomesNet(r.p.partner.incomes, ciFromNow).items
+        .map((it, i) => ({ ...it, taxPct: (r.p.partner?.incomes || [])[i]?.taxPct ?? 0 }))
+        .filter(it => it.gross > 0)
+    : [];
+
   // ── Monthly summary (respects Today's Prices toggle) ──────────────────────
   const pensionGross = pick(d.pensionGrossNom, d.pensionGrossReal);
   const pensionTax   = pick(d.pensionTaxNom,   d.pensionTaxReal);
@@ -1517,6 +1532,20 @@ function renderTaxBreakdown(r) {
   const totalTax   = pick(d.netTaxNom,   d.netTaxReal);
   const totalNet   = pick(d.netNom,      d.netReal);
 
+  const otherSummaryRows = otherItems.map(it => {
+    const gm = useToday ? (it.gross * todayDeflator) / 12 : it.gross / 12;
+    const xm = useToday ? (it.tax   * todayDeflator) / 12 : it.tax   / 12;
+    const nm = useToday ? (it.net   * todayDeflator) / 12 : it.net   / 12;
+    return `<tr><td>${it.name || 'Other Income'}<br><small style="color:var(--text2);font-size:0.75rem">${it.taxPct}% tax rate</small></td><td class="num">${fmtGBP(gm)}</td><td class="num">${fmtGBP(xm)}</td><td class="num">${fmtGBP(nm)}</td></tr>`;
+  }).join('');
+
+  const partnerOtherSummaryRows = partnerOtherItems.map(it => {
+    const gm = useToday ? (it.gross * todayDeflator) / 12 : it.gross / 12;
+    const xm = useToday ? (it.tax   * todayDeflator) / 12 : it.tax   / 12;
+    const nm = useToday ? (it.net   * todayDeflator) / 12 : it.net   / 12;
+    return `<tr><td>Partner — ${it.name || 'Other Income'}<br><small style="color:var(--text2);font-size:0.75rem">${it.taxPct}% tax rate</small></td><td class="num">${fmtGBP(gm)}</td><td class="num">${fmtGBP(xm)}</td><td class="num">${fmtGBP(nm)}</td></tr>`;
+  }).join('');
+
   const partnerRows = !hasPartner ? '' : `
     <tr>
       <td>Partner — State Pension</td>
@@ -1524,12 +1553,7 @@ function renderTaxBreakdown(r) {
       <td class="num">—</td>
       <td class="num">${fmtGBP(partnerSpGross)}</td>
     </tr>
-    <tr>
-      <td>Partner — Other Income</td>
-      <td class="num">${fmtGBP(partnerOtherGross)}</td>
-      <td class="num">${fmtGBP(partnerOtherTax)}</td>
-      <td class="num">${fmtGBP(partnerOtherNet)}</td>
-    </tr>`;
+    ${partnerOtherSummaryRows}`;
 
   // ── Tax workings (always nominal annual — that is how UK tax is computed) ─
   const taxFreeFrac      = r.taxFreeFrac || 0.25;
@@ -1563,13 +1587,13 @@ function renderTaxBreakdown(r) {
     ? `<tr><td>${fmtGBP(bands.arAmount)}/yr × 45% additional rate</td><td class="num">= ${fmtGBP(bands.arTax)}/yr</td></tr>`
     : '';
 
-  const otherWorkings = otherTaxAnn > 0 ? `
+  const otherWorkings = otherItems.length > 0 ? `
     <div class="tw-step">
       <div class="tw-step-title">Other Income (taxed at configured rates)</div>
-      <table class="tw-table">
-        <tr><td>Other income (gross)</td><td class="num">${fmtN(d.otherGrossNom * 12)}</td></tr>
-        <tr><td>Tax at configured rate(s)</td><td class="num">−${fmtN(otherTaxAnn)}</td></tr>
-        <tr class="tw-total"><td>Net other income</td><td class="num">${fmtN(d.otherNom * 12)}/yr</td></tr>
+      <table class="tw-table tw-items">
+        <tr class="tw-nil"><td>Source</td><td class="num">Gross /yr</td><td class="num">Rate</td><td class="num">Tax /yr</td><td class="num">Net /yr</td></tr>
+        ${otherItems.map(it => `<tr><td>${it.name || 'Income'}</td><td class="num">${fmtGBP(it.gross)}</td><td class="num">${it.taxPct}%</td><td class="num">${fmtGBP(it.tax)}</td><td class="num">${fmtGBP(it.net)}</td></tr>`).join('')}
+        ${otherItems.length > 1 ? `<tr class="tw-total"><td>Total</td><td class="num">${fmtGBP(otherItems.reduce((s,it)=>s+it.gross,0))}</td><td></td><td class="num">${fmtGBP(otherItems.reduce((s,it)=>s+it.tax,0))}</td><td class="num">${fmtGBP(otherItems.reduce((s,it)=>s+it.net,0))}</td></tr>` : ''}
       </table>
     </div>` : '';
 
@@ -1648,12 +1672,7 @@ function renderTaxBreakdown(r) {
           <td class="num">${fmtGBP(spTax)}</td>
           <td class="num">${fmtGBP(spNet)}</td>
         </tr>
-        <tr>
-          <td>Other Income</td>
-          <td class="num">${fmtGBP(otherGross)}</td>
-          <td class="num">${fmtGBP(otherTax)}</td>
-          <td class="num">${fmtGBP(otherNet)}</td>
-        </tr>
+        ${otherSummaryRows}
         ${partnerRows}
         <tr class="tax-total-row">
           <td>Total Household</td>
