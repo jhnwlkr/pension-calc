@@ -635,8 +635,9 @@ function persistParams() {
   obj['partner-pots'] = JSON.stringify(partnerPotsData);
   obj['partner-cashPots'] = JSON.stringify(partnerCashPotsData);
   obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
-  // Save full state to localStorage as backup
-  try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e) {}
+  // Save full state to localStorage AND sessionStorage as backups.
+  // sessionStorage survives same-tab hard refreshes (even when Safari strips the hash).
+  try { const s = JSON.stringify(obj); localStorage.setItem(LS_KEY, s); sessionStorage.setItem(LS_KEY, s); } catch(e) {}
   // Encode complete state as a single base64 blob in the URL hash so the full
   // settings survive hard refreshes and cross-deployment URL sharing.
   try {
@@ -673,7 +674,9 @@ function loadPersistedParams() {
       }
     } catch(e) {}
   }
-  // Last resort: localStorage only (same domain, no hash)
+  // sessionStorage: survives same-tab hard refresh in Safari even when hash is stripped
+  try { const raw = sessionStorage.getItem(LS_KEY); if (raw) return JSON.parse(raw); } catch(e) {}
+  // Final fallback: localStorage (same domain only)
   try { const raw = localStorage.getItem(LS_KEY); if (raw) return JSON.parse(raw); } catch(e) {}
   return null;
 }
