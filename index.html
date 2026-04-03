@@ -477,7 +477,7 @@
         <div class="ai-note" style="margin-bottom:10px">Tracks a representative simulation run at the selected percentile. Year Change reflects the combined effect of investment returns and income drawn that year — use the slider to see how sequence of returns luck shapes outcomes.</div>
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
           <span style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Percentile:</span>
-          <input type="range" id="mc-pctile" min="0" max="4" step="1" value="2" style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);height:4px">
+          <input type="range" id="mc-pctile" min="0" max="5" step="1" value="3" style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);height:4px">
           <span id="v-mc-pctile" style="font-size:0.88rem;font-weight:600;white-space:nowrap;color:var(--accent)">50th (Median)</span>
         </div>
         <div class="table-scroll" style="max-height:55vh;overflow-y:auto">
@@ -486,8 +486,8 @@
             <tr>
               <th style="text-align:left">Age</th>
               <th>Pot Balance</th>
-              <th>Year Change (£)</th>
-              <th>Year Change (%)</th>
+              <th>Gross Return<br><small style="font-weight:400">sampled from history</small></th>
+              <th>Net Pot Change (£)</th>
               <th>Income Drawn /mo</th>
             </tr>
           </thead>

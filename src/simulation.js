@@ -401,6 +401,8 @@ export function runSimulation(p) {
     : (allPotsConfig[0]?.equityPct || 80) / 100;
 
   const potMatrix = Array.from({ length: nRuns }, () => new Float64Array(years + 1));
+  const yearIdxMatrix = Array.from({ length: nRuns }, () => new Uint8Array(years));
+  const blendedRetMatrix = Array.from({ length: nRuns }, () => new Float32Array(years));
   let successCount = 0;
   let guardrailTriggerCount = 0;
 
@@ -445,6 +447,8 @@ export function runSimulation(p) {
         blendedRet += w * ret;
         runPots[rank] = runPots[rank] * ret;
       }
+      yearIdxMatrix[r][y] = yearIdx;
+      blendedRetMatrix[r][y] = (blendedRet - 1) * 100;
 
       const inflThisYear = stochasticInflation(p.inflation, blendedRet);
       cumulInfl *= (1 + inflThisYear);
@@ -515,16 +519,22 @@ export function runSimulation(p) {
     });
   }
 
-  // Representative run per percentile (selected at midpoint year) for the MC sequence table
+  // Representative run per percentile for MC sequence table (includes 1st percentile)
+  const mcPctiles = [1, 5, 25, 50, 75, 95];
   const midYear = Math.floor(years / 2);
-  const mcRepPaths = pctiles.map((pc, pi) => {
-    const target = percentileData[pi][midYear];
+  const midYearVals = Array.from({ length: nRuns }, (_, rr) => potMatrix[rr][midYear]).sort((a, b) => a - b);
+  const mcRepPaths = mcPctiles.map(pc => {
+    const target = midYearVals[Math.min(nRuns - 1, Math.floor((pc / 100) * (nRuns - 1)))];
     let bestRun = 0, bestDiff = Infinity;
     for (let run = 0; run < nRuns; run++) {
       const diff = Math.abs(potMatrix[run][midYear] - target);
       if (diff < bestDiff) { bestDiff = diff; bestRun = run; }
     }
-    return Float64Array.from(potMatrix[bestRun]);
+    return {
+      balances: Float64Array.from(potMatrix[bestRun]),
+      histYears: Array.from(yearIdxMatrix[bestRun]).map(idx => 1900 + idx),
+      grossReturns: Array.from(blendedRetMatrix[bestRun]),
+    };
   });
 
   const prob = (successCount / nRuns) * 100;

@@ -811,6 +811,22 @@ function potWithdrawal(age, p, cumulInfl) {
 }
 
 const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
+const MC_PCT_LABELS = ['1st', '5th', '25th', '50th (Median)', '75th', '95th'];
+const HIST_YEAR_EVENTS = {
+  1914: 'WWI', 1915: 'WWI', 1916: 'WWI', 1917: 'WWI', 1918: 'WWI',
+  1929: 'Wall St. Crash', 1930: 'Great Depression', 1931: 'Great Depression', 1932: 'Great Depression',
+  1937: 'Recession relapse',
+  1940: 'WWII', 1941: 'WWII', 1942: 'WWII', 1943: 'WWII', 1944: 'WWII', 1945: 'WWII ends',
+  1973: 'Oil Crisis', 1974: 'Oil Crisis',
+  1987: 'Black Monday',
+  1990: 'Recession',
+  2000: 'Dot-com Crash', 2001: 'Dot-com / 9/11', 2002: 'Dot-com Crash',
+  2008: 'Financial Crisis',
+  2020: 'Covid Crash',
+  1933: 'New Deal Rally', 1954: 'Post-war Boom',
+  1975: 'Recovery Rally', 1982: 'Bull Market begins',
+  1995: 'Tech Boom', 1997: 'Tech Boom', 1999: 'Dot-com Peak',
+};
 
 function buildAnnualIncomeData(r) {
   const p = r.p;
@@ -1503,7 +1519,7 @@ function renderMonteCarloChart(r) {
   });
 }
 
-function renderMonteCarloTable(r, pctileIdx = 2) {
+function renderMonteCarloTable(r, pctileIdx = 3) {
   const tbody = document.getElementById('mc-year-tbody');
   if (!tbody) return;
   const paths = r.mcRepPaths;
@@ -1519,20 +1535,26 @@ function renderMonteCarloTable(r, pctileIdx = 2) {
   const deflator = yi => Math.pow(1 / baseInflFactor, yearsToRetirement + yi);
 
   tbody.innerHTML = r.ages.map((age, yi) => {
-    const bal = path[yi];
+    const bal = path.balances[yi];
     const dispBal = useToday ? bal * deflator(yi) : bal;
-    const change = yi === 0 ? null : path[yi] - path[yi - 1];
+    const change = yi === 0 ? null : path.balances[yi] - path.balances[yi - 1];
     const dispChange = change === null ? null : (useToday ? change * deflator(yi) : change);
-    const changePct = (change === null || path[yi - 1] <= 0) ? null : (change / path[yi - 1]) * 100;
+    const grossRet = yi === 0 ? null : path.grossReturns[yi - 1];
+    const histYear = yi === 0 ? null : path.histYears[yi - 1];
+    const histEvent = histYear !== null ? (HIST_YEAR_EVENTS[histYear] || '') : '';
     const incDrawn = aid[yi] ? (useToday ? (aid[yi].withdrawalNom * deflator(yi)) / 12 : aid[yi].withdrawalNom / 12) : 0;
     const cc = dispChange === null ? '' : dispChange >= 0 ? 'color:#16a34a' : 'color:#dc2626';
+    const rc = grossRet === null ? '' : grossRet >= 0 ? 'color:#16a34a' : 'color:#dc2626';
     const chStr = dispChange === null ? '—' : (dispChange >= 0 ? '+' : '') + fmtGBP(dispChange);
-    const pctStr = changePct === null ? '—' : (changePct >= 0 ? '+' : '') + fmtPct(Math.abs(changePct), 1) + (changePct < 0 ? '' : '');
+    const retStr = grossRet === null ? '—' : (grossRet >= 0 ? '+' : '') + fmtPct(grossRet, 1);
+    const yearLabel = histYear !== null
+      ? `<br><small style="font-weight:400;color:var(--text2)">${histYear}${histEvent ? ' · ' + histEvent : ''}</small>`
+      : '';
     return `<tr${bal <= 0 ? ' style="opacity:0.45"' : ''}>
       <td>${age}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums">${fmtGBP(dispBal)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;${rc}">${retStr}${yearLabel}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums;${cc}">${chStr}</td>
-      <td style="text-align:right;font-variant-numeric:tabular-nums;${cc}">${changePct === null ? '—' : (changePct >= 0 ? '+' : '') + fmtPct(changePct, 1)}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums">${incDrawn > 0 ? fmtGBP(incDrawn) + '/mo' : '—'}</td>
     </tr>`;
   }).join('');
@@ -2085,7 +2107,7 @@ function initApp() {
   const mcPctileLabel  = document.getElementById('v-mc-pctile');
   mcPctileSlider.addEventListener('input', () => {
     const idx = +mcPctileSlider.value;
-    mcPctileLabel.textContent = PCT_LABELS[idx] + ' percentile';
+    mcPctileLabel.textContent = MC_PCT_LABELS[idx];
     if (lastResults) renderMonteCarloTable(lastResults, idx);
   });
 
