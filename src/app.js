@@ -1899,10 +1899,21 @@ function renderNetMonthlyChart(r) {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: textColor() } } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: textColor() } },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              const total = items.reduce((s, i) => s + (i.raw || 0), 0);
+              return `Age ${items[0].label}  —  Total: ${fmtGBP(total)}`;
+            }
+          }
+        }
+      },
       scales: {
         x: { stacked: true, ticks: { color: textColor(), maxTicksLimit: 12 }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
-        y: { stacked: true, ticks: { color: textColor(), callback: v => '£' + fmt(v) }, grid: { color: gridColor() }, title: { display: true, text: useToday ? "Net Monthly Income (Today\'s £)" : 'Net Monthly Income (Nominal £)', color: textColor() } }
+        y: { stacked: true, ticks: { color: textColor(), callback: v => '£' + fmt(v) }, grid: { color: gridColor() }, title: { display: true, text: useToday ? "Net Monthly Income (Today's £)" : 'Net Monthly Income (Nominal £)', color: textColor() } }
       }
     }
   });
