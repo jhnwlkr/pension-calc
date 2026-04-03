@@ -1219,7 +1219,7 @@ function renderIncomeTable(r) {
   const tc3 = calcPensionTax(potW3, sp3, hasSpAtReduction, tfFrac3, other3.grossTotal);
 
   document.getElementById('th-after-reduction').innerHTML =
-    `After Reduction (age ${p.reductionAge})<br><small style="font-weight:400">Gross / Tax / Net</small>`;
+    `At Reduction (age ${p.reductionAge})<br><small style="font-weight:400">Gross / Tax / Net</small>`;
 
   function cell(gross, tax, net, fact) {
     return `${fmtGBP((gross * fact)/12)} / <span style="color:var(--red)">${fmtGBP((tax * fact)/12)}</span> / <strong>${fmtGBP((net * fact)/12)}</strong>`;
