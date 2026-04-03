@@ -1650,6 +1650,17 @@ function renderTaxBreakdown(r) {
   const primaryTFrac   = d.primaryTaxFreeFracAnn ?? r.primaryTaxFreeFrac ?? r.taxFreeFrac;
   const partnerTFrac   = d.partnerTaxFreeFracAnn ?? r.partnerTaxFreeFrac ?? r.taxFreeFrac;
 
+  // Compute cumulative LSA used up to (but not including) the selected year
+  let cumulPrimaryTaxFreeUsed = 0;
+  let cumulPartnerTaxFreeUsed = 0;
+  for (let i = 0; i < selectedIdx; i++) {
+    const rd = rows[i];
+    const priDraw = rd.pensionGrossNom * 12 * primaryPotFrac;
+    const parDraw = rd.pensionGrossNom * 12 * (1 - primaryPotFrac);
+    cumulPrimaryTaxFreeUsed = Math.min(LSA, cumulPrimaryTaxFreeUsed + priDraw * (rd.primaryTaxFreeFracAnn ?? r.taxFreeFrac));
+    cumulPartnerTaxFreeUsed = Math.min(LSA, cumulPartnerTaxFreeUsed + parDraw * (rd.partnerTaxFreeFracAnn ?? r.taxFreeFrac));
+  }
+
   // ── Nominal annual income figures (tax is computed nominally, as HMRC would) ─
   const hasStatePension   = d.spGrossNom > 0;
   const hasPartnerSP      = (d.partnerSpGrossNom || 0) > 0;
@@ -1716,7 +1727,7 @@ function renderTaxBreakdown(r) {
   }
 
   // ── Per-person tax workings builder ───────────────────────────────────────
-  function personWorkings(label, dwAnn, tfFrac, spAnn, hasSP_, items_) {
+  function personWorkings(label, dwAnn, tfFrac, spAnn, hasSP_, items_, cumulTaxFreeUsed = 0) {
     const taxFreeAnn_     = dwAnn * tfFrac;
     const pensionTaxable_ = dwAnn - taxFreeAnn_;
     const otherGross_     = items_.reduce((s, it) => s + it.gross, 0);
@@ -1779,6 +1790,7 @@ function renderTaxBreakdown(r) {
         <table class="tw-table">
           ${dwAnn > 0 ? `<tr><td>Pension pot drawdown (gross)</td><td class="num">${fmtN(dwAnn)}</td></tr>
           <tr class="tw-sub"><td>↳ Tax-free portion (${fmtPct(tfFrac * 100)} UFPLS / PCLS)</td><td class="num">− ${fmtN(taxFreeAnn_)}</td></tr>
+          <tr class="tw-sub tw-sub2"><td>&nbsp;&nbsp;↳ ${fmtGBP(cumulTaxFreeUsed + taxFreeAnn_)} used · ${fmtGBP(Math.max(0, LSA - cumulTaxFreeUsed - taxFreeAnn_))} remaining of ${fmtGBP(LSA)}</td><td class="num"></td></tr>
           <tr class="tw-sub tw-subtotal"><td>↳ Taxable pension drawdown</td><td class="num">${fmtN(pensionTaxable_)}</td></tr>` : ''}
           ${hasSP_ ? `<tr><td>State pension</td><td class="num">${fmtN(spAnn)}</td></tr>` : ''}
           ${items_.map(it => `<tr><td>${it.name || 'Other income'}</td><td class="num">${fmtN(it.gross)}</td></tr>`).join('')}
@@ -1814,8 +1826,8 @@ function renderTaxBreakdown(r) {
       <div class="tw-heading">How Your Tax Was Calculated</div>
       <p class="tw-note">Figures below are in nominal (actual) money — the amounts HMRC would assess. Tax bands are set by current UK law.</p>
       ${partnerNote}
-      ${personWorkings('You', primaryDWAnn, primaryTFrac, spGrossAnn, hasStatePension, otherItems)}
-      ${hasPartner ? personWorkings('Partner', partnerDWAnn, partnerTFrac, partnerSpGrossAnn, hasPartnerSP, partnerOtherItems) : ''}
+      ${personWorkings('You', primaryDWAnn, primaryTFrac, spGrossAnn, hasStatePension, otherItems, cumulPrimaryTaxFreeUsed)}
+      ${hasPartner ? personWorkings('Partner', partnerDWAnn, partnerTFrac, partnerSpGrossAnn, hasPartnerSP, partnerOtherItems, cumulPartnerTaxFreeUsed) : ''}
     </div>`;
 
   contentEl.innerHTML = `
