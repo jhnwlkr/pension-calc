@@ -636,6 +636,10 @@ export function runSimulation(p) {
     return netTarget > 0 ? remainingNet * (grossNeeded / netTarget) : 0;
   }
 
+  // Compute deterministic projection before realIncomeByAge/netMonthlyByAge so they can use it
+  const returnPct = p.returnPct ?? 5;
+  const det = runDeterministicProjection(Object.assign({}, p, { taxFreeFrac }), returnPct);
+
   const realIncomeByAge = ages.map((age, yi) => {
     const hasStatePension = age >= p.spAge;
     const ci = Math.pow(baseInflFactor, yi);
@@ -689,10 +693,6 @@ export function runSimulation(p) {
   });
 
   const startInitialPotValues = allPotsConfig.reduce((s, pot) => s + (pot.value || 0), 0);
-
-  // Compute deterministic projection now so realIncomeByAge/netMonthlyByAge use it for depletion checks
-  const returnPct = p.returnPct ?? 5;
-  const det = runDeterministicProjection(Object.assign({}, p, { taxFreeFrac }), returnPct);
 
   const result = {
     ages, years, p, prob, guardrailPct, medianReal,
