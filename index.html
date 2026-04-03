@@ -526,12 +526,7 @@
           <input type="checkbox" id="today-money-toggle-annualincome" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
         </label>
       </div>
-      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts (greyed = partner's SP). When a partner is added, the Age column shows your age / partner's age. Use the "Today's Prices" toggle above to switch between nominal and today's purchasing power. Income columns show net (headline) with gross and tax sub-lines. Pot values use the deterministic return rate projection.</div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
-        <span style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Scenario percentile:</span>
-        <input type="range" id="ann-pctile" min="0" max="4" step="1" value="2" style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);height:4px">
-        <span id="v-ann-pctile" style="font-size:0.88rem;font-weight:600;white-space:nowrap;color:var(--accent)">50th (Median)</span>
-      </div>
+      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts (greyed = partner's SP). When a partner is added, the Age column shows your age / partner's age. Use the "Today's Prices" toggle above to switch between nominal and today's purchasing power. Income columns show net (headline) with gross and tax sub-lines. Pot values use the selected investment return rate.</div>
       <div class="chart-wrap" style="height:220px;margin-bottom:16px"><canvas id="chart-annualincome"></canvas></div>
       <div class="table-scroll" style="max-height:55vh;overflow-y:auto">
       <table class="ann-table">

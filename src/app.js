@@ -812,7 +812,7 @@ function potWithdrawal(age, p, cumulInfl) {
 
 const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
 
-function buildAnnualIncomeData(r, pctileIdx) {
+function buildAnnualIncomeData(r) {
   const p = r.p;
   const baseInflFactor = 1 + p.inflation / 100;
   const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
@@ -1919,8 +1919,6 @@ document.getElementById('run-btn').addEventListener('click', () => {
   setTimeout(() => {
     try {
       const activeTab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
-      const pctileIdx = +document.getElementById('ann-pctile').value;
-
       const r = runSimulation();
       if (!r) {
         document.getElementById('income-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Simulation failed: check retirement/end ages</td></tr>';
@@ -1933,7 +1931,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
         renderExplainability(null, null);
         return;
       }
-      r.annualIncomeData = buildAnnualIncomeData(r, pctileIdx);
+      r.annualIncomeData = buildAnnualIncomeData(r);
 
       renderCards(r);
       const explain = buildExplainability(getParams(), r);
@@ -2047,20 +2045,6 @@ function initApp() {
       partnerRetEl.min = minAge;
     });
   }
-
-  // Annual income percentile slider
-  const annPctileSlider = document.getElementById('ann-pctile');
-  const annPctileLabel  = document.getElementById('v-ann-pctile');
-  annPctileSlider.addEventListener('input', () => {
-    const idx = +annPctileSlider.value;
-    annPctileLabel.textContent = PCT_LABELS[idx] + ' percentile';
-    if (lastResults) {
-      lastResults.annualIncomeData = buildAnnualIncomeData(lastResults, idx);
-      renderAnnualIncomeChart(lastResults);
-      renderAnnualIncomeTable(lastResults);
-      renderTaxBreakdown(lastResults);
-    }
-  });
 
   const taxYearSelect = document.getElementById('tax-year-select');
   if (taxYearSelect) {
