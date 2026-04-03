@@ -80,6 +80,8 @@
   .header .run-btn { width: auto; min-width: 160px; margin: 0; }
   .run-btn-short { display: none; }
   .run-btn:hover { opacity: 0.9; }
+  .preset-btn { padding: 4px 10px; background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: 5px; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+  .preset-btn:hover, .preset-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .hidden { display: none !important; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
   .explain-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
@@ -321,6 +323,15 @@
       <input type="range" id="inflation" min="1" max="6" step="0.1" value="2.5">
     </div>
     <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Investment return (nominal, per year)</span><span class="slider-val" id="v-return-pct">5.0%</span></div>
+      <input type="range" id="return-pct" min="1" max="15" step="0.5" value="5">
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="preset-btn" data-target="return-pct" data-value="3" data-label="v-return-pct">Pessimistic (3%)</button>
+        <button class="preset-btn" data-target="return-pct" data-value="5" data-label="v-return-pct">Standard (5%)</button>
+        <button class="preset-btn" data-target="return-pct" data-value="7" data-label="v-return-pct">Optimistic (7%)</button>
+      </div>
+    </div>
+    <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Monte Carlo runs</span><span class="slider-val" id="v-runs">1,000</span></div>
       <input type="range" id="runs" min="200" max="2000" step="100" value="1000">
     </div>
@@ -419,6 +430,7 @@
     <button class="tab" data-tab="taxbreakdown">Tax Breakdown</button>
     <button class="tab" data-tab="realincome">Real Income</button>
     <button class="tab" data-tab="netmonthly">Net Monthly Income</button>
+    <button class="tab" data-tab="montecarlo">Monte Carlo</button>
   </div>
 
   <div class="chart-panel">
@@ -449,13 +461,23 @@
 
     <div id="tab-pot">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
-        <h2 style="margin:0;font-size:1.14rem">Pot Balance — Fan Chart (Percentiles)</h2>
+        <h2 style="margin:0;font-size:1.14rem" id="pot-chart-title">Pot Balance — Deterministic Projection</h2>
         <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
           <input type="checkbox" id="today-money-toggle-pot" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
         </label>
       </div>
-      <div class="ai-note">Main simulation uses historical bootstrapping (1900–2025 data). Amber dashed line = State Pension start age.</div>
+      <div class="ai-note" id="pot-chart-note">Projected at the selected nominal return rate. Amber dashed line = State Pension start age. Use the Monte Carlo tab for probability-based projections.</div>
       <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>
+    </div>
+    <div id="tab-montecarlo" class="hidden">
+      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
+        <h2 style="margin:0;font-size:1.14rem">Pot Balance — Monte Carlo Fan Chart (Percentiles)</h2>
+        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
+          <input type="checkbox" id="today-money-toggle-montecarlo" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
+        </label>
+      </div>
+      <div class="ai-note">Historical return bootstrapping (1900–2025 data). Shaded bands = 5th–25th–75th–95th percentiles. Amber dashed line = State Pension start age.</div>
+      <div class="chart-wrap"><canvas id="chart-montecarlo"></canvas></div>
     </div>
     <div id="tab-swr" class="hidden">
       <h2 style="margin-bottom:12px">Safe Withdrawal Rate by Starting Age</h2>
@@ -510,7 +532,7 @@
           <input type="checkbox" id="today-money-toggle-annualincome" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
         </label>
       </div>
-      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts (greyed = partner's SP). When a partner is added, the Age column shows your age / partner's age. Use the "Today's Prices" toggle above to switch between nominal and today's purchasing power. Income columns show net (headline) with gross and tax sub-lines.</div>
+      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts (greyed = partner's SP). When a partner is added, the Age column shows your age / partner's age. Use the "Today's Prices" toggle above to switch between nominal and today's purchasing power. Income columns show net (headline) with gross and tax sub-lines. Pot values use the deterministic return rate projection.</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
         <span style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Scenario percentile:</span>
         <input type="range" id="ann-pctile" min="0" max="4" step="1" value="2" style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);height:4px">

@@ -505,6 +505,7 @@ function getParams() {
     drawdown: +document.getElementById('drawdown').value,
     sp: +document.getElementById('sp').value,
     inflation: +document.getElementById('inflation').value,
+    returnPct: +document.getElementById('return-pct').value,
     runs: +document.getElementById('runs').value,
     guardrails: document.getElementById('guardrails').checked,
     drawdownMode: document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount',
@@ -559,6 +560,7 @@ function setTodayMoney(checked, r) {
     else if (tab === 'netmonthly') renderNetMonthlyChart(r);
     else if (tab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
     else if (tab === 'monthlybreakdown') renderIncomeTable(r);
+    else if (tab === 'montecarlo') renderMonteCarloChart(r);
   }
 }
 
@@ -568,6 +570,7 @@ const sliders = [
   ['reduction-age', v => v, ''], ['reduction-pct', v => fmtPct(v), ''],
   ['drawdown', v => fmtGBP(v), ''], ['drawdown-pct', v => fmtPct(+v, 2), ''],
   ['sp', v => fmtGBP(v), ''], ['inflation', v => fmtPct(v), ''],
+  ['return-pct', v => fmtPct(+v, 1), ''],
   ['runs', v => fmt(v), ''],
 ];
 const partnerSliders = [
@@ -579,7 +582,14 @@ const partnerSliders = [
 sliders.forEach(([id, formatter]) => {
   const el = document.getElementById(id);
   const label = document.getElementById('v-' + id);
-  el.addEventListener('input', () => { label.textContent = formatter(+el.value); persistParams(); });
+  el.addEventListener('input', () => {
+    label.textContent = formatter(+el.value);
+    // Clear preset active state when slider is moved manually
+    document.querySelectorAll(`.preset-btn[data-target="${id}"]`).forEach(b => {
+      b.classList.toggle('active', b.dataset.value === el.value);
+    });
+    persistParams();
+  });
 });
 partnerSliders.forEach(([id, formatter]) => {
   const el = document.getElementById(id);
@@ -826,10 +836,10 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + yi);
     const todayDeflator = Math.pow(1 / baseInflFactor, yearsToRetirement + yi);
 
-    const combinedAtPctile = r.percentileData[pctileIdx][yi];
-    const cashAtYear = r.cashBalByYear ? r.cashBalByYear[yi] : 0;
-    const pensionAtPctile = Math.max(0, combinedAtPctile - cashAtYear);
-    const potDepleted = combinedAtPctile <= 0;
+    const combinedDet = (r.detPotByYear?.[yi] ?? 0) + (r.detCashBalByYear?.[yi] ?? 0);
+    const cashAtYear = r.detCashBalByYear?.[yi] ?? (r.cashBalByYear ? r.cashBalByYear[yi] : 0);
+    const pensionAtPctile = r.detPotByYear?.[yi] ?? 0;
+    const potDepleted = combinedDet <= 0;
 
     const guardrailActive = p.guardrails && yi > 0 && !potDepleted && pensionAtPctile < startPensionPot * 0.80;
     const guardrailFactor = guardrailActive ? 0.90 : 1.0;
@@ -893,8 +903,8 @@ function buildAnnualIncomeData(r, pctileIdx) {
     const withdrawalNom = cashContrib + potWithdrawNominal;
     const withdrawalReal = withdrawalNom * todayDeflator;
 
-    const prevCombined = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
-    const prevCashBal = yi === 0 ? (r.startCashTotal || 0) : (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0);
+    const prevCombined = yi === 0 ? r.startPot : (r.detPotByYear?.[yi - 1] ?? 0) + (r.detCashBalByYear?.[yi - 1] ?? 0);
+    const prevCashBal = yi === 0 ? (r.startCashTotal || 0) : (r.detCashBalByYear?.[yi - 1] ?? (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0));
     const prevPension = Math.max(0, prevCombined - prevCashBal);
     const pensionInitialValues = r.startInitialPotValues ?? p.pots.reduce((s, pot) => s + pot.value, 0);
     const growthNom = potDepleted ? 0 : yi === 0
@@ -1375,11 +1385,70 @@ function gridColor() { return isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,
 function textColor() { return isDark() ? '#9ca3af' : '#6b7280'; }
 function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
 
-// ── Pot Chart ──────────────────────────────────────────────────────────────
+// ── Pot Chart (Deterministic) ─────────────────────────────────────────────
 function renderPotChart(r) {
   if (!chartAvailable()) return;
   destroyChart('pot');
   const chartEl = document.getElementById('chart-pot');
+  if (!chartEl) return;
+  const ctx = chartEl.getContext('2d');
+  const useToday = isTodayMoney();
+  const baseInflFactor = 1 + (r.p?.inflation || 0) / 100;
+  const yearsToRetirement = Math.max(0, r.p.retirementAge - r.p.currentAge);
+  const deflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
+  const spAgeIdx = r.ages.indexOf(r.p.spAge);
+  const returnPct = r.returnPct ?? 5;
+
+  const detVals = Array.from(r.detPotByYear || []).map((v, i) => useToday ? v * deflator(i) : v);
+
+  const titleEl = document.getElementById('pot-chart-title');
+  if (titleEl) titleEl.textContent = `Pot Balance — Deterministic Projection (${returnPct}% return)`;
+
+  const spLinePlugin = {
+    id: 'spLine',
+    afterDraw(chart) {
+      if (spAgeIdx < 0) return;
+      const { ctx: c, scales: { x, y } } = chart;
+      const xPx = x.getPixelForValue(spAgeIdx);
+      c.save();
+      c.strokeStyle = '#d97706';
+      c.lineWidth = 1.5;
+      c.setLineDash([6, 4]);
+      c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+      c.fillStyle = '#d97706';
+      c.font = '11px system-ui,sans-serif';
+      c.textAlign = 'left';
+      c.fillText('State Pension', xPx + 4, y.top + 14);
+      c.restore();
+    }
+  };
+
+  charts['pot'] = new Chart(ctx, {
+    type: 'line',
+    plugins: [spLinePlugin],
+    data: {
+      labels: r.ages,
+      datasets: [
+        { label: `${returnPct}% return`, data: detVals, borderColor: 'rgba(37,99,235,1)', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: textColor(), font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
+        y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() }, title: { display: true, text: useToday ? 'Pot Value (£, today\'s money)' : 'Pot Value (£, nominal)', color: textColor() } }
+      }
+    }
+  });
+}
+
+// ── Pot Chart (Monte Carlo Fan) ───────────────────────────────────────────
+function renderMonteCarloChart(r) {
+  if (!chartAvailable()) return;
+  destroyChart('montecarlo');
+  const chartEl = document.getElementById('chart-montecarlo');
   if (!chartEl) return;
   const ctx = chartEl.getContext('2d');
   const [p5, p25, p50, p75, p95] = r.percentileData;
@@ -1410,7 +1479,7 @@ function renderPotChart(r) {
     }
   };
 
-  charts['pot'] = new Chart(ctx, {
+  charts['montecarlo'] = new Chart(ctx, {
     type: 'line',
     plugins: [spLinePlugin],
     data: {
@@ -1815,7 +1884,7 @@ function renderAnnualIncomeChart(r) {
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
-const tabDefs = ['pot', 'annualincome', 'monthlybreakdown', 'swr', 'taxbreakdown', 'realincome', 'netmonthly'];
+const tabDefs = ['pot', 'annualincome', 'monthlybreakdown', 'swr', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo'];
 function setActiveTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   tabDefs.forEach(t => {
@@ -1836,6 +1905,7 @@ document.querySelectorAll('.tab').forEach(btn => {
       else if (tab === 'netmonthly') renderNetMonthlyChart(lastResults);
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
       else if (tab === 'monthlybreakdown') renderIncomeTable(lastResults);
+      else if (tab === 'montecarlo') renderMonteCarloChart(lastResults);
     }
     // Sync active checkbox state to persisted value when tabs change
     setTodayMoney(todayPrices, lastResults);
@@ -1878,6 +1948,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
       else if (activeTab === 'realincome') renderRealIncomeChart(r);
       else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
       else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
+      else if (activeTab === 'montecarlo') renderMonteCarloChart(r);
 
       setActiveTab(activeTab);
     } catch (err) {
@@ -1910,6 +1981,25 @@ function initApp() {
   });
   document.getElementById('guardrails').addEventListener('change', persistParams);
   document.getElementById('drawdown-inflation').addEventListener('change', persistParams);
+
+  // Preset buttons for return rate (and any future preset buttons)
+  document.querySelectorAll('.preset-btn[data-target]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.target);
+      const labelId = btn.dataset.label;
+      if (!target) return;
+      target.value = btn.dataset.value;
+      if (labelId) {
+        const lbl = document.getElementById(labelId);
+        const slider = sliders.find(([id]) => id === btn.dataset.target);
+        if (lbl && slider) lbl.textContent = slider[1](+btn.dataset.value);
+      }
+      // Update active styling
+      document.querySelectorAll(`.preset-btn[data-target="${btn.dataset.target}"]`).forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      persistParams();
+    });
+  });
   document.querySelectorAll('.today-money-toggle').forEach(cb => {
     cb.addEventListener('change', () => {
       const checked = cb.checked;

@@ -32,6 +32,110 @@ export function potWithdrawal(age, p, cumulInfl) {
 
 export const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
 
+/**
+ * Deterministic projection: grow each pot at a fixed nominal returnPct from today
+ * to retirement (applying contributions), then run down through retirement withdrawing
+ * target income each year. Returns pot-by-year and cash-by-year arrays aligned with r.ages.
+ */
+export function runDeterministicProjection(p, returnPct) {
+  const years = p.endAge - p.retirementAge;
+  if (years <= 0) return null;
+  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const ret = 1 + returnPct / 100;
+  const baseInflFactor = 1 + p.inflation / 100;
+
+  const partnerPots = p.partner?.pots || [];
+  const yearsToPartnerRet = p.partner
+    ? Math.max(0, Math.min(p.partner.retirementAge - p.currentAge, yearsToRetirement))
+    : yearsToRetirement;
+  const allPotsConfig = [
+    ...p.pots.map(pot => ({ ...pot, contribStopYear: yearsToRetirement })),
+    ...partnerPots.map(pot => ({ ...pot, contribStopYear: yearsToPartnerRet })),
+  ];
+
+  // --- Pre-retirement: grow pots deterministically ---
+  let pensionPot = 0;
+  for (const pot of allPotsConfig) {
+    let val = pot.value;
+    for (let y = 0; y < yearsToRetirement; y++) {
+      val = val * ret + (y < pot.contribStopYear ? (pot.annualContrib || 0) : 0);
+    }
+    pensionPot += Math.max(0, val);
+  }
+
+  // Cash pots pre-retirement
+  const allCashPots = [...(p.cashPots || []), ...(p.partner?.cashPots || [])];
+  const cashBals = allCashPots.map(cp => {
+    let val = cp.value;
+    const r2 = 1 + cp.interestPct / 100;
+    for (let y = 0; y < yearsToRetirement; y++) val *= r2;
+    return Math.max(0, val);
+  });
+
+  // --- Retirement: year-by-year ---
+  const detPotByYear = new Float64Array(years + 1);
+  const detCashBalByYear = new Float64Array(years + 1);
+  const detCashContribByYear = new Float64Array(years + 1);
+
+  detPotByYear[0] = pensionPot;
+  detCashBalByYear[0] = cashBals.reduce((s, v) => s + v, 0);
+
+  for (let y = 0; y < years; y++) {
+    const age = p.retirementAge + y;
+    const ci = Math.pow(baseInflFactor, y);
+
+    // Cash pot growth
+    for (let ci2 = 0; ci2 < cashBals.length; ci2++) {
+      cashBals[ci2] *= (1 + allCashPots[ci2].interestPct / 100);
+    }
+
+    const combined = detPotByYear[y] + cashBals.reduce((s, v) => s + v, 0);
+    if (combined <= 0) {
+      detPotByYear[y + 1] = 0;
+      detCashBalByYear[y + 1] = 0;
+      detCashContribByYear[y] = 0;
+      continue;
+    }
+
+    // Pension pot grows
+    const pensionAfterGrowth = detPotByYear[y] * ret;
+
+    // Compute gross withdrawal needed (same logic as MC)
+    const hasSP = age >= p.spAge;
+    const spNom = hasSP ? p.sp * ci : 0;
+    const partnerAge = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+    const partnerSpNom = (p.partner && partnerAge >= p.partner.spAge) ? p.partner.sp * ci : 0;
+    const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
+    const inflFactor = p.drawdownInflation ? ci : 1.0;
+    const targetNominal = p.drawdown * inflFactor * reductionFactor;
+    const grossNeeded = Math.max(0, targetNominal - spNom - partnerSpNom);
+
+    // Use notional tax to work out net target (same pattern as MC)
+    const notionalTc = calcPensionTax(grossNeeded, spNom, hasSP, p.taxFreeFrac || 0.25);
+    const netTarget = notionalTc.pensionNet;
+
+    // Draw from cash pots first
+    let cashRemaining = netTarget;
+    for (let ci2 = 0; ci2 < cashBals.length && cashRemaining > 0; ci2++) {
+      const take = Math.min(cashBals[ci2], cashRemaining);
+      cashBals[ci2] -= take;
+      cashRemaining -= take;
+    }
+    const cashTaken = netTarget - cashRemaining;
+
+    // Gross up remaining net from pension
+    const remainingNet = Math.max(0, netTarget - cashTaken);
+    const pensionWithdrawal = netTarget > 0 ? remainingNet * (grossNeeded / netTarget) : 0;
+
+    detCashContribByYear[y] = cashTaken;
+    detPotByYear[y + 1] = Math.max(0, pensionAfterGrowth - pensionWithdrawal);
+    detCashBalByYear[y + 1] = cashBals.reduce((s, v) => s + v, 0);
+  }
+  detCashContribByYear[years] = 0;
+
+  return { detPotByYear, detCashBalByYear, detCashContribByYear };
+}
+
 export function buildAnnualIncomeData(r, pctileIdx) {
   const p = r.p;
   const baseInflFactor = 1 + p.inflation / 100;
@@ -52,10 +156,10 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + yi);
     const todayDeflator = Math.pow(1 / baseInflFactor, yearsToRetirement + yi);
 
-    const combinedAtPctile = r.percentileData[pctileIdx][yi];
-    const cashAtYear = r.cashBalByYear ? r.cashBalByYear[yi] : 0;
-    const pensionAtPctile = Math.max(0, combinedAtPctile - cashAtYear);
-    const potDepleted = combinedAtPctile <= 0;
+    const combinedDet = (r.detPotByYear?.[yi] ?? 0) + (r.detCashBalByYear?.[yi] ?? 0);
+    const cashAtYear = r.detCashBalByYear?.[yi] ?? (r.cashBalByYear ? r.cashBalByYear[yi] : 0);
+    const pensionAtPctile = r.detPotByYear?.[yi] ?? 0;
+    const potDepleted = combinedDet <= 0;
 
     const guardrailActive = p.guardrails && yi > 0 && !potDepleted && pensionAtPctile < startPensionPot * 0.80;
     const guardrailFactor = guardrailActive ? 0.90 : 1.0;
@@ -117,8 +221,8 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const withdrawalNom = cashContrib + potWithdrawNominal;
     const withdrawalReal = withdrawalNom * todayDeflator;
 
-    const prevCombined = yi === 0 ? r.startPot : r.percentileData[pctileIdx][yi - 1];
-    const prevCashBal = yi === 0 ? (r.startCashTotal || 0) : (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0);
+    const prevCombined = yi === 0 ? r.startPot : (r.detPotByYear?.[yi - 1] ?? 0) + (r.detCashBalByYear?.[yi - 1] ?? 0);
+    const prevCashBal = yi === 0 ? (r.startCashTotal || 0) : (r.detCashBalByYear?.[yi - 1] ?? (r.cashBalByYear ? r.cashBalByYear[yi - 1] : 0));
     const prevPension = Math.max(0, prevCombined - prevCashBal);
     const pensionInitialValues = r.startInitialPotValues ?? p.pots.reduce((s, pot) => s + pot.value, 0);
     const growthNom = potDepleted ? 0 : yi === 0
@@ -538,10 +642,9 @@ export function runSimulation(p) {
     const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + yi);
     const spInfl = hasStatePension ? p.sp * ci : 0;
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
-    const cashC = cashContribByYear[yi] || 0;
-    // Use median percentile to check whether the pension pot is depleted at this year
-    const medianPension = Math.max(0, percentileData[2][yi] - (cashBalByYear[yi] || 0));
-    const pensionDepleted = medianPension <= 0;
+    const cashC = det.detCashContribByYear[yi] || 0;
+    // Use deterministic projection to check whether the pension pot is depleted at this year
+    const pensionDepleted = det.detPotByYear[yi] <= 0;
     const grossNeeded = potWithdrawal(age, p, ci);
     const potW = pensionDepleted ? 0 : pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
     const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac, otherNet.grossTotal);
@@ -563,10 +666,9 @@ export function runSimulation(p) {
     const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + yi);
     const spInfl = hasStatePension ? p.sp * ci : 0;
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
-    const cashC = cashContribByYear[yi] || 0;
-    // Use median percentile to check whether the pension pot is depleted at this year
-    const medianPension = Math.max(0, percentileData[2][yi] - (cashBalByYear[yi] || 0));
-    const pensionDepleted = medianPension <= 0;
+    const cashC = det.detCashContribByYear[yi] || 0;
+    // Use deterministic projection to check whether the pension pot is depleted at this year
+    const pensionDepleted = det.detPotByYear[yi] <= 0;
     const grossNeeded = potWithdrawal(age, p, ci);
     const potW = pensionDepleted ? 0 : pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
     const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac, otherNet.grossTotal);
@@ -587,12 +689,18 @@ export function runSimulation(p) {
   });
 
   const startInitialPotValues = allPotsConfig.reduce((s, pot) => s + (pot.value || 0), 0);
+
+  // Compute deterministic projection now so realIncomeByAge/netMonthlyByAge use it for depletion checks
+  const returnPct = p.returnPct ?? 5;
+  const det = runDeterministicProjection(Object.assign({}, p, { taxFreeFrac }), returnPct);
+
   const result = {
     ages, years, p, prob, guardrailPct, medianReal,
     swrPct, swr, netMonthly, grossMonthly, netAnnual, grossAnnual, startPot, startPensionPot, startCashTotal,
     startCashPotVals, cashContribByYear, cashBalByYear, taxFreeFrac, primaryTaxFreeFrac, partnerTaxFreeFrac, primaryPotFrac, startInitialPotValues,
     percentileData, pctiles, survivalByAge, realIncomeByAge,
-    netMonthlyByAge, swrByAge, taxCalc
+    netMonthlyByAge, swrByAge, taxCalc,
+    detPotByYear: det.detPotByYear, detCashBalByYear: det.detCashBalByYear, detCashContribByYear: det.detCashContribByYear, returnPct,
   };
   result.annualIncomeData = buildAnnualIncomeData(result, 2);
   return result;
