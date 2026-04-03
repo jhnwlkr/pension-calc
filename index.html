@@ -80,6 +80,8 @@
   .header .run-btn { width: auto; min-width: 160px; margin: 0; }
   .run-btn-short { display: none; }
   .run-btn:hover { opacity: 0.9; }
+  .preset-btn { padding: 4px 10px; background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: 5px; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+  .preset-btn:hover, .preset-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .hidden { display: none !important; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
   .explain-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
@@ -118,6 +120,9 @@
   .tw-person-section { margin-bottom: 18px; }
   .tw-person-heading { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; color: var(--accent); letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid var(--accent); }
   .ann-table td { vertical-align: top; }
+  .ann-table th:first-child { position: sticky; left: 0; z-index: 3; background: var(--surface); }
+  .ann-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+  .guardrail-row td:first-child { background: rgba(var(--surface-rgb, 255,255,255), 1); box-shadow: inset 3px 0 0 rgba(220,38,38,0.15); }
   .ann-sub { font-size: 0.65rem; color: var(--text2); display: block; margin-top: 1px; line-height: 1.2; }
   .ann-tax { color: var(--red); }
   .guardrail-row td:first-child::after { content: ' ⚡'; color: var(--red); font-size: 0.75rem; }
@@ -321,17 +326,17 @@
       <input type="range" id="inflation" min="1" max="6" step="0.1" value="2.5">
     </div>
     <div class="slider-row">
+      <div class="slider-label"><span class="slider-name">Investment return (nominal, per year)</span><span class="slider-val" id="v-return-pct">5.0%</span></div>
+      <input type="range" id="return-pct" min="1" max="15" step="0.5" value="5">
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="preset-btn" data-target="return-pct" data-value="3" data-label="v-return-pct">Pessimistic (3%)</button>
+        <button class="preset-btn" data-target="return-pct" data-value="5" data-label="v-return-pct">Standard (5%)</button>
+        <button class="preset-btn" data-target="return-pct" data-value="7" data-label="v-return-pct">Optimistic (7%)</button>
+      </div>
+    </div>
+    <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Monte Carlo runs</span><span class="slider-val" id="v-runs">1,000</span></div>
       <input type="range" id="runs" min="200" max="2000" step="100" value="1000">
-    </div>
-    <div class="slider-row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-        <input type="checkbox" id="guardrails" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
-        <span>
-          <span class="slider-name" style="display:block">Apply Guyton-Klinger guardrails</span>
-          <span style="font-size:0.72rem;color:var(--text2)">10% income cut when pot drops &gt;20% below its value at retirement</span>
-        </span>
-      </label>
     </div>
   </div>
 
@@ -362,6 +367,15 @@
         <span>
           <span class="slider-name" style="display:block">Drawdown increases with inflation</span>
           <span style="font-size:0.72rem;color:var(--text2)">Uncheck for fixed amount each year</span>
+        </span>
+      </label>
+    </div>
+    <div class="slider-row">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="guardrails" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <span>
+          <span class="slider-name" style="display:block">Apply Guyton-Klinger guardrails</span>
+          <span style="font-size:0.72rem;color:var(--text2)">10% income cut when pot drops &gt;20% below its value at retirement</span>
         </span>
       </label>
     </div>
@@ -414,48 +428,78 @@
   <div class="tabs">
     <button class="tab active" data-tab="pot">Pot Balance</button>
     <button class="tab" data-tab="annualincome">Annual Income</button>
-    <button class="tab" data-tab="monthlybreakdown">Monthly Breakdown</button>
     <button class="tab" data-tab="swr">Safe Withdrawal Rate</button>
     <button class="tab" data-tab="taxbreakdown">Tax Breakdown</button>
     <button class="tab" data-tab="realincome">Real Income</button>
     <button class="tab" data-tab="netmonthly">Net Monthly Income</button>
+    <button class="tab" data-tab="montecarlo">Monte Carlo</button>
   </div>
 
   <div class="chart-panel">
-    <div id="tab-monthlybreakdown" class="hidden">
-      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
-        <h2 style="margin:0;font-size:1.14rem">Monthly Net Income Breakdown</h2>
-        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
-          <input type="checkbox" id="today-money-toggle-monthlybreakdown" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
-        </label>
-      </div>
-      <div class="table-scroll">
-      <table id="income-table">
-        <thead>
-          <tr>
-            <th>Source</th>
-            <th id="th-before-sp">Before State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-            <th id="th-after-sp">After State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-            <th id="th-after-reduction">After Income Reduction<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody id="income-tbody">
-          <tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
-        </tbody>
-      </table>
-      </div>
-    </div>
 
     <div id="tab-pot">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
-        <h2 style="margin:0;font-size:1.14rem">Pot Balance — Fan Chart (Percentiles)</h2>
+        <h2 style="margin:0;font-size:1.14rem" id="pot-chart-title">Pot Balance — Deterministic Projection</h2>
         <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
           <input type="checkbox" id="today-money-toggle-pot" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
         </label>
       </div>
-      <div class="ai-note">Main simulation uses historical bootstrapping (1900–2025 data). Amber dashed line = State Pension start age.</div>
+      <div class="ai-note" id="pot-chart-note">Projected at the selected nominal return rate. Amber dashed line = State Pension start age. Use the Monte Carlo tab for probability-based projections.</div>
       <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <h3 style="margin:0 0 10px;font-size:1rem">Monthly Net Income Breakdown</h3>
+        <div class="table-scroll">
+        <table id="income-table">
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th id="th-before-sp">At Retirement<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+              <th id="th-after-sp">At State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+              <th id="th-after-reduction">At Reduction<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="income-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+    <div id="tab-montecarlo" class="hidden">
+      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
+        <h2 style="margin:0;font-size:1.14rem">Pot Balance — Monte Carlo Fan Chart (Percentiles)</h2>
+        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
+          <input type="checkbox" id="today-money-toggle-montecarlo" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
+        </label>
+      </div>
+      <div class="ai-note">Historical return bootstrapping (1900–2025 data). Shaded bands = 5th–25th–75th–95th percentiles. Amber dashed line = State Pension start age.</div>
+      <div class="chart-wrap"><canvas id="chart-montecarlo"></canvas></div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <h3 style="margin:0 0 6px;font-size:1rem">Year-by-Year Pot Analysis</h3>
+        <div class="ai-note" style="margin-bottom:10px">Tracks a representative simulation run at the selected percentile. Year Change reflects the combined effect of investment returns and income drawn that year — use the slider to see how sequence of returns luck shapes outcomes.</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <span style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Percentile:</span>
+          <input type="range" id="mc-pctile" min="0" max="5" step="1" value="3" style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);height:4px">
+          <span id="v-mc-pctile" style="font-size:0.88rem;font-weight:600;white-space:nowrap;color:var(--accent)">50th (Median)</span>
+        </div>
+        <div class="table-scroll" style="max-height:55vh;overflow-y:auto">
+        <table id="mc-year-table" class="ann-table">
+          <thead style="position:sticky;top:0;z-index:2;background:var(--surface)">
+            <tr>
+              <th style="text-align:left">Age</th>
+              <th>Pot Balance</th>
+              <th>Gross Return<br><small style="font-weight:400">sampled from history</small></th>
+              <th>Net Pot Change (£)</th>
+              <th>Income Drawn /mo</th>
+            </tr>
+          </thead>
+          <tbody id="mc-year-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
     </div>
     <div id="tab-swr" class="hidden">
       <h2 style="margin-bottom:12px">Safe Withdrawal Rate by Starting Age</h2>
@@ -510,12 +554,7 @@
           <input type="checkbox" id="today-money-toggle-annualincome" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
         </label>
       </div>
-      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts (greyed = partner's SP). When a partner is added, the Age column shows your age / partner's age. Use the "Today's Prices" toggle above to switch between nominal and today's purchasing power. Income columns show net (headline) with gross and tax sub-lines.</div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
-        <span style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Scenario percentile:</span>
-        <input type="range" id="ann-pctile" min="0" max="4" step="1" value="2" style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);height:4px">
-        <span id="v-ann-pctile" style="font-size:0.88rem;font-weight:600;white-space:nowrap;color:var(--accent)">50th (Median)</span>
-      </div>
+      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts (greyed = partner's SP). When a partner is added, the Age column shows your age / partner's age. Use the "Today's Prices" toggle above to switch between nominal and today's purchasing power. Income columns show net (headline) with gross and tax sub-lines. Pot values use the selected investment return rate.</div>
       <div class="chart-wrap" style="height:220px;margin-bottom:16px"><canvas id="chart-annualincome"></canvas></div>
       <div class="table-scroll" style="max-height:55vh;overflow-y:auto">
       <table class="ann-table">
@@ -529,6 +568,7 @@
             <th>Other Income /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
             <th id="ann-th-partner-other" style="display:none">Partner Income /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
             <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th>Total Net Annual<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
             <th>Cash Drawn<br><small style="font-weight:400;color:var(--text2)">from cash pot</small></th>
             <th>Pension Drawn (gross)<br><small style="font-weight:400;color:var(--text2)">from pension pot</small></th>
             <th>Gross Portfolio Growth<br><small style="font-weight:400;color:var(--text2)">before withdrawal</small></th>
@@ -537,7 +577,7 @@
           </tr>
         </thead>
         <tbody id="annual-income-tbody">
-          <tr><td colspan="13" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          <tr><td colspan="14" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
         </tbody>
       </table>
       </div>
