@@ -335,15 +335,6 @@
       <div class="slider-label"><span class="slider-name">Monte Carlo runs</span><span class="slider-val" id="v-runs">1,000</span></div>
       <input type="range" id="runs" min="200" max="2000" step="100" value="1000">
     </div>
-    <div class="slider-row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-        <input type="checkbox" id="guardrails" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
-        <span>
-          <span class="slider-name" style="display:block">Apply Guyton-Klinger guardrails</span>
-          <span style="font-size:0.72rem;color:var(--text2)">10% income cut when pot drops &gt;20% below its value at retirement</span>
-        </span>
-      </label>
-    </div>
   </div>
 
   <!-- Drawdown -->
@@ -373,6 +364,15 @@
         <span>
           <span class="slider-name" style="display:block">Drawdown increases with inflation</span>
           <span style="font-size:0.72rem;color:var(--text2)">Uncheck for fixed amount each year</span>
+        </span>
+      </label>
+    </div>
+    <div class="slider-row">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="guardrails" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <span>
+          <span class="slider-name" style="display:block">Apply Guyton-Klinger guardrails</span>
+          <span style="font-size:0.72rem;color:var(--text2)">10% income cut when pot drops &gt;20% below its value at retirement</span>
         </span>
       </label>
     </div>
@@ -450,9 +450,9 @@
           <thead>
             <tr>
               <th>Source</th>
-              <th id="th-before-sp">Before State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-              <th id="th-after-sp">After State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-              <th id="th-after-reduction">After Income Reduction<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+              <th id="th-before-sp">At Retirement<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+              <th id="th-after-sp">At State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+              <th id="th-after-reduction">At Reduction<br><small style="font-weight:400">Gross / Tax / Net</small></th>
               <th>Notes</th>
             </tr>
           </thead>
