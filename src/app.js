@@ -2121,6 +2121,12 @@ function initApp() {
     addPartnerCashPot(25000, 3.5);
   }
 
+  // Activate preset button matching each slider's initial value on page load
+  document.querySelectorAll('.preset-btn[data-target]').forEach(btn => {
+    const target = document.getElementById(btn.dataset.target);
+    if (target && +btn.dataset.value === +target.value) btn.classList.add('active');
+  });
+
   document.getElementById('run-btn').click();
 }
 
