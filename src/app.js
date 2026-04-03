@@ -1365,6 +1365,7 @@ function renderAnnualIncomeTable(r) {
       ${incomeCell(d.otherNom, d.otherReal, d.otherGrossNom, d.otherGrossReal, d.otherTaxNom, d.otherTaxReal)}
       ${incomeCell(d.partnerOtherNom || 0, d.partnerOtherReal || 0, d.partnerOtherGrossNom || 0, d.partnerOtherGrossReal || 0, d.partnerOtherTaxNom || 0, d.partnerOtherTaxReal || 0, !hasPartner)}
       ${incomeCell(d.netNom, d.netReal, d.netGrossNom, d.netGrossReal, d.netTaxNom, d.netTaxReal)}
+      ${incomeCell(d.netNom * 12, d.netReal * 12, d.netGrossNom * 12, d.netGrossReal * 12, d.netTaxNom * 12, d.netTaxReal * 12)}
       ${cell(d.cashWithdrawalNom, d.cashWithdrawalReal)}
       ${cell(d.pensionWithdrawalNom, d.pensionWithdrawalReal)}
       ${growthCell(d.growthNom, d.growthReal)}
