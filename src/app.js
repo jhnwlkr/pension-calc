@@ -559,7 +559,7 @@ function setTodayMoney(checked, r) {
     else if (tab === 'realincome') renderRealIncomeChart(r);
     else if (tab === 'netmonthly') renderNetMonthlyChart(r);
     else if (tab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
-    else if (tab === 'montecarlo') renderMonteCarloChart(r);
+    else if (tab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
   }
 }
 
@@ -1503,6 +1503,41 @@ function renderMonteCarloChart(r) {
   });
 }
 
+function renderMonteCarloTable(r, pctileIdx = 2) {
+  const tbody = document.getElementById('mc-year-tbody');
+  if (!tbody) return;
+  const paths = r.mcRepPaths;
+  if (!paths || !paths[pctileIdx]) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>';
+    return;
+  }
+  const path = paths[pctileIdx];
+  const aid = r.annualIncomeData || [];
+  const useToday = isTodayMoney();
+  const baseInflFactor = 1 + (r.p?.inflation || 0) / 100;
+  const yearsToRetirement = Math.max(0, r.p.retirementAge - r.p.currentAge);
+  const deflator = yi => Math.pow(1 / baseInflFactor, yearsToRetirement + yi);
+
+  tbody.innerHTML = r.ages.map((age, yi) => {
+    const bal = path[yi];
+    const dispBal = useToday ? bal * deflator(yi) : bal;
+    const change = yi === 0 ? null : path[yi] - path[yi - 1];
+    const dispChange = change === null ? null : (useToday ? change * deflator(yi) : change);
+    const changePct = (change === null || path[yi - 1] <= 0) ? null : (change / path[yi - 1]) * 100;
+    const incDrawn = aid[yi] ? (useToday ? (aid[yi].withdrawalNom * deflator(yi)) / 12 : aid[yi].withdrawalNom / 12) : 0;
+    const cc = dispChange === null ? '' : dispChange >= 0 ? 'color:#16a34a' : 'color:#dc2626';
+    const chStr = dispChange === null ? '—' : (dispChange >= 0 ? '+' : '') + fmtGBP(dispChange);
+    const pctStr = changePct === null ? '—' : (changePct >= 0 ? '+' : '') + fmtPct(Math.abs(changePct), 1) + (changePct < 0 ? '' : '');
+    return `<tr${bal <= 0 ? ' style="opacity:0.45"' : ''}>
+      <td>${age}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums">${fmtGBP(dispBal)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;${cc}">${chStr}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;${cc}">${changePct === null ? '—' : (changePct >= 0 ? '+' : '') + fmtPct(changePct, 1)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums">${incDrawn > 0 ? fmtGBP(incDrawn) + '/mo' : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
 function renderSWRChart(r) {
   if (!chartAvailable()) return;
   destroyChart('swr');
@@ -1903,7 +1938,7 @@ document.querySelectorAll('.tab').forEach(btn => {
       else if (tab === 'realincome') renderRealIncomeChart(lastResults);
       else if (tab === 'netmonthly') renderNetMonthlyChart(lastResults);
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
-      else if (tab === 'montecarlo') renderMonteCarloChart(lastResults);
+      else if (tab === 'montecarlo') { renderMonteCarloChart(lastResults); renderMonteCarloTable(lastResults, +document.getElementById('mc-pctile').value); }
     }
     // Sync active checkbox state to persisted value when tabs change
     setTodayMoney(todayPrices, lastResults);
@@ -1944,7 +1979,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
       else if (activeTab === 'realincome') renderRealIncomeChart(r);
       else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
       else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
-      else if (activeTab === 'montecarlo') renderMonteCarloChart(r);
+      else if (activeTab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
 
       setActiveTab(activeTab);
     } catch (err) {
@@ -2045,6 +2080,14 @@ function initApp() {
       partnerRetEl.min = minAge;
     });
   }
+
+  const mcPctileSlider = document.getElementById('mc-pctile');
+  const mcPctileLabel  = document.getElementById('v-mc-pctile');
+  mcPctileSlider.addEventListener('input', () => {
+    const idx = +mcPctileSlider.value;
+    mcPctileLabel.textContent = PCT_LABELS[idx] + ' percentile';
+    if (lastResults) renderMonteCarloTable(lastResults, idx);
+  });
 
   const taxYearSelect = document.getElementById('tax-year-select');
   if (taxYearSelect) {

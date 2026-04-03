@@ -472,6 +472,31 @@
       </div>
       <div class="ai-note">Historical return bootstrapping (1900–2025 data). Shaded bands = 5th–25th–75th–95th percentiles. Amber dashed line = State Pension start age.</div>
       <div class="chart-wrap"><canvas id="chart-montecarlo"></canvas></div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <h3 style="margin:0 0 6px;font-size:1rem">Year-by-Year Pot Analysis</h3>
+        <div class="ai-note" style="margin-bottom:10px">Tracks a representative simulation run at the selected percentile. Year Change reflects the combined effect of investment returns and income drawn that year — use the slider to see how sequence of returns luck shapes outcomes.</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <span style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Percentile:</span>
+          <input type="range" id="mc-pctile" min="0" max="4" step="1" value="2" style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);height:4px">
+          <span id="v-mc-pctile" style="font-size:0.88rem;font-weight:600;white-space:nowrap;color:var(--accent)">50th (Median)</span>
+        </div>
+        <div class="table-scroll" style="max-height:55vh;overflow-y:auto">
+        <table id="mc-year-table" class="ann-table">
+          <thead style="position:sticky;top:0;z-index:2;background:var(--surface)">
+            <tr>
+              <th style="text-align:left">Age</th>
+              <th>Pot Balance</th>
+              <th>Year Change (£)</th>
+              <th>Year Change (%)</th>
+              <th>Income Drawn /mo</th>
+            </tr>
+          </thead>
+          <tbody id="mc-year-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
     </div>
     <div id="tab-swr" class="hidden">
       <h2 style="margin-bottom:12px">Safe Withdrawal Rate by Starting Age</h2>

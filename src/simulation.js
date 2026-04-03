@@ -515,6 +515,18 @@ export function runSimulation(p) {
     });
   }
 
+  // Representative run per percentile (selected at midpoint year) for the MC sequence table
+  const midYear = Math.floor(years / 2);
+  const mcRepPaths = pctiles.map((pc, pi) => {
+    const target = percentileData[pi][midYear];
+    let bestRun = 0, bestDiff = Infinity;
+    for (let run = 0; run < nRuns; run++) {
+      const diff = Math.abs(potMatrix[run][midYear] - target);
+      if (diff < bestDiff) { bestDiff = diff; bestRun = run; }
+    }
+    return Float64Array.from(potMatrix[bestRun]);
+  });
+
   const prob = (successCount / nRuns) * 100;
   const guardrailPct = (guardrailTriggerCount / nRuns) * 100;
   const baseInflFactor = 1 + p.inflation / 100;
@@ -701,6 +713,7 @@ export function runSimulation(p) {
     percentileData, pctiles, survivalByAge, realIncomeByAge,
     netMonthlyByAge, swrByAge, taxCalc,
     detPotByYear: det.detPotByYear, detCashBalByYear: det.detCashBalByYear, detCashContribByYear: det.detCashContribByYear, returnPct,
+    mcRepPaths,
   };
   result.annualIncomeData = buildAnnualIncomeData(result, 2);
   return result;
