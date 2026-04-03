@@ -559,7 +559,6 @@ function setTodayMoney(checked, r) {
     else if (tab === 'realincome') renderRealIncomeChart(r);
     else if (tab === 'netmonthly') renderNetMonthlyChart(r);
     else if (tab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
-    else if (tab === 'monthlybreakdown') renderIncomeTable(r);
     else if (tab === 'montecarlo') renderMonteCarloChart(r);
   }
 }
@@ -1884,7 +1883,7 @@ function renderAnnualIncomeChart(r) {
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
-const tabDefs = ['pot', 'annualincome', 'monthlybreakdown', 'swr', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo'];
+const tabDefs = ['pot', 'annualincome', 'swr', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo'];
 function setActiveTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   tabDefs.forEach(t => {
@@ -1904,7 +1903,6 @@ document.querySelectorAll('.tab').forEach(btn => {
       else if (tab === 'realincome') renderRealIncomeChart(lastResults);
       else if (tab === 'netmonthly') renderNetMonthlyChart(lastResults);
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
-      else if (tab === 'monthlybreakdown') renderIncomeTable(lastResults);
       else if (tab === 'montecarlo') renderMonteCarloChart(lastResults);
     }
     // Sync active checkbox state to persisted value when tabs change

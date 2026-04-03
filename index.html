@@ -425,7 +425,6 @@
   <div class="tabs">
     <button class="tab active" data-tab="pot">Pot Balance</button>
     <button class="tab" data-tab="annualincome">Annual Income</button>
-    <button class="tab" data-tab="monthlybreakdown">Monthly Breakdown</button>
     <button class="tab" data-tab="swr">Safe Withdrawal Rate</button>
     <button class="tab" data-tab="taxbreakdown">Tax Breakdown</button>
     <button class="tab" data-tab="realincome">Real Income</button>
@@ -434,30 +433,6 @@
   </div>
 
   <div class="chart-panel">
-    <div id="tab-monthlybreakdown" class="hidden">
-      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
-        <h2 style="margin:0;font-size:1.14rem">Monthly Net Income Breakdown</h2>
-        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
-          <input type="checkbox" id="today-money-toggle-monthlybreakdown" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
-        </label>
-      </div>
-      <div class="table-scroll">
-      <table id="income-table">
-        <thead>
-          <tr>
-            <th>Source</th>
-            <th id="th-before-sp">Before State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-            <th id="th-after-sp">After State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-            <th id="th-after-reduction">After Income Reduction<br><small style="font-weight:400">Gross / Tax / Net</small></th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody id="income-tbody">
-          <tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
-        </tbody>
-      </table>
-      </div>
-    </div>
 
     <div id="tab-pot">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
@@ -468,6 +443,25 @@
       </div>
       <div class="ai-note" id="pot-chart-note">Projected at the selected nominal return rate. Amber dashed line = State Pension start age. Use the Monte Carlo tab for probability-based projections.</div>
       <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <h3 style="margin:0 0 10px;font-size:1rem">Monthly Net Income Breakdown</h3>
+        <div class="table-scroll">
+        <table id="income-table">
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th id="th-before-sp">Before State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+              <th id="th-after-sp">After State Pension<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+              <th id="th-after-reduction">After Income Reduction<br><small style="font-weight:400">Gross / Tax / Net</small></th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="income-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
     </div>
     <div id="tab-montecarlo" class="hidden">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
