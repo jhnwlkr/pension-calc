@@ -846,16 +846,12 @@ function buildAnnualIncomeData(r) {
     const guardrailActive = p.guardrails && yi > 0 && !potDepleted && pensionAtPctile < startPensionPot * 0.80;
     const guardrailFactor = guardrailActive ? 0.90 : 1.0;
 
-    const reductionFactor = age >= p.reductionAge ? (1 - p.reductionPct / 100) : 1.0;
-    const inflFactor = p.drawdownInflation ? ci : 1.0;
-    const targetNominal = p.drawdown * inflFactor * reductionFactor;
     // p.sp and p.partner.sp are both pre-inflated to retirement; multiply by ci
     const spInflated = hasStatePension ? p.sp * ci : 0;
     const partner = p.partner;
     const partnerAge = partner ? partner.currentAge + (age - p.currentAge) : null;
     const hasPartnerSP = !!(partner && partnerAge >= partner.spAge);
     const partnerSpInflated = hasPartnerSP ? partner.sp * ci : 0;
-    const neededFromPots = Math.max(0, targetNominal - spInflated - partnerSpInflated);
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
@@ -865,6 +861,15 @@ function buildAnnualIncomeData(r) {
     const partnerRetiredAID = !!(partner && partnerAge >= partner.retirementAge);
     const partnerOtherAID = (partner?.incomes?.length && partnerRetiredAID)
       ? calcOtherIncomesNet(partner.incomes, ciFromNow) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
+    // Reduction applies to total gross income (drawdown target + other incomes combined).
+    // Only the drawdown target can be cut; other incomes are fixed. Floor at 0.
+    const inflFactor = p.drawdownInflation ? ci : 1.0;
+    const baseTarget = p.drawdown * inflFactor;
+    const totalOtherGross = otherNet.grossTotal + partnerOtherAID.grossTotal;
+    const targetNominal = age >= p.reductionAge
+      ? Math.max(0, (baseTarget + totalOtherGross) * (1 - p.reductionPct / 100) - totalOtherGross)
+      : baseTarget;
+    const neededFromPots = Math.max(0, targetNominal - spInflated - partnerSpInflated);
 
     const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.grossTotal);
     const netTargetAnn = notionalTcAnn.pensionNet;
