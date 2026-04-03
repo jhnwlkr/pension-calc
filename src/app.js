@@ -635,39 +635,45 @@ function persistParams() {
   obj['partner-pots'] = JSON.stringify(partnerPotsData);
   obj['partner-cashPots'] = JSON.stringify(partnerCashPotsData);
   obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
+  // Save full state to localStorage as backup
   try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e) {}
-  // URL hash only for slider values (pots/incomes too complex)
-  const urlObj = {};
-  SLIDER_IDS.forEach(id => { urlObj[id] = obj[id]; });
-  urlObj['guardrails'] = obj['guardrails'];
-  urlObj['drawdown-mode'] = obj['drawdown-mode'];
-  urlObj['drawdown-inflation'] = obj['drawdown-inflation'];
-  history.replaceState(null, '', '#' + new URLSearchParams(urlObj).toString());
+  // Encode complete state as a single base64 blob in the URL hash so the full
+  // settings survive hard refreshes and cross-deployment URL sharing.
+  try {
+    const blob = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+    history.replaceState(null, '', '#v=' + blob);
+  } catch(e) {}
 }
 
 function loadPersistedParams() {
-  // URL hash only for sliders (not pots/incomes)
+  // Primary: try the base64 blob format (#v=<blob>)
   if (location.hash.length > 1) {
+    try {
+      const params = new URLSearchParams(location.hash.slice(1));
+      const blob = params.get('v');
+      if (blob) {
+        const obj = JSON.parse(decodeURIComponent(escape(atob(blob))));
+        if (obj && typeof obj === 'object' && Object.keys(obj).length > 0) return obj;
+      }
+    } catch(e) {}
+    // Fallback: old-format hash (#key=value&...) — upgrade by supplementing from localStorage
     try {
       const obj = Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
       if (Object.keys(obj).length > 0) {
-        // Also check localStorage for pots/incomes
         try {
           const raw = localStorage.getItem(LS_KEY);
           if (raw) {
             const ls = JSON.parse(raw);
-            if (ls['pots']) obj['pots'] = ls['pots'];
-            if (ls['incomes']) obj['incomes'] = ls['incomes'];
-            if (ls['cashPots']) obj['cashPots'] = ls['cashPots'];
-            if (ls['partner-pots']) obj['partner-pots'] = ls['partner-pots'];
-            if (ls['partner-cashPots']) obj['partner-cashPots'] = ls['partner-cashPots'];
-            if (ls['partner-incomes']) obj['partner-incomes'] = ls['partner-incomes'];
+            ['pots','incomes','cashPots','partner-pots','partner-cashPots','partner-incomes'].forEach(k => {
+              if (ls[k] && !obj[k]) obj[k] = ls[k];
+            });
           }
         } catch(e) {}
         return obj;
       }
     } catch(e) {}
   }
+  // Last resort: localStorage only (same domain, no hash)
   try { const raw = localStorage.getItem(LS_KEY); if (raw) return JSON.parse(raw); } catch(e) {}
   return null;
 }
