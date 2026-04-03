@@ -2144,6 +2144,11 @@ function initApp() {
     if (target && +btn.dataset.value === +target.value) btn.classList.add('active');
   });
 
+  // Re-persist now that all pots/incomes/cash pots are fully initialised.
+  // Slider input dispatches during restoreParams call persistParams before pots are loaded,
+  // so this final call overwrites storage with the complete correct state.
+  persistParams();
+
   document.getElementById('run-btn').click();
 }
 
