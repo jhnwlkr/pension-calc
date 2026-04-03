@@ -813,6 +813,10 @@ function buildAnnualIncomeData(r, pctileIdx) {
   const partnerCashBalance = 0;
 
   const cashBals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
+  // Per-person LSA tracking: 25% tax-free each year until £268,275 is used up
+  const primaryPotFrac_ = r.primaryPotFrac ?? 1.0;
+  let cumulPrimaryTaxFree = 0;
+  let cumulPartnerTaxFree = 0;
 
   const result = [];
   for (let yi = 0; yi < r.ages.length; yi++) {
@@ -865,7 +869,21 @@ function buildAnnualIncomeData(r, pctileIdx) {
       : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
-    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac, otherNet.grossTotal);
+    // Per-year tax-free fracs: 25% until each person's LSA (£268,275) is exhausted, then 0%
+    const actualPriDraw = potWithdrawNominal * primaryPotFrac_;
+    const actualParDraw = potWithdrawNominal * (1 - primaryPotFrac_);
+    const primaryTFracYear = actualPriDraw > 0
+      ? Math.min(0.25, Math.max(0, LSA - cumulPrimaryTaxFree) / actualPriDraw)
+      : (cumulPrimaryTaxFree < LSA ? 0.25 : 0);
+    const partnerTFracYear = (partner && actualParDraw > 0)
+      ? Math.min(0.25, Math.max(0, LSA - cumulPartnerTaxFree) / actualParDraw)
+      : 0.25;
+    const taxFreeFracYear = potWithdrawNominal > 0
+      ? (actualPriDraw * primaryTFracYear + actualParDraw * partnerTFracYear) / potWithdrawNominal
+      : 0.25;
+    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, taxFreeFracYear, otherNet.grossTotal);
+    cumulPrimaryTaxFree = Math.min(LSA, cumulPrimaryTaxFree + actualPriDraw * primaryTFracYear);
+    if (partner) cumulPartnerTaxFree = Math.min(LSA, cumulPartnerTaxFree + actualParDraw * partnerTFracYear);
 
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + tc.otherNet + partnerSpInflated + partnerOtherAID.netTotal;
 
@@ -937,6 +955,8 @@ function buildAnnualIncomeData(r, pctileIdx) {
       netPotChangeNom,
       netPotChangeReal,
       partnerAge,
+      primaryTaxFreeFracAnn: primaryTFracYear,
+      partnerTaxFreeFracAnn: partnerTFracYear,
       // Partner pot/cash balance informational columns
       partnerPotBalNom: partnerPotBalance,
       partnerPotBalReal: partnerPotBalance * todayDeflator,
@@ -1145,8 +1165,8 @@ function renderIncomeTable(r) {
   const cash3 = cashContribAtYear(redYears);
 
   // Helper: gross-up pension withdrawal after cash covers the net shortfall
-  function pensionGrossTable(grossNeeded, cashNet, hasSP, spInfl = 0) {
-    const ntc = calcPensionTax(grossNeeded, spInfl, hasSP, taxFreeFrac);
+  function pensionGrossTable(grossNeeded, cashNet, hasSP, spInfl = 0, tfFrac = taxFreeFrac) {
+    const ntc = calcPensionTax(grossNeeded, spInfl, hasSP, tfFrac);
     const netTarget = ntc.pensionNet;
     const cashUsed = Math.min(cashNet, netTarget);
     const remainingNet = Math.max(0, netTarget - cashUsed);
@@ -1158,11 +1178,17 @@ function renderIncomeTable(r) {
   const sp2 = p.sp * ci2;  // state pension at SP start age, in nominal terms
   const sp3 = hasSpAtReduction ? p.sp * ci3 : 0;
 
+  // Per-snapshot tax-free fracs from annualIncomeData (25% until LSA exhausted, then 0%)
+  const annData = r.annualIncomeData || [];
+  const tfFrac1 = annData[0]?.primaryTaxFreeFracAnn ?? taxFreeFrac;
+  const tfFrac2 = annData[spYears]?.primaryTaxFreeFracAnn ?? taxFreeFrac;
+  const tfFrac3 = annData[redYears]?.primaryTaxFreeFracAnn ?? taxFreeFrac;
+
   // Column 1: at retirement (no state pension yet)
   const gross1 = Math.max(0, p.drawdown * ci0);
-  const potW1Full = pensionGrossTable(gross1, cash1, false, 0);
+  const potW1Full = pensionGrossTable(gross1, cash1, false, 0, tfFrac1);
   const other1 = calcOtherIncomesNet(p.incomes, ci0);
-  const tc1 = calcPensionTax(potW1Full, 0, false, taxFreeFrac, other1.grossTotal);
+  const tc1 = calcPensionTax(potW1Full, 0, false, tfFrac1, other1.grossTotal);
   // Partner other income active at each snapshot?
   const pIncActive1 = !!(p.partner && partnerAgeAt1 >= p.partner.retirementAge);
   const pIncActive2 = !!(p.partner && partnerAgeAt2 >= p.partner.retirementAge);
@@ -1173,15 +1199,15 @@ function renderIncomeTable(r) {
 
   // Column 2: once state pension starts
   const gross2 = potWithdrawal(p.spAge, p, ci2); // gross needed from pots after SP (already uses inflated SP)
-  const potW2 = pensionGrossTable(gross2, cash2, true, sp2);
+  const potW2 = pensionGrossTable(gross2, cash2, true, sp2, tfFrac2);
   const other2 = calcOtherIncomesNet(p.incomes, ci2);
-  const tc2 = calcPensionTax(potW2, sp2, true, taxFreeFrac, other2.grossTotal);
+  const tc2 = calcPensionTax(potW2, sp2, true, tfFrac2, other2.grossTotal);
 
   // Column 3: after income reduction
   const gross3 = potWithdrawal(p.reductionAge, p, ci3);
-  const potW3 = pensionGrossTable(gross3, cash3, hasSpAtReduction, sp3);
+  const potW3 = pensionGrossTable(gross3, cash3, hasSpAtReduction, sp3, tfFrac3);
   const other3 = calcOtherIncomesNet(p.incomes, ci3);
-  const tc3 = calcPensionTax(potW3, sp3, hasSpAtReduction, taxFreeFrac, other3.grossTotal);
+  const tc3 = calcPensionTax(potW3, sp3, hasSpAtReduction, tfFrac3, other3.grossTotal);
 
   document.getElementById('th-after-reduction').innerHTML =
     `After Reduction (age ${p.reductionAge})<br><small style="font-weight:400">Gross / Tax / Net</small>`;
@@ -1193,8 +1219,8 @@ function renderIncomeTable(r) {
     return `<tr><td>${label}</td><td>${cell(g1,t1,n1, factor1)}</td><td>${cell(g2,t2,n2, factor2)}</td><td>${cell(g3,t3,n3, factor3)}</td><td>${note}</td></tr>`;
   }
 
-  const lsaBadge = taxFreeFrac < 0.25
-    ? `<span class="badge badge-amber">${(taxFreeFrac*100).toFixed(1)}% tax-free (LSA capped)</span>`
+  const lsaBadge = tfFrac1 < 0.25
+    ? `<span class="badge badge-amber">${(tfFrac1*100).toFixed(1)}% tax-free (LSA capped)</span>`
     : `<span class="badge badge-green">25% tax-free (within LSA)</span>`;
 
   const ltaBadge = (r.startPensionPot || r.startPot) > FORMER_LTA
@@ -1501,8 +1527,8 @@ function renderTaxBreakdown(r) {
 
   // ── Per-person pot fractions from simulation ───────────────────────────────
   const primaryPotFrac = r.primaryPotFrac     ?? 1.0;
-  const primaryTFrac   = r.primaryTaxFreeFrac ?? r.taxFreeFrac;
-  const partnerTFrac   = r.partnerTaxFreeFrac ?? r.taxFreeFrac;
+  const primaryTFrac   = d.primaryTaxFreeFracAnn ?? r.primaryTaxFreeFrac ?? r.taxFreeFrac;
+  const partnerTFrac   = d.partnerTaxFreeFracAnn ?? r.partnerTaxFreeFrac ?? r.taxFreeFrac;
 
   // ── Nominal annual income figures (tax is computed nominally, as HMRC would) ─
   const hasStatePension   = d.spGrossNom > 0;

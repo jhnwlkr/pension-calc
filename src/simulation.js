@@ -40,6 +40,10 @@ export function buildAnnualIncomeData(r, pctileIdx) {
   const startPensionPot = r.startPensionPot || r.startPot;
 
   const cashBals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
+  // Per-person LSA tracking: 25% tax-free each year until £268,275 is used up
+  const primaryPotFrac_ = r.primaryPotFrac ?? 1.0;
+  let cumulPrimaryTaxFree = 0;
+  let cumulPartnerTaxFree = 0;
   const result = [];
   for (let yi = 0; yi < r.ages.length; yi++) {
     const age = r.ages[yi];
@@ -90,7 +94,21 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
-    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, r.taxFreeFrac, otherNet.grossTotal);
+    // Per-year tax-free fracs: 25% until each person's LSA (£268,275) is exhausted, then 0%
+    const actualPriDraw = potWithdrawNominal * primaryPotFrac_;
+    const actualParDraw = potWithdrawNominal * (1 - primaryPotFrac_);
+    const primaryTFracYear = actualPriDraw > 0
+      ? Math.min(0.25, Math.max(0, LSA - cumulPrimaryTaxFree) / actualPriDraw)
+      : (cumulPrimaryTaxFree < LSA ? 0.25 : 0);
+    const partnerTFracYear = (p.partner && actualParDraw > 0)
+      ? Math.min(0.25, Math.max(0, LSA - cumulPartnerTaxFree) / actualParDraw)
+      : 0.25;
+    const taxFreeFracYear = potWithdrawNominal > 0
+      ? (actualPriDraw * primaryTFracYear + actualParDraw * partnerTFracYear) / potWithdrawNominal
+      : 0.25;
+    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, taxFreeFracYear, otherNet.grossTotal);
+    cumulPrimaryTaxFree = Math.min(LSA, cumulPrimaryTaxFree + actualPriDraw * primaryTFracYear);
+    if (p.partner) cumulPartnerTaxFree = Math.min(LSA, cumulPartnerTaxFree + actualParDraw * partnerTFracYear);
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + partnerSpInflated + tc.otherNet + partnerOtherAID.netTotal;
 
     const potBalNom = pensionAtPctile;
@@ -159,6 +177,8 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       netPotChangeNom,
       netPotChangeReal,
       partnerAge,
+      primaryTaxFreeFracAnn: primaryTFracYear,
+      partnerTaxFreeFracAnn: partnerTFracYear,
       guardrailActive,
       isSpStart: age === p.spAge,
       isPartnerSpStart: !!(p.partner && partnerAge === p.partner.spAge),
