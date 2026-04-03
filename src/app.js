@@ -554,7 +554,6 @@ function setTodayMoney(checked, r) {
     // re-render current active view immediately
     const tab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
     if (tab === 'pot') { renderPotChart(r); renderIncomeTable(r); }
-    else if (tab === 'swr') renderSWRChart(r);
     else if (tab === 'taxbreakdown') renderTaxBreakdown(r);
     else if (tab === 'realincome') renderRealIncomeChart(r);
     else if (tab === 'netmonthly') renderNetMonthlyChart(r);
@@ -2314,7 +2313,7 @@ function renderHistoricalReplayTab(r) {
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
-const tabDefs = ['pot', 'annualincome', 'swr', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo', 'historicalreplay'];
+const tabDefs = ['pot', 'annualincome', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo', 'historicalreplay'];
 function setActiveTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   tabDefs.forEach(t => {
@@ -2330,7 +2329,6 @@ document.querySelectorAll('.tab').forEach(btn => {
     persistParams();
     if (lastResults) {
       if (tab === 'pot') renderPotChart(lastResults);
-      else if (tab === 'swr') renderSWRChart(lastResults);
       else if (tab === 'taxbreakdown') renderTaxBreakdown(lastResults);
       else if (tab === 'realincome') renderRealIncomeChart(lastResults);
       else if (tab === 'netmonthly') renderNetMonthlyChart(lastResults);
@@ -2372,7 +2370,6 @@ document.getElementById('run-btn').addEventListener('click', () => {
       renderIncomeTable(r);
 
       if (activeTab === 'pot') renderPotChart(r);
-      else if (activeTab === 'swr') renderSWRChart(r);
       else if (activeTab === 'taxbreakdown') renderTaxBreakdown(r);
       else if (activeTab === 'realincome') renderRealIncomeChart(r);
       else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
