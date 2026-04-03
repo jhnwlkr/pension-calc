@@ -1632,7 +1632,7 @@ function renderTaxBreakdown(r) {
         <div class="tw-step-title">Step 1 — Gross income &amp; tax-free cash</div>
         <table class="tw-table">
           ${dwAnn > 0 ? `<tr><td>Pension pot drawdown (gross)</td><td class="num">${fmtN(dwAnn)}</td></tr>
-          <tr class="tw-sub"><td>↳ Tax-free portion (${Math.round(tfFrac * 100)}% UFPLS / PCLS)</td><td class="num">− ${fmtN(taxFreeAnn_)}</td></tr>
+          <tr class="tw-sub"><td>↳ Tax-free portion (${fmtPct(tfFrac * 100)} UFPLS / PCLS)</td><td class="num">− ${fmtN(taxFreeAnn_)}</td></tr>
           <tr class="tw-sub tw-subtotal"><td>↳ Taxable pension drawdown</td><td class="num">${fmtN(pensionTaxable_)}</td></tr>` : ''}
           ${hasSP_ ? `<tr><td>State pension</td><td class="num">${fmtN(spAnn)}</td></tr>` : ''}
           ${items_.map(it => `<tr><td>${it.name || 'Other income'}</td><td class="num">${fmtN(it.gross)}</td></tr>`).join('')}
