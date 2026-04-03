@@ -1,5 +1,5 @@
 import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js';
-import { LSA, FORMER_LTA } from './constants.js';
+import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS } from './constants.js';
 import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet } from './model.js';
 import { runSimulation as runSimulationImpl } from './simulation.js';
 
@@ -560,6 +560,7 @@ function setTodayMoney(checked, r) {
     else if (tab === 'netmonthly') renderNetMonthlyChart(r);
     else if (tab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
     else if (tab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
+    else if (tab === 'historicalreplay') renderHistoricalReplayTab(r);
   }
 }
 
@@ -639,6 +640,8 @@ function persistParams() {
   obj['mc-pctile'] = document.getElementById('mc-pctile').value;
   const taxYearEl = document.getElementById('tax-year-select');
   if (taxYearEl) obj['tax-year-select'] = taxYearEl.value;
+  const hrYearEl = document.getElementById('hist-replay-year');
+  if (hrYearEl && hrYearEl.value) obj['hist-replay-year'] = hrYearEl.value;
   // Save full state to localStorage AND sessionStorage as backups.
   // sessionStorage survives same-tab hard refreshes (even when Safari strips the hash).
   try { const s = JSON.stringify(obj); localStorage.setItem(LS_KEY, s); sessionStorage.setItem(LS_KEY, s); } catch(e) {}
@@ -812,6 +815,10 @@ function restoreParams(obj) {
   if (obj['tax-year-select'] !== undefined) {
     const el = document.getElementById('tax-year-select');
     if (el) el.value = obj['tax-year-select'];
+  }
+  if (obj['hist-replay-year'] !== undefined) {
+    const el = document.getElementById('hist-replay-year');
+    if (el && el.querySelector(`option[value="${obj['hist-replay-year']}"]`)) el.value = obj['hist-replay-year'];
   }
 }
 
@@ -1972,8 +1979,342 @@ function renderAnnualIncomeChart(r) {
   });
 }
 
+// ── Historical Replay ─────────────────────────────────────────────────────
+
+/**
+ * Populate the start-year dropdown with all 126 historical years, labelling
+ * notable ones from HIST_YEAR_EVENTS. Preserves the current selection if valid.
+ */
+function populateHistReplayDropdown() {
+  const sel = document.getElementById('hist-replay-year');
+  if (!sel) return;
+  const currentVal = sel.value;
+  sel.innerHTML = '';
+  for (let y = 1900; y <= 2025; y++) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = HIST_YEAR_EVENTS[y] ? `${y} — ${HIST_YEAR_EVENTS[y]}` : `${y}`;
+    sel.appendChild(opt);
+  }
+  sel.value = (currentVal && +currentVal >= 1900 && +currentVal <= 2025) ? currentVal : '2000';
+}
+
+/**
+ * Runs a sequential historical-return projection starting from `startYear`.
+ * The weighted equity/bond blend is derived from each pot's equityPct, weighted
+ * by the pot's current value — giving the correct blended return for the user's
+ * actual portfolio mix.
+ *
+ * Returns { detPotByYear, detCashBalByYear, hrReturnData } where:
+ *   hrReturnData[yi] = { histCalYear, blendedPct, eventLabel }  ← return experienced *during* year yi
+ *   hrReturnData[years] = { histCalYear: null, blendedPct: null, eventLabel: null }  ← final balance row
+ */
+function runHistoricalReplayProjection(r, startYear) {
+  const p = r.p;
+  const years = p.endAge - p.retirementAge;
+  if (years <= 0) return null;
+
+  const startIdx = startYear - 1900;
+  const histLen = HIST_EQUITY_RETURNS.length;
+  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const baseInflFactor = 1 + p.inflation / 100;
+
+  // Weighted equity fraction: each pot's contribution is proportional to its current value
+  const allPots = [...(p.pots || []), ...(p.partner?.pots || [])];
+  const totalVal = allPots.reduce((s, pot) => s + (pot.value || 0), 0);
+  const equityW = totalVal > 0
+    ? allPots.reduce((s, pot) => s + ((pot.value || 0) / totalVal) * ((pot.equityPct || 80) / 100), 0)
+    : 0.8;
+
+  const allCashPots = p.cashPots || [];
+  const runCashBals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
+
+  const detPotByYear = new Float64Array(years + 1);
+  const detCashBalByYear = new Float64Array(years + 1);
+  const hrReturnData = new Array(years + 1);
+
+  detPotByYear[0] = r.startPensionPot;
+  detCashBalByYear[0] = runCashBals.reduce((s, v) => s + v, 0);
+  // Final balance row has no further return to show
+  hrReturnData[years] = { histCalYear: null, blendedPct: null, eventLabel: null };
+
+  for (let y = 0; y < years; y++) {
+    const histIdx = (startIdx + y) % histLen;
+    const histCalYear = 1900 + histIdx;
+    const eqRet = HIST_EQUITY_RETURNS[histIdx];
+    const bdRet = HIST_BONDS_RETURNS[histIdx];
+    const blendedPct = equityW * eqRet + (1 - equityW) * bdRet;
+    const ret = 1 + blendedPct / 100;
+    const eventLabel = HIST_YEAR_EVENTS[histCalYear] || null;
+
+    // hrReturnData[y] = the return EXPERIENCED during year y of retirement
+    hrReturnData[y] = { histCalYear, blendedPct, eventLabel };
+
+    const age = p.retirementAge + y;
+    const ci = Math.pow(baseInflFactor, y);
+
+    // Cash pot growth each year
+    for (let ci2 = 0; ci2 < runCashBals.length; ci2++) {
+      runCashBals[ci2] *= (1 + allCashPots[ci2].interestPct / 100);
+    }
+
+    const combined = detPotByYear[y] + runCashBals.reduce((s, v) => s + v, 0);
+    if (combined <= 0) {
+      detPotByYear[y + 1] = 0;
+      detCashBalByYear[y + 1] = 0;
+      continue;
+    }
+
+    const pensionAfterGrowth = detPotByYear[y] * ret;
+
+    const hasSP = age >= p.spAge;
+    const spNom = hasSP ? p.sp * ci : 0;
+    const partnerAge = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+    const partnerSpNom = (p.partner && partnerAge >= p.partner.spAge) ? p.partner.sp * ci : 0;
+    const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + y);
+    const partnerRetired = !!(p.partner && partnerAge >= p.partner.retirementAge);
+    const otherGross = calcOtherIncomesNet(p.incomes || [], ciFromNow).grossTotal;
+    const partnerOtherGross = (p.partner?.incomes?.length && partnerRetired)
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow).grossTotal : 0;
+    const totalOtherGross = otherGross + partnerOtherGross;
+    const inflFactor = p.drawdownInflation ? ci : 1.0;
+    const baseTarget = p.drawdown * inflFactor;
+    const targetNominal = age >= p.reductionAge
+      ? Math.max(0, (baseTarget + totalOtherGross) * (1 - p.reductionPct / 100) - totalOtherGross)
+      : baseTarget;
+    const grossNeeded = Math.max(0, targetNominal - spNom - partnerSpNom);
+
+    const notionalTc = calcPensionTax(grossNeeded, spNom, hasSP, r.taxFreeFrac || 0.25);
+    const netTarget = notionalTc.pensionNet;
+
+    let cashRemaining = netTarget;
+    for (let ci2 = 0; ci2 < runCashBals.length && cashRemaining > 0; ci2++) {
+      const take = Math.min(runCashBals[ci2], cashRemaining);
+      runCashBals[ci2] -= take;
+      cashRemaining -= take;
+    }
+    const cashTaken = netTarget - cashRemaining;
+    const remainingNet = Math.max(0, netTarget - cashTaken);
+    const pensionWithdrawal = netTarget > 0 ? remainingNet * (grossNeeded / netTarget) : 0;
+
+    detPotByYear[y + 1] = Math.max(0, pensionAfterGrowth - pensionWithdrawal);
+    detCashBalByYear[y + 1] = runCashBals.reduce((s, v) => s + v, 0);
+  }
+
+  return { detPotByYear, detCashBalByYear, hrReturnData };
+}
+
+function renderHistoricalReplayChart(hrResult) {
+  if (!chartAvailable()) return;
+  destroyChart('historicalreplay');
+  const chartEl = document.getElementById('chart-historicalreplay');
+  if (!chartEl) return;
+  const ctx = chartEl.getContext('2d');
+  const useToday = isTodayMoney();
+  const baseInflFactor = 1 + (hrResult.p?.inflation || 0) / 100;
+  const yearsToRetirement = Math.max(0, hrResult.p.retirementAge - hrResult.p.currentAge);
+  const deflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
+
+  const potData = Array.from(hrResult.detPotByYear).map((v, i) => useToday ? v * deflator(i) : v);
+  const hrReturnData = hrResult.hrReturnData;
+  const spAgeIdx = hrResult.ages.indexOf(hrResult.p.spAge);
+
+  // Collect notable events (only years with an eventLabel) for chart annotations
+  const notableEvents = [];
+  hrReturnData.forEach((d, yi) => {
+    if (d && d.eventLabel) notableEvents.push({ yi, histCalYear: d.histCalYear, label: d.eventLabel });
+  });
+
+  const overlayPlugin = {
+    id: 'hrOverlay',
+    afterDraw(chart) {
+      const { ctx: c, scales: { x, y } } = chart;
+      // State Pension line (amber, matches rest of app)
+      if (spAgeIdx >= 0) {
+        const xPx = x.getPixelForValue(spAgeIdx);
+        c.save();
+        c.strokeStyle = '#d97706';
+        c.lineWidth = 1.5;
+        c.setLineDash([6, 4]);
+        c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+        c.fillStyle = '#d97706';
+        c.font = '10px system-ui,sans-serif';
+        c.textAlign = 'left';
+        c.fillText('SP', xPx + 3, y.top + 12);
+        c.restore();
+      }
+      // Notable event lines (red dashed) with year label rotated at top
+      notableEvents.forEach(ev => {
+        const xPx = x.getPixelForValue(ev.yi);
+        c.save();
+        c.strokeStyle = 'rgba(220,38,38,0.55)';
+        c.lineWidth = 1;
+        c.setLineDash([4, 3]);
+        c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+        c.fillStyle = 'rgba(185,28,28,0.85)';
+        c.font = 'bold 9px system-ui,sans-serif';
+        c.textAlign = 'center';
+        c.translate(xPx, y.top + 42);
+        c.rotate(-Math.PI / 2);
+        c.fillText(String(ev.histCalYear), 0, 0);
+        c.restore();
+      });
+    }
+  };
+
+  charts['historicalreplay'] = new Chart(ctx, {
+    type: 'line',
+    plugins: [overlayPlugin],
+    data: {
+      labels: hrResult.ages,
+      datasets: [
+        {
+          label: useToday ? "Pot Balance (Today's £)" : 'Pot Balance (Nominal)',
+          data: potData,
+          borderColor: 'rgba(37,99,235,1)',
+          backgroundColor: 'rgba(37,99,235,0.08)',
+          fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2,
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: textColor(), font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            afterBody(items) {
+              if (!items.length) return [];
+              const yi = items[0].dataIndex;
+              const hd = hrReturnData[yi];
+              if (!hd || hd.histCalYear == null) return [];
+              const lines = [];
+              if (hd.blendedPct != null) {
+                const sign = hd.blendedPct >= 0 ? '+' : '';
+                lines.push(`Hist. year: ${hd.histCalYear}  (${sign}${hd.blendedPct.toFixed(1)}%)`);
+              }
+              if (hd.eventLabel) lines.push(`📌 ${hd.eventLabel}`);
+              return lines;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: textColor(), maxTicksLimit: 12 }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
+        y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() }, title: { display: true, text: useToday ? "Pot Balance (Today's £)" : 'Pot Balance (Nominal £)', color: textColor() } }
+      }
+    }
+  });
+}
+
+function renderHistoricalReplayTable(hrResult) {
+  const tbody = document.getElementById('hist-replay-tbody');
+  if (!tbody) return;
+  const isToday = isTodayMoney();
+  const hasPartner = !!hrResult.p?.partner;
+
+  ['hr-th-partner-sp', 'hr-th-partner-other'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = hasPartner ? '' : 'none';
+  });
+
+  function cell(nom, real) {
+    const v = isToday ? real : nom;
+    return `<td style="text-align:right">${fmtGBP(v)}</td>`;
+  }
+  function incomeCell(netNom, netReal, grossNom, grossReal, taxNom, taxReal, hidden = false) {
+    const net   = isToday ? netReal   : netNom;
+    const gross = isToday ? grossReal : grossNom;
+    const tax   = isToday ? taxReal   : taxNom;
+    const style = hidden ? 'text-align:right;display:none' : 'text-align:right';
+    return `<td style="${style}">${fmtGBP(net)}<span class="ann-sub">Gross: ${fmtGBP(gross)}</span><span class="ann-sub ann-tax">Tax: ${fmtGBP(tax)}</span></td>`;
+  }
+  function growthCell(nom, real) {
+    const v = isToday ? real : nom;
+    const str = v >= 0 ? fmtGBP(v) : `<span style="color:var(--red)">${fmtGBP(v)}</span>`;
+    return `<td style="text-align:right">${str}</td>`;
+  }
+
+  const hrReturnData = hrResult.hrReturnData;
+
+  tbody.innerHTML = hrResult.annualIncomeData.map((d, yi) => {
+    const hd = hrReturnData[yi] || {};
+    const hasEvent = !!hd.eventLabel;
+
+    let cls = '';
+    if (d.guardrailActive) cls = 'guardrail-row';
+    else if (d.isSpStart) cls = 'sp-start-row';
+    else if (d.isPartnerSpStart) cls = 'partner-sp-start-row';
+
+    const ageDisplay = hasPartner
+      ? `${d.age}<span style="color:var(--text2)">/${d.partnerAge}</span>`
+      : `${d.age}`;
+    const ageLabel = `${ageDisplay}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear}</span>`;
+
+    // Historical return cell
+    let retCell;
+    if (hd.histCalYear != null && hd.blendedPct != null) {
+      const pct = hd.blendedPct;
+      const pctColor = pct >= 0 ? 'var(--green,#16a34a)' : 'var(--red,#dc2626)';
+      const pctStr = `<span style="color:${pctColor};font-weight:600">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>`;
+      const eventBadge = hasEvent
+        ? `<span class="ann-sub" style="color:var(--amber,#d97706);font-weight:600">📌 ${hd.eventLabel}</span>`
+        : '';
+      retCell = `<td style="text-align:right;font-size:0.82rem">${hd.histCalYear}<br>${pctStr}${eventBadge}</td>`;
+    } else {
+      retCell = `<td style="text-align:right;font-size:0.82rem;color:var(--text2)">—</td>`;
+    }
+
+    const rowStyle = hasEvent ? ' style="background:rgba(251,191,36,0.09)"' : '';
+    return `<tr class="${cls}"${rowStyle}>
+      <td>${ageLabel}</td>
+      ${retCell}
+      ${cell(d.cashNom, d.cashReal)}
+      ${incomeCell(d.pensionNom, d.pensionReal, d.pensionGrossNom, d.pensionGrossReal, d.pensionTaxNom, d.pensionTaxReal)}
+      ${incomeCell(d.spNom, d.spReal, d.spGrossNom, d.spGrossReal, d.spTaxNom, d.spTaxReal)}
+      ${incomeCell(d.partnerSpNom || 0, d.partnerSpReal || 0, d.partnerSpGrossNom || 0, d.partnerSpGrossReal || 0, 0, 0, !hasPartner)}
+      ${incomeCell(d.otherNom, d.otherReal, d.otherGrossNom, d.otherGrossReal, d.otherTaxNom, d.otherTaxReal)}
+      ${incomeCell(d.partnerOtherNom || 0, d.partnerOtherReal || 0, d.partnerOtherGrossNom || 0, d.partnerOtherGrossReal || 0, d.partnerOtherTaxNom || 0, d.partnerOtherTaxReal || 0, !hasPartner)}
+      ${incomeCell(d.netNom, d.netReal, d.netGrossNom, d.netGrossReal, d.netTaxNom, d.netTaxReal)}
+      ${incomeCell(d.netNom * 12, d.netReal * 12, d.netGrossNom * 12, d.netGrossReal * 12, d.netTaxNom * 12, d.netTaxReal * 12)}
+      ${cell(d.cashWithdrawalNom, d.cashWithdrawalReal)}
+      ${cell(d.pensionWithdrawalNom, d.pensionWithdrawalReal)}
+      ${growthCell(d.netPotChangeNom, d.netPotChangeReal)}
+      ${cell(d.potBalNom, d.potBalReal)}
+    </tr>`;
+  }).join('');
+}
+
+function renderHistoricalReplayTab(r) {
+  if (!r) return;
+  const sel = document.getElementById('hist-replay-year');
+  if (!sel) return;
+  const startYear = +sel.value || 2000;
+  const proj = runHistoricalReplayProjection(r, startYear);
+  if (!proj) return;
+
+  const hrResult = Object.assign({}, r, {
+    detPotByYear: proj.detPotByYear,
+    detCashBalByYear: proj.detCashBalByYear,
+    hrReturnData: proj.hrReturnData,
+  });
+  hrResult.annualIncomeData = buildAnnualIncomeData(hrResult);
+
+  renderHistoricalReplayChart(hrResult);
+  renderHistoricalReplayTable(hrResult);
+
+  const note = document.getElementById('hist-replay-note');
+  if (note) {
+    const endYear = startYear + r.ages.length - 2;
+    const wrapped = endYear > 2025;
+    note.textContent = `Replaying actual market returns from ${startYear}–${endYear} through your ${r.ages.length - 1}-year retirement`
+      + (wrapped ? `. Returns after 2025 wrap to historical data from 1900 onwards.` : `.`);
+  }
+}
+
 // ── Tab switching ──────────────────────────────────────────────────────────
-const tabDefs = ['pot', 'annualincome', 'swr', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo'];
+const tabDefs = ['pot', 'annualincome', 'swr', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo', 'historicalreplay'];
 function setActiveTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   tabDefs.forEach(t => {
@@ -1995,6 +2336,7 @@ document.querySelectorAll('.tab').forEach(btn => {
       else if (tab === 'netmonthly') renderNetMonthlyChart(lastResults);
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
       else if (tab === 'montecarlo') { renderMonteCarloChart(lastResults); renderMonteCarloTable(lastResults, +document.getElementById('mc-pctile').value); }
+      else if (tab === 'historicalreplay') renderHistoricalReplayTab(lastResults);
     }
     // Sync active checkbox state to persisted value when tabs change
     setTodayMoney(todayPrices, lastResults);
@@ -2036,6 +2378,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
       else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
       else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
       else if (activeTab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
+      else if (activeTab === 'historicalreplay') renderHistoricalReplayTab(r);
 
       setActiveTab(activeTab);
     } catch (err) {
@@ -2150,6 +2493,15 @@ function initApp() {
   if (taxYearSelect) {
     taxYearSelect.addEventListener('change', () => {
       if (lastResults) renderTaxBreakdown(lastResults);
+    });
+  }
+
+  populateHistReplayDropdown();
+  const histReplayYearSel = document.getElementById('hist-replay-year');
+  if (histReplayYearSel) {
+    histReplayYearSel.addEventListener('change', () => {
+      if (lastResults) renderHistoricalReplayTab(lastResults);
+      persistParams();
     });
   }
 

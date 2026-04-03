@@ -434,6 +434,7 @@
     <button class="tab" data-tab="realincome">Real Income</button>
     <button class="tab" data-tab="netmonthly">Net Monthly Income</button>
     <button class="tab" data-tab="montecarlo">Monte Carlo</button>
+    <button class="tab" data-tab="historicalreplay">Historical Replay</button>
   </div>
 
   <div class="chart-panel">
@@ -579,6 +580,48 @@
         </thead>
         <tbody id="annual-income-tbody">
           <tr><td colspan="14" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div id="tab-historicalreplay" class="hidden">
+      <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
+        <h2 style="margin:0;font-size:1.14rem">Historical Replay — Year-by-Year Income Breakdown</h2>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;color:var(--text2);white-space:nowrap">
+            Start retirement in:
+            <select id="hist-replay-year" style="font-size:0.86rem;padding:2px 6px;border-radius:4px;border:1px solid var(--border,#d1d5db);background:var(--surface);color:var(--text1)"></select>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
+            <input type="checkbox" id="today-money-toggle-historicalreplay" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent)"> Today's Prices
+          </label>
+        </div>
+      </div>
+      <div class="ai-note" id="hist-replay-note">Run the simulation, then select a start year to replay that era's actual market returns through your retirement. Returns are applied sequentially; years beyond 2025 wrap from 1900.</div>
+      <div class="chart-wrap" style="height:220px;margin-bottom:16px"><canvas id="chart-historicalreplay"></canvas></div>
+      <div class="table-scroll" style="max-height:55vh;overflow-y:auto">
+      <table class="ann-table">
+        <thead style="position:sticky;top:0;z-index:2;background:var(--surface)">
+          <tr>
+            <th style="text-align:left">Age</th>
+            <th>Hist. Return<br><small style="font-weight:400;color:var(--text2)">year · blended %</small></th>
+            <th>Cash Pots /mo<br><small style="font-weight:400;color:var(--text2)">tax-free</small></th>
+            <th>Pension Pots /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th>State Pension /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th id="hr-th-partner-sp" style="display:none">Partner SP /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th>Other Income /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th id="hr-th-partner-other" style="display:none">Partner Income /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th>Total Net /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th>Total Net Annual<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th>Cash Drawn<br><small style="font-weight:400;color:var(--text2)">from cash pot</small></th>
+            <th>Pension Drawn (gross)<br><small style="font-weight:400;color:var(--text2)">from pension pot</small></th>
+            <th>Net Pot Change<br><small style="font-weight:400;color:var(--text2)">after growth &amp; withdrawal</small></th>
+            <th>Pot Balance</th>
+          </tr>
+        </thead>
+        <tbody id="hist-replay-tbody">
+          <tr><td colspan="14" style="text-align:center;color:var(--text2);padding:20px">Run simulation and select a start year to see results</td></tr>
         </tbody>
       </table>
       </div>
