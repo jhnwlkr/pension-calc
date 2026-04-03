@@ -635,6 +635,10 @@ function persistParams() {
   obj['partner-pots'] = JSON.stringify(partnerPotsData);
   obj['partner-cashPots'] = JSON.stringify(partnerCashPotsData);
   obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
+  obj['active-tab'] = document.querySelector('.tab.active')?.dataset.tab || 'pot';
+  obj['mc-pctile'] = document.getElementById('mc-pctile').value;
+  const taxYearEl = document.getElementById('tax-year-select');
+  if (taxYearEl) obj['tax-year-select'] = taxYearEl.value;
   // Save full state to localStorage AND sessionStorage as backups.
   // sessionStorage survives same-tab hard refreshes (even when Safari strips the hash).
   try { const s = JSON.stringify(obj); localStorage.setItem(LS_KEY, s); sessionStorage.setItem(LS_KEY, s); } catch(e) {}
@@ -797,6 +801,17 @@ function restoreParams(obj) {
         renderPartnerIncomesUI();
       }
     } catch(e) {}
+  }
+  // Restore UI view state
+  if (obj['active-tab']) setActiveTab(obj['active-tab']);
+  if (obj['mc-pctile'] !== undefined) {
+    const el = document.getElementById('mc-pctile');
+    const lbl = document.getElementById('v-mc-pctile');
+    if (el) { el.value = obj['mc-pctile']; if (lbl) lbl.textContent = MC_PCT_LABELS[+obj['mc-pctile']]; }
+  }
+  if (obj['tax-year-select'] !== undefined) {
+    const el = document.getElementById('tax-year-select');
+    if (el) el.value = obj['tax-year-select'];
   }
 }
 
@@ -1971,6 +1986,7 @@ document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     const tab = btn.dataset.tab;
     setActiveTab(tab);
+    persistParams();
     if (lastResults) {
       if (tab === 'pot') renderPotChart(lastResults);
       else if (tab === 'swr') renderSWRChart(lastResults);
@@ -2127,6 +2143,7 @@ function initApp() {
     const idx = +mcPctileSlider.value;
     mcPctileLabel.textContent = MC_PCT_LABELS[idx];
     if (lastResults) renderMonteCarloTable(lastResults, idx);
+    persistParams();
   });
 
   const taxYearSelect = document.getElementById('tax-year-select');
