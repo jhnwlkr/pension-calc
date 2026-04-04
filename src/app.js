@@ -2427,14 +2427,22 @@ function buildActualsChartData(r) {
   const chartEndAge = r.ages[r.ages.length - 1];
   const chartAges = [];
   for (let a = chartStartAge; a <= chartEndAge; a++) chartAges.push(a);
-  // Pot + cash actuals: sum all events per calendar-year-bucket
-  const potActualsByAge = {};
+  // Pot + cash actuals: for each year-bucket take the latest value per pot UUID,
+  // then sum those. This ensures multiple snapshots in the same year don't
+  // inflate the chart point — only the most recent snapshot per pot is used.
+  const _latestByAgeUuid = {};
   actualsEvents
     .filter(e => (e.type === 'pot_valuation' || e.type === 'cash_valuation') && e.date && e.amount != null)
     .forEach(e => {
       const age = p.currentAge + (new Date(e.date).getFullYear() - calYear);
-      potActualsByAge[age] = (potActualsByAge[age] || 0) + Number(e.amount);
+      if (!_latestByAgeUuid[age]) _latestByAgeUuid[age] = {};
+      const prev = _latestByAgeUuid[age][e.targetUuid];
+      if (!prev || e.date > prev.date) _latestByAgeUuid[age][e.targetUuid] = e;
     });
+  const potActualsByAge = {};
+  Object.entries(_latestByAgeUuid).forEach(([age, byUuid]) => {
+    potActualsByAge[age] = Object.values(byUuid).reduce((s, e) => s + Number(e.amount), 0);
+  });
   // Income actuals: sum per calendar-year-bucket
   const incActualsByAge = {};
   actualsEvents
