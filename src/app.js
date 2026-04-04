@@ -3509,23 +3509,32 @@ function renderActualsTab(r) {
   const rp = applyActualsRecalibration(baseP, actualsEvents);
   const yearsToRetirement = Math.max(0, rp.retirementAge - (rp.currentAgeFrac ?? rp.currentAge));
   const retirementYear = currentYear + Math.round(yearsToRetirement);
-  const ret = 1 + returnPct / 100;
 
-  const forecastPoints = [];  // { date: 'YYYY-01-01', y: nominal }
+  // Per-pot starting values from the last snapshot (latest actual per pot, or settings fallback)
+  const lastSnap = snapshotData.at(-1);
+  const potStartVals = allPots.map((pot, i) => ({
+    value:        lastSnap ? (lastSnap.perPot[i]?.value ?? pot.value) : pot.value,
+    annualContrib: pot.annualContrib || 0,
+  }));
 
-  // Pre-retirement: one annual milestone per year from next year up to (not including) retirement
-  for (let yr = currentYear + 1; yr < retirementYear; yr++) {
-    const dy = yr - currentYear;
-    let total = 0;
-    for (const pot of rp.pots) {
-      let val = pot.value;
-      for (let j = 0; j < dy; j++) val = val * ret + (pot.annualContrib || 0);
-      total += val;
+  const monthlyRet  = Math.pow(1 + returnPct / 100, 1 / 12);
+  const forecastPoints = [];  // { date: 'YYYY-MM-DD', y: nominal }
+
+  // Pre-retirement: monthly from the month after the last snapshot through to retirement year.
+  // Contributions are applied each month (annualContrib / 12).
+  const curVals     = potStartVals.map(p => p.value);
+  const lastDateObj = lastSnap ? new Date(lastSnap.date) : new Date();
+  let cur = new Date(lastDateObj.getFullYear(), lastDateObj.getMonth() + 1, 1);
+  while (cur.getFullYear() < retirementYear) {
+    for (let i = 0; i < curVals.length; i++) {
+      curVals[i] = curVals[i] * monthlyRet + potStartVals[i].annualContrib / 12;
     }
-    forecastPoints.push({ date: `${yr}-01-01`, y: total });
+    const mm = String(cur.getMonth() + 1).padStart(2, '0');
+    forecastPoints.push({ date: `${cur.getFullYear()}-${mm}-01`, y: curVals.reduce((s, v) => s + v, 0) });
+    cur.setMonth(cur.getMonth() + 1);
   }
 
-  // Post-retirement: deterministic projection from recalibrated starting values
+  // Post-retirement: deterministic projection (annual) from recalibrated starting values
   const det = runDeterministicProjection({ ...rp, taxFreeFrac: r.taxFreeFrac ?? 0.25 }, returnPct);
   if (det) {
     for (let i = 0; i < det.detPotByYear.length; i++) {
@@ -3550,11 +3559,14 @@ function renderActualsTab(r) {
       i < allSnapshotDates.length ? deflate(snapshotData[i].total, d) : null
     );
 
-    // Forecast line: null for actuals dates, value at forecast dates
-    const forecastMap = Object.fromEntries(forecastPoints.map(p => [p.date, p.y]));
-    const forecastDataArr = allLabels.map(d =>
-      forecastDateSet.has(d) ? deflate(forecastMap[d], d) : null
-    );
+    // Forecast line: anchored at last actual date for a smooth join, then forecast dates
+    const forecastMap     = Object.fromEntries(forecastPoints.map(p => [p.date, p.y]));
+    const lastActualDate2 = allSnapshotDates.at(-1);
+    const forecastDataArr = allLabels.map((d, i) => {
+      if (d === lastActualDate2) return deflate(snapshotData.at(-1).total, d);  // anchor
+      if (forecastDateSet.has(d)) return deflate(forecastMap[d], d);
+      return null;
+    });
 
     const overlayPlugin = {
       id: 'overlay',
