@@ -9,10 +9,12 @@ let potsData = [];
 let todayPrices = false; // Shared today’s-prices toggle state
 
 
-function addPot(value, annualContrib, equityPct) {
+function addPot(value, annualContrib, equityPct, name) {
   const id = nextPotId++;
   potsData.push({
     id,
+    uuid: crypto.randomUUID(),
+    name: name || '',
     value: (value !== undefined && value !== null) ? +value : 0,
     annualContrib: (annualContrib !== undefined && annualContrib !== null) ? +annualContrib : 0,
     equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
@@ -35,8 +37,14 @@ function renderPotsUI() {
     div.className = 'pot-card';
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title">Pot ${idx + 1}</span>
+        <span class="pot-card-title" id="pot-title-${pot.id}">${pot.name || ('Pot ' + (idx + 1))}</span>
         ${potsData.length > 1 ? `<button class="remove-btn" data-pot-id="${pot.id}">✕</button>` : ''}
+      </div>
+      <div style="margin-bottom:8px">
+        <input class="dyn-input" type="text" placeholder="Name (optional, e.g. SIPP)"
+          data-pot-id="${pot.id}" data-field="name"
+          value="${(pot.name || '').replace(/"/g, '&quot;')}"
+          style="font-size:0.8rem;color:var(--text2)">
       </div>
       <div class="two-col" style="margin-bottom:8px">
         <div>
@@ -75,7 +83,15 @@ function renderPotsUI() {
       const potId = +inp.dataset.potId;
       const field = inp.dataset.field;
       const pot = potsData.find(p => p.id === potId);
-      if (pot) { pot[field] = +inp.value; }
+      if (pot) {
+        if (field === 'name') {
+          pot.name = inp.value;
+          const titleEl = document.getElementById('pot-title-' + potId);
+          if (titleEl) titleEl.textContent = inp.value || ('Pot ' + (potsData.indexOf(pot) + 1));
+        } else {
+          pot[field] = +inp.value;
+        }
+      }
       persistParams();
     });
   });
@@ -105,6 +121,7 @@ function addIncome(name, amount, frequency, inflationLinked = false) {
   const id = nextIncomeId++;
   incomesData.push({
     id,
+    uuid: crypto.randomUUID(),
     name: name || 'Income source',
     amount: amount !== undefined ? amount : 0,
     frequency: frequency || 'annual',
@@ -187,10 +204,12 @@ function renderIncomesUI() {
 let nextCashPotId = 1;
 let cashPotsData = [];
 
-function addCashPot(value, interestPct) {
+function addCashPot(value, interestPct, name) {
   const id = nextCashPotId++;
   cashPotsData.push({
     id,
+    uuid: crypto.randomUUID(),
+    name: name || '',
     value: (value !== undefined && value !== null) ? +value : 0,
     interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
   });
@@ -215,8 +234,14 @@ function renderCashPotsUI() {
     div.className = 'pot-card';
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title">Cash Pot ${idx + 1}</span>
+        <span class="pot-card-title" id="cash-pot-title-${pot.id}">${pot.name || ('Cash Pot ' + (idx + 1))}</span>
         <button class="remove-btn" data-cash-pot-id="${pot.id}">✕</button>
+      </div>
+      <div style="margin-bottom:8px">
+        <input class="dyn-input" type="text" placeholder="Name (optional, e.g. ISA)"
+          data-cash-pot-id="${pot.id}" data-field="name"
+          value="${(pot.name || '').replace(/"/g, '&quot;')}"
+          style="font-size:0.8rem;color:var(--text2)">
       </div>
       <div class="two-col">
         <div>
@@ -246,7 +271,15 @@ function renderCashPotsUI() {
       const potId = +inp.dataset.cashPotId;
       const field = inp.dataset.field;
       const pot = cashPotsData.find(p => p.id === potId);
-      if (pot) { pot[field] = +inp.value; }
+      if (pot) {
+        if (field === 'name') {
+          pot.name = inp.value;
+          const titleEl = document.getElementById('cash-pot-title-' + potId);
+          if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (cashPotsData.indexOf(pot) + 1));
+        } else {
+          pot[field] = +inp.value;
+        }
+      }
       persistParams();
     });
   });
@@ -262,10 +295,12 @@ let partnerCashPotsData = [];
 let nextPartnerIncomeId = 1;
 let partnerIncomesData = [];
 
-function addPartnerPot(value, annualContrib, equityPct) {
+function addPartnerPot(value, annualContrib, equityPct, name) {
   const id = nextPartnerPotId++;
   partnerPotsData.push({
     id,
+    uuid: crypto.randomUUID(),
+    name: name || '',
     value: (value !== undefined && value !== null) ? +value : 0,
     annualContrib: (annualContrib !== undefined && annualContrib !== null) ? +annualContrib : 0,
     equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
@@ -292,8 +327,14 @@ function renderPartnerPotsUI() {
     div.className = 'pot-card';
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title">Pot ${idx + 1}</span>
+        <span class="pot-card-title" id="ppartner-pot-title-${pot.id}">${pot.name || ('Pot ' + (idx + 1))}</span>
         <button class="remove-btn" data-ppartner-pot-id="${pot.id}">✕</button>
+      </div>
+      <div style="margin-bottom:8px">
+        <input class="dyn-input" type="text" placeholder="Name (optional, e.g. SIPP)"
+          data-ppartner-pot-id="${pot.id}" data-field="name"
+          value="${(pot.name || '').replace(/"/g, '&quot;')}"
+          style="font-size:0.8rem;color:var(--text2)">
       </div>
       <div class="two-col" style="margin-bottom:8px">
         <div>
@@ -324,7 +365,15 @@ function renderPartnerPotsUI() {
   container.querySelectorAll('.dyn-input[data-ppartner-pot-id]').forEach(inp => {
     inp.addEventListener('input', () => {
       const pot = partnerPotsData.find(p => p.id === +inp.dataset.ppartnerPotId);
-      if (pot) { pot[inp.dataset.field] = +inp.value; }
+      if (pot) {
+        if (inp.dataset.field === 'name') {
+          pot.name = inp.value;
+          const titleEl = document.getElementById('ppartner-pot-title-' + pot.id);
+          if (titleEl) titleEl.textContent = inp.value || ('Pot ' + (partnerPotsData.indexOf(pot) + 1));
+        } else {
+          pot[inp.dataset.field] = +inp.value;
+        }
+      }
       persistParams();
     });
   });
@@ -341,10 +390,12 @@ function renderPartnerPotsUI() {
   });
 }
 
-function addPartnerCashPot(value, interestPct) {
+function addPartnerCashPot(value, interestPct, name) {
   const id = nextPartnerCashPotId++;
   partnerCashPotsData.push({
     id,
+    uuid: crypto.randomUUID(),
+    name: name || '',
     value: (value !== undefined && value !== null) ? +value : 0,
     interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
   });
@@ -370,8 +421,14 @@ function renderPartnerCashPotsUI() {
     div.className = 'pot-card';
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title">Cash Pot ${idx + 1}</span>
+        <span class="pot-card-title" id="ppartner-cash-title-${pot.id}">${pot.name || ('Cash Pot ' + (idx + 1))}</span>
         <button class="remove-btn" data-ppartner-cash-id="${pot.id}">✕</button>
+      </div>
+      <div style="margin-bottom:8px">
+        <input class="dyn-input" type="text" placeholder="Name (optional, e.g. ISA)"
+          data-ppartner-cash-id="${pot.id}" data-field="name"
+          value="${(pot.name || '').replace(/"/g, '&quot;')}"
+          style="font-size:0.8rem;color:var(--text2)">
       </div>
       <div class="two-col">
         <div>
@@ -396,7 +453,15 @@ function renderPartnerCashPotsUI() {
   container.querySelectorAll('.dyn-input[data-ppartner-cash-id]').forEach(inp => {
     inp.addEventListener('input', () => {
       const pot = partnerCashPotsData.find(p => p.id === +inp.dataset.ppartnerCashId);
-      if (pot) { pot[inp.dataset.field] = +inp.value; }
+      if (pot) {
+        if (inp.dataset.field === 'name') {
+          pot.name = inp.value;
+          const titleEl = document.getElementById('ppartner-cash-title-' + pot.id);
+          if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (partnerCashPotsData.indexOf(pot) + 1));
+        } else {
+          pot[inp.dataset.field] = +inp.value;
+        }
+      }
       persistParams();
     });
   });
@@ -406,6 +471,7 @@ function addPartnerIncome(name, amount, frequency, inflationLinked) {
   const id = nextPartnerIncomeId++;
   partnerIncomesData.push({
     id,
+    uuid: crypto.randomUUID(),
     name: name || 'Income source',
     amount: amount !== undefined ? amount : 0,
     frequency: frequency || 'annual',
@@ -716,7 +782,14 @@ function restoreParams(obj) {
         potsData = [];
         saved.forEach(p => {
           const id = nextPotId++;
-          potsData.push({ id, value: +p.value || 0, annualContrib: +p.annualContrib || 0, equityPct: p.equityPct !== undefined ? +p.equityPct : 80 });
+          potsData.push({
+            id,
+            uuid: p.uuid || crypto.randomUUID(),
+            name: p.name || '',
+            value: +p.value || 0,
+            annualContrib: +p.annualContrib || 0,
+            equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+          });
         });
         renderPotsUI();
       }
@@ -730,7 +803,14 @@ function restoreParams(obj) {
         incomesData = [];
         saved.forEach(inc => {
           const id = nextIncomeId++;
-          incomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
+          incomesData.push({
+            id,
+            uuid: inc.uuid || crypto.randomUUID(),
+            name: inc.name || 'Income source',
+            amount: inc.amount || 0,
+            frequency: inc.frequency || 'annual',
+            inflationLinked: inc.inflationLinked === true,
+          });
         });
         renderIncomesUI();
       }
@@ -744,7 +824,13 @@ function restoreParams(obj) {
         cashPotsData = [];
         saved.forEach(p => {
           const id = nextCashPotId++;
-          cashPotsData.push({ id, value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+          cashPotsData.push({
+            id,
+            uuid: p.uuid || crypto.randomUUID(),
+            name: p.name || '',
+            value: +p.value || 0,
+            interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
+          });
         });
         renderCashPotsUI();
       }
@@ -772,7 +858,14 @@ function restoreParams(obj) {
         partnerPotsData = [];
         saved.forEach(p => {
           const id = nextPartnerPotId++;
-          partnerPotsData.push({ id, value: +p.value || 0, annualContrib: +p.annualContrib || 0, equityPct: p.equityPct !== undefined ? +p.equityPct : 80 });
+          partnerPotsData.push({
+            id,
+            uuid: p.uuid || crypto.randomUUID(),
+            name: p.name || '',
+            value: +p.value || 0,
+            annualContrib: +p.annualContrib || 0,
+            equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+          });
         });
         renderPartnerPotsUI();
       }
@@ -785,7 +878,13 @@ function restoreParams(obj) {
         partnerCashPotsData = [];
         saved.forEach(p => {
           const id = nextPartnerCashPotId++;
-          partnerCashPotsData.push({ id, value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+          partnerCashPotsData.push({
+            id,
+            uuid: p.uuid || crypto.randomUUID(),
+            name: p.name || '',
+            value: +p.value || 0,
+            interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
+          });
         });
         renderPartnerCashPotsUI();
       }
@@ -798,7 +897,14 @@ function restoreParams(obj) {
         partnerIncomesData = [];
         saved.forEach(inc => {
           const id = nextPartnerIncomeId++;
-          partnerIncomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
+          partnerIncomesData.push({
+            id,
+            uuid: inc.uuid || crypto.randomUUID(),
+            name: inc.name || 'Income source',
+            amount: inc.amount || 0,
+            frequency: inc.frequency || 'annual',
+            inflationLinked: inc.inflationLinked === true,
+          });
         });
         renderPartnerIncomesUI();
       }
