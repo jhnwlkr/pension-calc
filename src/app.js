@@ -7,6 +7,8 @@ import { runSimulation as runSimulationImpl } from './simulation.js';
 let nextPotId = 1;
 let potsData = [];
 let todayPrices = false; // Shared today’s-prices toggle state
+let groupsData = [];         // Pension pot groups: [{ uuid, name }]
+let partnerGroupsData = [];  // Partner pension pot groups
 
 
 function addPot(value, annualContrib, equityPct, name) {
@@ -18,13 +20,18 @@ function addPot(value, annualContrib, equityPct, name) {
     value: (value !== undefined && value !== null) ? +value : 0,
     annualContrib: (annualContrib !== undefined && annualContrib !== null) ? +annualContrib : 0,
     equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
+    groupUuid: null,
+    groupAllocationPct: null,
   });
   renderPotsUI();
 }
 
 function removePot(id) {
   if (potsData.length <= 1) return; // keep at least one
+  const _leaving = potsData.find(p => p.id === id);
+  const _oldGroup = _leaving?.groupUuid;
   potsData = potsData.filter(p => p.id !== id);
+  if (_oldGroup) dissolveIfSingleMember(_oldGroup, potsData, groupsData);
   renderPotsUI();
   persistParams();
 }
@@ -46,6 +53,7 @@ function renderPotsUI() {
           value="${(pot.name || '').replace(/"/g, '&quot;')}"
           style="font-size:0.8rem;color:var(--text2)">
       </div>
+      ${buildGroupRowHTML(pot, groupsData, 'pot-id', '')}
       <div class="two-col" style="margin-bottom:8px">
         <div>
           <span class="field-label">Current value</span>
@@ -92,9 +100,57 @@ function renderPotsUI() {
           pot[field] = +inp.value;
         }
       }
+      if (field === 'groupAllocationPct') validateGroupAllocations(groupsData, potsData, '');
       persistParams();
     });
   });
+
+  // Wire group selects
+  container.querySelectorAll('.pot-group-select[data-pot-id]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const potId = +sel.dataset.potId;
+      const pot = potsData.find(p => p.id === potId);
+      if (!pot) return;
+      if (sel.value === '__new__') {
+        sel.value = pot.groupUuid || '';
+        const row = document.getElementById('group-create-' + potId);
+        if (row) { row.style.display = 'flex'; document.getElementById('group-create-input-' + potId)?.focus(); }
+      } else {
+        const oldGroup = pot.groupUuid;
+        pot.groupUuid = sel.value || null;
+        pot.groupAllocationPct = sel.value
+          ? (potsData.filter(p => p.groupUuid === sel.value).length === 0 ? 100 : 0)
+          : null;
+        if (oldGroup && oldGroup !== sel.value) dissolveIfSingleMember(oldGroup, potsData, groupsData);
+        validateGroupAllocations(groupsData, potsData, '');
+        renderPotsUI();
+        persistParams();
+      }
+    });
+  });
+
+  // Wire group create forms
+  potsData.forEach(pot => {
+    const row = document.getElementById('group-create-' + pot.id);
+    const input = document.getElementById('group-create-input-' + pot.id);
+    const addBtn = document.getElementById('group-create-btn-' + pot.id);
+    const cancelBtn = document.getElementById('group-create-cancel-' + pot.id);
+    const doCreate = () => {
+      const name = input?.value.trim();
+      if (!name) return;
+      const newGroup = { uuid: crypto.randomUUID(), name };
+      groupsData.push(newGroup);
+      pot.groupUuid = newGroup.uuid;
+      pot.groupAllocationPct = 100;
+      renderPotsUI();
+      persistParams();
+    };
+    addBtn?.addEventListener('click', doCreate);
+    input?.addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
+    cancelBtn?.addEventListener('click', () => { if (row) row.style.display = 'none'; });
+  });
+
+  validateGroupAllocations(groupsData, potsData, '');
 
   // Wire equity sliders
   container.querySelectorAll('.pot-equity-slider').forEach(slider => {
@@ -112,6 +168,65 @@ function renderPotsUI() {
 }
 
 // Dynamic control wiring is done in initApp() to avoid DOM timing issues when the script is loaded.
+
+// ── Pot group helpers ──────────────────────────────────────────────────────
+function dissolveIfSingleMember(groupUuid, pots, groups) {
+  const members = pots.filter(p => p.groupUuid === groupUuid);
+  if (members.length < 2) {
+    members.forEach(p => { p.groupUuid = null; p.groupAllocationPct = null; });
+    const idx = groups.findIndex(g => g.uuid === groupUuid);
+    if (idx !== -1) groups.splice(idx, 1);
+  }
+}
+
+function validateGroupAllocations(groups, pots, idPfx) {
+  groups.forEach(group => {
+    const members = pots.filter(p => p.groupUuid === group.uuid);
+    const total = members.reduce((s, p) => s + (p.groupAllocationPct || 0), 0);
+    const ok = Math.abs(total - 100) < 0.5;
+    members.forEach(p => {
+      const el = document.getElementById(idPfx + 'group-alloc-warn-' + p.id);
+      if (el) el.style.display = ok ? 'none' : 'block';
+    });
+  });
+}
+
+function buildGroupRowHTML(pot, groups, potAttr, idPfx) {
+  const esc = s => String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  const opts = groups.map(g =>
+    `<option value="${g.uuid}"${pot.groupUuid === g.uuid ? ' selected' : ''}>${esc(g.name)}</option>`
+  ).join('');
+  const allocInput = pot.groupUuid ? `
+      <div class="input-group" style="width:88px;flex-shrink:0">
+        <input class="dyn-input" type="number" min="0" max="100" step="5"
+          data-${potAttr}="${pot.id}" data-field="groupAllocationPct"
+          value="${pot.groupAllocationPct ?? 100}" style="text-align:right">
+        <span class="input-suffix">%</span>
+      </div>` : '';
+  const warnEl = pot.groupUuid
+    ? `<div id="${idPfx}group-alloc-warn-${pot.id}" style="display:none;font-size:0.72rem;color:#f59e0b;margin-top:3px">Allocations in this group don't sum to 100%</div>`
+    : '';
+  return `
+    <div style="margin-bottom:8px">
+      <span class="field-label">Group <span style="font-weight:400;font-size:0.72rem">(optional)</span></span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <select class="dyn-select pot-group-select" data-${potAttr}="${pot.id}" style="flex:1">
+          <option value="">No group</option>
+          ${opts}
+          <option value="__new__">+ New group…</option>
+        </select>
+        ${allocInput}
+      </div>
+      ${warnEl}
+      <div id="${idPfx}group-create-${pot.id}" style="display:none;margin-top:5px;flex-wrap:wrap;gap:5px;align-items:center">
+        <input type="text" placeholder="Group name (e.g. Vanguard SIPP)"
+          id="${idPfx}group-create-input-${pot.id}"
+          class="dyn-input" style="flex:1;min-width:120px;border:1px solid var(--border);border-radius:5px;padding:4px 7px;font-size:0.8rem">
+        <button class="add-btn" id="${idPfx}group-create-btn-${pot.id}" style="padding:3px 9px;font-size:0.75rem">Add</button>
+        <button id="${idPfx}group-create-cancel-${pot.id}" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:0.82rem;line-height:1;padding:3px 4px">✕</button>
+      </div>
+    </div>`;
+}
 
 // ── Dynamic Incomes State ──────────────────────────────────────────────────
 let nextIncomeId = 1;
@@ -304,12 +419,17 @@ function addPartnerPot(value, annualContrib, equityPct, name) {
     value: (value !== undefined && value !== null) ? +value : 0,
     annualContrib: (annualContrib !== undefined && annualContrib !== null) ? +annualContrib : 0,
     equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
+    groupUuid: null,
+    groupAllocationPct: null,
   });
   renderPartnerPotsUI();
 }
 
 function removePartnerPot(id) {
+  const _leaving = partnerPotsData.find(p => p.id === id);
+  const _oldGroup = _leaving?.groupUuid;
   partnerPotsData = partnerPotsData.filter(p => p.id !== id);
+  if (_oldGroup) dissolveIfSingleMember(_oldGroup, partnerPotsData, partnerGroupsData);
   renderPartnerPotsUI();
   persistParams();
 }
@@ -336,6 +456,7 @@ function renderPartnerPotsUI() {
           value="${(pot.name || '').replace(/"/g, '&quot;')}"
           style="font-size:0.8rem;color:var(--text2)">
       </div>
+      ${buildGroupRowHTML(pot, partnerGroupsData, 'ppartner-pot-id', 'pp-')}
       <div class="two-col" style="margin-bottom:8px">
         <div>
           <span class="field-label">Current value</span>
@@ -374,9 +495,56 @@ function renderPartnerPotsUI() {
           pot[inp.dataset.field] = +inp.value;
         }
       }
+      if (inp.dataset.field === 'groupAllocationPct') validateGroupAllocations(partnerGroupsData, partnerPotsData, 'pp-');
       persistParams();
     });
   });
+
+  // Wire group selects
+  container.querySelectorAll('.pot-group-select[data-ppartner-pot-id]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const potId = +sel.dataset.ppartnerPotId;
+      const pot = partnerPotsData.find(p => p.id === potId);
+      if (!pot) return;
+      if (sel.value === '__new__') {
+        sel.value = pot.groupUuid || '';
+        const row = document.getElementById('pp-group-create-' + potId);
+        if (row) { row.style.display = 'flex'; document.getElementById('pp-group-create-input-' + potId)?.focus(); }
+      } else {
+        const oldGroup = pot.groupUuid;
+        pot.groupUuid = sel.value || null;
+        pot.groupAllocationPct = sel.value
+          ? (partnerPotsData.filter(p => p.groupUuid === sel.value).length === 0 ? 100 : 0)
+          : null;
+        if (oldGroup && oldGroup !== sel.value) dissolveIfSingleMember(oldGroup, partnerPotsData, partnerGroupsData);
+        validateGroupAllocations(partnerGroupsData, partnerPotsData, 'pp-');
+        renderPartnerPotsUI();
+        persistParams();
+      }
+    });
+  });
+
+  // Wire group create forms
+  partnerPotsData.forEach(pot => {
+    const row = document.getElementById('pp-group-create-' + pot.id);
+    const input = document.getElementById('pp-group-create-input-' + pot.id);
+    const addBtn = document.getElementById('pp-group-create-btn-' + pot.id);
+    const cancelBtn = document.getElementById('pp-group-create-cancel-' + pot.id);
+    const doCreate = () => {
+      const name = input?.value.trim();
+      if (!name) return;
+      const newGroup = { uuid: crypto.randomUUID(), name };
+      partnerGroupsData.push(newGroup);
+      pot.groupUuid = newGroup.uuid;
+      pot.groupAllocationPct = 100;
+      renderPartnerPotsUI();
+      persistParams();
+    };
+    addBtn?.addEventListener('click', doCreate);
+    input?.addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
+    cancelBtn?.addEventListener('click', () => { if (row) row.style.display = 'none'; });
+  });
+
   container.querySelectorAll('.ppartner-pot-equity-slider').forEach(slider => {
     slider.addEventListener('input', () => {
       const pot = partnerPotsData.find(p => p.id === +slider.dataset.ppartnerPotId);
@@ -388,6 +556,8 @@ function renderPartnerPotsUI() {
       persistParams();
     });
   });
+
+  validateGroupAllocations(partnerGroupsData, partnerPotsData, 'pp-');
 }
 
 function addPartnerCashPot(value, interestPct, name) {
@@ -694,11 +864,13 @@ function persistParams() {
   obj['drawdown-mode'] = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
   obj['drawdown-inflation'] = document.getElementById('drawdown-inflation').checked ? '1' : '0';
   obj['pots'] = JSON.stringify(potsData);
+  obj['groups'] = JSON.stringify(groupsData);
   obj['incomes'] = JSON.stringify(incomesData);
   obj['cashPots'] = JSON.stringify(cashPotsData);
   obj['partner-enabled'] = getPartnerEnabled() ? '1' : '0';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) obj[id] = el.value; });
   obj['partner-pots'] = JSON.stringify(partnerPotsData);
+  obj['partner-groups'] = JSON.stringify(partnerGroupsData);
   obj['partner-cashPots'] = JSON.stringify(partnerCashPotsData);
   obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
   obj['active-tab'] = document.querySelector('.tab.active')?.dataset.tab || 'pot';
@@ -737,7 +909,7 @@ function loadPersistedParams() {
           const raw = localStorage.getItem(LS_KEY);
           if (raw) {
             const ls = JSON.parse(raw);
-            ['pots','incomes','cashPots','partner-pots','partner-cashPots','partner-incomes'].forEach(k => {
+            ['pots','groups','incomes','cashPots','partner-pots','partner-groups','partner-cashPots','partner-incomes'].forEach(k => {
               if (ls[k] && !obj[k]) obj[k] = ls[k];
             });
           }
@@ -775,6 +947,12 @@ function restoreParams(obj) {
     setTodayMoney(checked, null);
   }
   // Restore pots
+  if (obj['groups']) {
+    try {
+      const saved = JSON.parse(obj['groups']);
+      if (Array.isArray(saved)) groupsData = saved.filter(g => g.uuid && g.name);
+    } catch(e) {}
+  }
   if (obj['pots']) {
     try {
       const saved = JSON.parse(obj['pots']);
@@ -789,6 +967,8 @@ function restoreParams(obj) {
             value: +p.value || 0,
             annualContrib: +p.annualContrib || 0,
             equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+            groupUuid: p.groupUuid || null,
+            groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
           });
         });
         renderPotsUI();
@@ -851,6 +1031,12 @@ function restoreParams(obj) {
     const label = document.getElementById('v-' + id);
     if (el) { el.value = obj[id]; if (label) label.textContent = formatter(+obj[id]); }
   });
+  if (obj['partner-groups']) {
+    try {
+      const saved = JSON.parse(obj['partner-groups']);
+      if (Array.isArray(saved)) partnerGroupsData = saved.filter(g => g.uuid && g.name);
+    } catch(e) {}
+  }
   if (obj['partner-pots']) {
     try {
       const saved = JSON.parse(obj['partner-pots']);
@@ -865,6 +1051,8 @@ function restoreParams(obj) {
             value: +p.value || 0,
             annualContrib: +p.annualContrib || 0,
             equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+            groupUuid: p.groupUuid || null,
+            groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
           });
         });
         renderPartnerPotsUI();
