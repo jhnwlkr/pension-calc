@@ -1884,9 +1884,122 @@ function buildAnnualIncomeData(r) {
 let lastResults = null;
 let charts = {};
 
+// ── Recalibration engine ───────────────────────────────────────────────────
+// Applies the most recent actuals journal entries to a params object,
+// returning a new params with pot values, cash pot values, and income amounts
+// replaced by the latest logged actuals. Also advances currentAge to the
+// as-of date so the simulation projects from actual present state.
+//
+// Called with a deep-cloned params so the original (UI) state is never mutated.
+function applyActualsRecalibration(p, events) {
+  if (!events || events.length === 0) return p;
+  const calYear = new Date().getFullYear();
+
+  // ── Helper: latest event per targetUuid for a given type ────────────────
+  function latestByUuid(type) {
+    const map = {};
+    events
+      .filter(e => e.type === type && e.date && e.targetUuid && e.amount != null)
+      .forEach(e => {
+        const prev = map[e.targetUuid];
+        if (!prev || e.date > prev.date) map[e.targetUuid] = e;
+      });
+    return map;
+  }
+
+  const latestPotVals    = latestByUuid('pot_valuation');
+  const latestCashVals   = latestByUuid('cash_valuation');
+  const latestIncomeVals = latestByUuid('income_actual');
+
+  // ── Find as-of year: the most recent date across all used actuals ────────
+  const allUsed = [
+    ...Object.values(latestPotVals),
+    ...Object.values(latestCashVals),
+    ...Object.values(latestIncomeVals),
+  ];
+  if (allUsed.length === 0) return p;
+
+  const asOfYear = Math.max(...allUsed.map(e => new Date(e.date).getFullYear()));
+  const ageDelta = asOfYear - calYear;       // how many years ahead of today the actuals are
+  const newCurrentAge = p.currentAge + ageDelta;
+
+  // Can't recalibrate to a point past retirement or beyond end age
+  if (newCurrentAge >= p.retirementAge || newCurrentAge >= p.endAge) return p;
+
+  // Deep clone so we never mutate the live params
+  const rp = JSON.parse(JSON.stringify(p));
+  rp.currentAge = Math.max(rp.currentAge, newCurrentAge);
+
+  // ── Pension pots ─────────────────────────────────────────────────────────
+  // When multiple pot_valuation events share the same targetUuid but come from a
+  // group fan-out in the same year, they've already been summed per-pot.
+  // latestByUuid gives the single most-recent event per pot uuid.
+  rp.pots = rp.pots.map(pot => {
+    const ev = latestPotVals[pot.uuid];
+    if (!ev) return pot;
+    return {
+      ...pot,
+      value: Number(ev.amount),
+      // Zero contributions for the years already elapsed up to as-of date
+      // (the logged value already includes them)
+      annualContrib: pot.annualContrib,
+    };
+  });
+
+  // ── Cash pots ─────────────────────────────────────────────────────────────
+  rp.cashPots = rp.cashPots.map(cp => {
+    const ev = latestCashVals[cp.uuid];
+    if (!ev) return cp;
+    return { ...cp, value: Number(ev.amount) };
+  });
+
+  // ── Partner pots ──────────────────────────────────────────────────────────
+  if (rp.partner) {
+    rp.partner.pots = (rp.partner.pots || []).map(pot => {
+      const ev = latestPotVals[pot.uuid];
+      if (!ev) return pot;
+      return { ...pot, value: Number(ev.amount) };
+    });
+    rp.partner.cashPots = (rp.partner.cashPots || []).map(cp => {
+      const ev = latestCashVals[cp.uuid];
+      if (!ev) return cp;
+      return { ...cp, value: Number(ev.amount) };
+    });
+  }
+
+  // ── Other incomes ─────────────────────────────────────────────────────────
+  // income_actual amount = gross annual income for the year logged.
+  // Replace the income source's amount so the forward projection uses it.
+  rp.incomes = rp.incomes.map(inc => {
+    const ev = latestIncomeVals[inc.uuid];
+    if (!ev) return inc;
+    // Normalise to annual regardless of income frequency setting
+    const annualAmount = inc.frequency === 'monthly'
+      ? Number(ev.amount)   // event already logged as annual gross
+      : Number(ev.amount);
+    return { ...inc, amount: annualAmount };
+  });
+  if (rp.partner) {
+    rp.partner.incomes = (rp.partner.incomes || []).map(inc => {
+      const ev = latestIncomeVals[inc.uuid];
+      if (!ev) return inc;
+      return { ...inc, amount: Number(ev.amount) };
+    });
+  }
+
+  return rp;
+}
+
+function isRecalibrationEnabled() {
+  return document.getElementById('recalibrate-toggle')?.checked && actualsEvents.length > 0;
+}
+
 function runSimulation() {
   sanitizeParams();
-  const r = runSimulationImpl(getParams());
+  const base = getParams();
+  const p = isRecalibrationEnabled() ? applyActualsRecalibration(base, actualsEvents) : base;
+  const r = runSimulationImpl(p);
+  if (r) r._recalibrated = isRecalibrationEnabled();
   lastResults = r;
   return r;
 }
@@ -3172,6 +3285,8 @@ function renderActualsTab(r) {
   const hasEvents = actualsEvents.length > 0;
   document.getElementById('actuals-empty-note').style.display = hasEvents ? 'none' : '';
   document.getElementById('actuals-cards').style.display      = hasEvents ? ''     : 'none';
+  const badge = document.getElementById('recalibrated-badge');
+  if (badge) badge.style.display = r?._recalibrated ? '' : 'none';
   if (!hasEvents) return;
 
   const currentYear = new Date().getFullYear();
@@ -3472,6 +3587,9 @@ function initApp() {
   renderJournalRecent();
   document.getElementById('export-backup-btn')?.addEventListener('click', exportBackup);
   updateBackupBadge();
+  document.getElementById('recalibrate-toggle')?.addEventListener('change', () => {
+    document.getElementById('run-btn').click();
+  });
 
   const addIncomeBtn = document.getElementById('add-income-btn');
   if (addIncomeBtn) addIncomeBtn.addEventListener('click', () => { addIncome('Income source', 0, 'annual', 20); persistParams(); });

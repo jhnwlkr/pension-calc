@@ -449,6 +449,16 @@
     <h3 class="section-title">Actuals Journal</h3>
     <p style="font-size:0.78rem;color:var(--text2);margin:0 0 12px">Log pot valuations and income received to recalibrate your forecast against reality.</p>
 
+    <div style="margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border)">
+        <input type="checkbox" id="recalibrate-toggle" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <span>
+          <span class="slider-name" style="display:block">Use actuals in simulation</span>
+          <span style="font-size:0.72rem;color:var(--text2)">Replaces pot values &amp; income with latest journal entries</span>
+        </span>
+      </label>
+    </div>
+
     <div id="journal-form">
       <div style="margin-bottom:8px">
         <label class="field-label" for="journal-type">Entry type</label>
@@ -709,7 +719,7 @@
     </div>
 
     <div id="tab-actuals" class="hidden">
-      <h2 style="margin:0 0 6px;font-size:1.14rem">Actuals vs Forecast</h2>
+      <h2 style="margin:0 0 6px;font-size:1.14rem">Actuals vs Forecast <span id="recalibrated-badge" style="display:none;font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(22,163,74,0.12);color:var(--green);border:1px solid rgba(22,163,74,0.3);vertical-align:middle;margin-left:8px">⚡ Recalibrated</span></h2>
       <div class="ai-note" id="actuals-empty-note">No actuals logged yet. Use the <strong>Actuals Journal</strong> in the settings panel to log pot valuations, contributions, and income received.</div>
 
       <!-- Recalibration summary cards -->
