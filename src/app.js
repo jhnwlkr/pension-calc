@@ -1242,7 +1242,6 @@ const JOURNAL_TYPE_META = {
   pot_valuation:  { icon: '📊', label: 'Pension Pot Actual' },
   cash_valuation: { icon: '💰', label: 'Cash Pot Actual' },
   income_actual:  { icon: '📥', label: 'Other Income Actual' },
-  contrib_actual: { icon: '📤', label: 'Contribution' },
 };
 
 function _potDisplayName(pot, idx, prefix) {
@@ -1283,11 +1282,6 @@ function populateJournalTargets() {
   } else if (type === 'income_actual') {
     addGroup('Your income',    incomesData.map((inc, i) => [inc.uuid, _incomeDisplayName(inc, i, 'Your')]));
     if (partner) addGroup('Partner income', partnerIncomesData.map((inc, i) => [inc.uuid, _incomeDisplayName(inc, i, "Partner's")]));
-  } else if (type === 'contrib_actual') {
-    addGroup('Your groups', groupsData.map(g => ['group:' + g.uuid, '≡ ' + g.name]));
-    addGroup('Your pots',   potsData.map((p, i) => [p.uuid, _potDisplayName(p, i, 'Your')]));
-    if (partner) addGroup('Partner groups', partnerGroupsData.map(g => ['group:' + g.uuid, '≡ ' + g.name]));
-    if (partner) addGroup('Partner pots',   partnerPotsData.map((p, i) => [p.uuid, _potDisplayName(p, i, "Partner's")]));
   }
 
   if (!sel.options.length) {
@@ -3326,21 +3320,6 @@ function renderActualsTab(r) {
       : '<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:12px">No income actuals logged</td></tr>';
   }
 
-  // ── Contribution actuals table ─────────────────────────────────────────
-  const contribRows = actualsEvents
-    .filter(e => e.type === 'contrib_actual' && e.date)
-    .sort((a, b) => b.date.localeCompare(a.date));
-  const contribTbody = document.getElementById('actuals-contrib-tbody');
-  if (contribTbody) {
-    contribTbody.innerHTML = contribRows.length
-      ? contribRows.map(e => `<tr>
-          <td>${e.date}</td>
-          <td>${e.targetName || '—'}</td>
-          <td style="text-align:right">${fmtGBP(e.amount)}</td>
-          <td style="color:var(--text2)">${e.notes || ''}</td>
-        </tr>`).join('')
-      : '<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:12px">No contribution actuals logged</td></tr>';
-  }
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
