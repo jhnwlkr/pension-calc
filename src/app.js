@@ -857,6 +857,11 @@ function renderPartnerIncomesUI() {
 }
 
 // ── Slider wiring ──────────────────────────────────────────────────────────
+function dobToAge(dobStr) {
+  if (!dobStr) return 0;
+  return Math.floor((Date.now() - new Date(dobStr)) / (365.25 * 86400000));
+}
+
 function getPartnerEnabled() {
   return document.getElementById('partner-enabled')?.checked || false;
 }
@@ -864,7 +869,7 @@ function getPartnerEnabled() {
 function getPartnerParams() {
   if (!getPartnerEnabled()) return null;
   return {
-    currentAge: +document.getElementById('partner-age').value,
+    currentAge: dobToAge(document.getElementById('partner-dob').value),
     retirementAge: +document.getElementById('partner-retirement-age').value,
     spAge: +document.getElementById('partner-sp-age').value,
     sp: +document.getElementById('partner-sp').value,
@@ -876,7 +881,7 @@ function getPartnerParams() {
 
 function getParams() {
   return {
-    currentAge: +document.getElementById('current-age').value,
+    currentAge: dobToAge(document.getElementById('current-dob').value),
     retirementAge: +document.getElementById('retirement-age').value,
     endAge: +document.getElementById('end-age').value,
     spAge: +document.getElementById('sp-age').value,
@@ -899,19 +904,12 @@ function getParams() {
 }
 
 function sanitizeParams() {
-  const current = document.getElementById('current-age');
   const retire = document.getElementById('retirement-age');
   const end = document.getElementById('end-age');
-  if (!current || !retire || !end) return;
-  const currentAge = +current.value;
+  if (!retire || !end) return;
   let retirementAge = +retire.value;
   let endAge = +end.value;
 
-  if (retirementAge < currentAge) {
-    retirementAge = currentAge;
-    retire.value = retirementAge;
-    document.getElementById('v-retirement-age').textContent = retirementAge;
-  }
   if (endAge <= retirementAge) {
     endAge = Math.max(retirementAge + 5, retirementAge + 1);
     end.value = endAge;
@@ -944,7 +942,7 @@ function setTodayMoney(checked, r) {
 }
 
 const sliders = [
-  ['current-age', v => v, ''], ['retirement-age', v => v, ''],
+  ['retirement-age', v => v, ''],
   ['end-age', v => v, ''], ['sp-age', v => v, ''],
   ['reduction-age', v => v, ''], ['reduction-pct', v => fmtPct(v), ''],
   ['drawdown', v => fmtGBP(v), ''], ['drawdown-pct', v => fmtPct(+v, 2), ''],
@@ -953,7 +951,6 @@ const sliders = [
   ['runs', v => fmt(v), ''],
 ];
 const partnerSliders = [
-  ['partner-age', v => v],
   ['partner-retirement-age', v => v],
   ['partner-sp-age', v => v],
   ['partner-sp', v => fmtGBP(v)],
@@ -976,16 +973,7 @@ partnerSliders.forEach(([id, formatter]) => {
   if (el && label) el.addEventListener('input', () => { label.textContent = formatter(+el.value); persistParams(); });
 });
 
-// Keep retirement-age min in sync with current-age, and end-age min with retirement-age
-document.getElementById('current-age').addEventListener('input', () => {
-  const currentAge = +document.getElementById('current-age').value;
-  const retireEl = document.getElementById('retirement-age');
-  retireEl.min = currentAge;
-  if (+retireEl.value < currentAge) {
-    retireEl.value = currentAge;
-    document.getElementById('v-retirement-age').textContent = currentAge;
-  }
-});
+// Keep end-age min in sync with retirement-age
 document.getElementById('retirement-age').addEventListener('input', () => {
   const retirementAge = +document.getElementById('retirement-age').value;
   const endEl = document.getElementById('end-age');
@@ -1414,6 +1402,8 @@ function initJournalForm() {
 function persistParams() {
   const obj = {};
   SLIDER_IDS.forEach(id => { obj[id] = document.getElementById(id).value; });
+  const _cdob = document.getElementById('current-dob'); if (_cdob) obj['current-dob'] = _cdob.value;
+  const _pdob = document.getElementById('partner-dob'); if (_pdob) obj['partner-dob'] = _pdob.value;
   obj['guardrails'] = document.getElementById('guardrails').checked ? '1' : '0';
   obj['today-money'] = isTodayMoney() ? '1' : '0';
   obj['drawdown-mode'] = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
@@ -1674,6 +1664,33 @@ function restoreParams(obj) {
     const el = document.getElementById('hist-replay-year');
     if (el && el.querySelector(`option[value="${obj['hist-replay-year']}"]`)) el.value = obj['hist-replay-year'];
   }
+  // Restore DOB inputs (with migration from old integer current-age saves)
+  {
+    const el = document.getElementById('current-dob');
+    const lbl = document.getElementById('v-current-age');
+    if (obj['current-dob'] && el) {
+      el.value = obj['current-dob'];
+      if (lbl) lbl.textContent = 'Age ' + dobToAge(obj['current-dob']);
+    } else if (obj['current-age'] && el) {
+      const age = +obj['current-age'];
+      const dob = new Date(Date.now() - age * 365.25 * 86400000).toISOString().slice(0, 10);
+      el.value = dob;
+      if (lbl) lbl.textContent = 'Age ' + age;
+    }
+  }
+  {
+    const el = document.getElementById('partner-dob');
+    const lbl = document.getElementById('v-partner-age');
+    if (obj['partner-dob'] && el) {
+      el.value = obj['partner-dob'];
+      if (lbl) lbl.textContent = 'Age ' + dobToAge(obj['partner-dob']);
+    } else if (obj['partner-age'] && el) {
+      const age = +obj['partner-age'];
+      const dob = new Date(Date.now() - age * 365.25 * 86400000).toISOString().slice(0, 10);
+      el.value = dob;
+      if (lbl) lbl.textContent = 'Age ' + age;
+    }
+  }
 }
 
 // ── Drawdown mode UI toggle ────────────────────────────────────────────────
@@ -1920,11 +1937,11 @@ function applyActualsRecalibration(p, events) {
   if (allUsed.length === 0) return p;
 
   const asOfYear = Math.max(...allUsed.map(e => new Date(e.date).getFullYear()));
-  const ageDelta = asOfYear - calYear;       // how many years ahead of today the actuals are
+  const ageDelta = asOfYear - calYear;       // years between most recent journal entry and today
   const newCurrentAge = p.currentAge + ageDelta;
 
-  // Can't recalibrate to a point past retirement or beyond end age
-  if (newCurrentAge >= p.retirementAge || newCurrentAge >= p.endAge) return p;
+  // Can't recalibrate beyond end age
+  if (newCurrentAge >= p.endAge) return p;
 
   // Deep clone so we never mutate the live params
   const rp = JSON.parse(JSON.stringify(p));
@@ -2384,6 +2401,43 @@ function gridColor() { return isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,
 function textColor() { return isDark() ? '#9ca3af' : '#6b7280'; }
 function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
 
+// ── Shared actuals data builder for charts ────────────────────────────────
+// Returns chart axis extended left to cover pre-retirement journal entries,
+// plus sparse actuals maps keyed by age. Used by all main chart functions.
+function buildActualsChartData(r) {
+  const p = r.p;
+  const calYear = new Date().getFullYear();
+  // Find the earliest age present in any journal entry
+  const journalAgeMin = actualsEvents.filter(e => e.date).reduce((mn, e) => {
+    const a = p.currentAge + (new Date(e.date).getFullYear() - calYear);
+    return Math.min(mn, a);
+  }, r.ages[0]);
+  const chartStartAge = Math.min(r.ages[0], journalAgeMin);
+  const chartEndAge = r.ages[r.ages.length - 1];
+  const chartAges = [];
+  for (let a = chartStartAge; a <= chartEndAge; a++) chartAges.push(a);
+  // Pot + cash actuals: sum all events per calendar-year-bucket
+  const potActualsByAge = {};
+  actualsEvents
+    .filter(e => (e.type === 'pot_valuation' || e.type === 'cash_valuation') && e.date && e.amount != null)
+    .forEach(e => {
+      const age = p.currentAge + (new Date(e.date).getFullYear() - calYear);
+      potActualsByAge[age] = (potActualsByAge[age] || 0) + Number(e.amount);
+    });
+  // Income actuals: sum per calendar-year-bucket
+  const incActualsByAge = {};
+  actualsEvents
+    .filter(e => e.type === 'income_actual' && e.date && e.amount != null)
+    .forEach(e => {
+      const age = p.currentAge + (new Date(e.date).getFullYear() - calYear);
+      incActualsByAge[age] = (incActualsByAge[age] || 0) + Number(e.amount);
+    });
+  // "Today" vertical marker: only shown when user is already in retirement
+  const todayIdx = chartAges.indexOf(p.currentAge);
+  const showTodayLine = p.currentAge > p.retirementAge && todayIdx >= 0;
+  return { chartAges, potActualsByAge, incActualsByAge, todayIdx, showTodayLine };
+}
+
 // ── Pot Chart (Deterministic) ─────────────────────────────────────────────
 function renderPotChart(r) {
   if (!chartAvailable()) return;
@@ -2392,45 +2446,68 @@ function renderPotChart(r) {
   if (!chartEl) return;
   const ctx = chartEl.getContext('2d');
   const useToday = isTodayMoney();
-  const baseInflFactor = 1 + (r.p?.inflation || 0) / 100;
-  const yearsToRetirement = Math.max(0, r.p.retirementAge - r.p.currentAge);
+  const p = r.p;
+  const baseInflFactor = 1 + (p?.inflation || 0) / 100;
+  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
   const deflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
-  const spAgeIdx = r.ages.indexOf(r.p.spAge);
   const returnPct = r.returnPct ?? 5;
 
+  // Simulation values indexed from r.ages[0] = retirementAge
   const detVals = Array.from(r.detPotByYear || []).map((v, i) => useToday ? v * deflator(i) : v);
+
+  const { chartAges, potActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
+  const spAgeIdx = chartAges.indexOf(p.spAge);
+
+  // Simulation: null before retirementAge or before currentAge — no fabricated history
+  const simValues = chartAges.map(a => {
+    if (a < r.ages[0] || a < p.currentAge) return null;
+    const i = a - r.ages[0];
+    return i < detVals.length ? detVals[i] : null;
+  });
+
+  // Actuals overlay: sparse array, gaps left blank (spanGaps: false)
+  const hasActuals = Object.keys(potActualsByAge).length > 0;
+  const actualsValues = chartAges.map(a => {
+    if (potActualsByAge[a] == null) return null;
+    const simI = Math.max(0, a - r.ages[0]);
+    return useToday ? potActualsByAge[a] * deflator(simI) : potActualsByAge[a];
+  });
 
   const titleEl = document.getElementById('pot-chart-title');
   if (titleEl) titleEl.textContent = `Pot Balance — Deterministic Projection (${returnPct}% return)`;
 
-  const spLinePlugin = {
-    id: 'spLine',
+  const overlayPlugin = {
+    id: 'overlay',
     afterDraw(chart) {
-      if (spAgeIdx < 0) return;
       const { ctx: c, scales: { x, y } } = chart;
-      const xPx = x.getPixelForValue(spAgeIdx);
-      c.save();
-      c.strokeStyle = '#d97706';
-      c.lineWidth = 1.5;
-      c.setLineDash([6, 4]);
-      c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
-      c.fillStyle = '#d97706';
-      c.font = '11px system-ui,sans-serif';
-      c.textAlign = 'left';
-      c.fillText('State Pension', xPx + 4, y.top + 14);
-      c.restore();
+      if (spAgeIdx >= 0) {
+        const xPx = x.getPixelForValue(spAgeIdx);
+        c.save(); c.strokeStyle = '#d97706'; c.lineWidth = 1.5; c.setLineDash([6, 4]);
+        c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+        c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
+        c.textAlign = 'left'; c.fillText('State Pension', xPx + 4, y.top + 14); c.restore();
+      }
+      if (showTodayLine) {
+        const xPx = x.getPixelForValue(todayIdx);
+        c.save(); c.strokeStyle = '#2563eb'; c.lineWidth = 1.5; c.setLineDash([4, 4]);
+        c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+        c.fillStyle = '#2563eb'; c.font = '11px system-ui,sans-serif';
+        c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 28); c.restore();
+      }
     }
   };
 
+  const datasets = [
+    { label: `${returnPct}% return (projected)`, data: simValues, borderColor: 'rgba(37,99,235,1)', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2, spanGaps: false },
+  ];
+  if (hasActuals) {
+    datasets.push({ label: 'Actual total pot', data: actualsValues, borderColor: '#16a34a', backgroundColor: '#16a34a', showLine: true, tension: 0.2, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2, spanGaps: false, fill: false });
+  }
+
   charts['pot'] = new Chart(ctx, {
     type: 'line',
-    plugins: [spLinePlugin],
-    data: {
-      labels: r.ages,
-      datasets: [
-        { label: `${returnPct}% return`, data: detVals, borderColor: 'rgba(37,99,235,1)', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 },
-      ]
-    },
+    plugins: [overlayPlugin],
+    data: { labels: chartAges, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
@@ -2451,46 +2528,66 @@ function renderMonteCarloChart(r) {
   if (!chartEl) return;
   const ctx = chartEl.getContext('2d');
   const [p5, p25, p50, p75, p95] = r.percentileData;
-  const spAgeIdx = r.ages.indexOf(r.p.spAge);
+  const p = r.p;
   const useToday = isTodayMoney();
-  const baseInflFactor = 1 + (r.p?.inflation || 0) / 100;
-  const yearsToRetirement = Math.max(0, r.p.retirementAge - r.p.currentAge);
+  const baseInflFactor = 1 + (p?.inflation || 0) / 100;
+  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
   const deflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
 
-  const mapSeries = (arr) => Array.from(arr).map((v, i) => useToday ? v * deflator(i) : v);
+  const { chartAges, potActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
+  const spAgeIdx = chartAges.indexOf(p.spAge);
 
-  const spLinePlugin = {
-    id: 'spLine',
+  // Map a percentile series onto the extended chart axis; null before retirementAge or currentAge
+  const mapSeries = (arr) => chartAges.map(a => {
+    if (a < r.ages[0] || a < p.currentAge) return null;
+    const i = a - r.ages[0];
+    return i < arr.length ? (useToday ? arr[i] * deflator(i) : arr[i]) : null;
+  });
+
+  // Actuals overlay: sparse, spanGaps: false
+  const hasActuals = Object.keys(potActualsByAge).length > 0;
+  const actualsValues = chartAges.map(a => {
+    if (potActualsByAge[a] == null) return null;
+    const simI = Math.max(0, a - r.ages[0]);
+    return useToday ? potActualsByAge[a] * deflator(simI) : potActualsByAge[a];
+  });
+
+  const overlayPlugin = {
+    id: 'overlay',
     afterDraw(chart) {
-      if (spAgeIdx < 0) return;
       const { ctx: c, scales: { x, y } } = chart;
-      const xPx = x.getPixelForValue(spAgeIdx);
-      c.save();
-      c.strokeStyle = '#d97706';
-      c.lineWidth = 1.5;
-      c.setLineDash([6, 4]);
-      c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
-      c.fillStyle = '#d97706';
-      c.font = '11px system-ui,sans-serif';
-      c.textAlign = 'left';
-      c.fillText('State Pension', xPx + 4, y.top + 14);
-      c.restore();
+      if (spAgeIdx >= 0) {
+        const xPx = x.getPixelForValue(spAgeIdx);
+        c.save(); c.strokeStyle = '#d97706'; c.lineWidth = 1.5; c.setLineDash([6, 4]);
+        c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+        c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
+        c.textAlign = 'left'; c.fillText('State Pension', xPx + 4, y.top + 14); c.restore();
+      }
+      if (showTodayLine) {
+        const xPx = x.getPixelForValue(todayIdx);
+        c.save(); c.strokeStyle = '#2563eb'; c.lineWidth = 1.5; c.setLineDash([4, 4]);
+        c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+        c.fillStyle = '#2563eb'; c.font = '11px system-ui,sans-serif';
+        c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 28); c.restore();
+      }
     }
   };
 
+  const datasets = [
+    { label: '95th', data: mapSeries(p95), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1, spanGaps: false },
+    { label: '75th', data: mapSeries(p75), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1, spanGaps: false },
+    { label: 'Median', data: mapSeries(p50), borderColor: 'rgba(37,99,235,1)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2, spanGaps: false },
+    { label: '25th', data: mapSeries(p25), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1, spanGaps: false },
+    { label: '5th', data: mapSeries(p5), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1, spanGaps: false },
+  ];
+  if (hasActuals) {
+    datasets.push({ label: 'Actual total pot', data: actualsValues, borderColor: '#16a34a', backgroundColor: '#16a34a', showLine: true, tension: 0.2, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2, spanGaps: false, fill: false });
+  }
+
   charts['montecarlo'] = new Chart(ctx, {
     type: 'line',
-    plugins: [spLinePlugin],
-    data: {
-      labels: r.ages,
-      datasets: [
-        { label: '95th', data: mapSeries(p95), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
-        { label: '75th', data: mapSeries(p75), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
-        { label: 'Median', data: mapSeries(p50), borderColor: 'rgba(37,99,235,1)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2 },
-        { label: '25th', data: mapSeries(p25), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
-        { label: '5th', data: mapSeries(p5), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1 },
-      ]
-    },
+    plugins: [overlayPlugin],
+    data: { labels: chartAges, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
@@ -2924,16 +3021,47 @@ function renderAnnualIncomeChart(r) {
   destroyChart('annualincome');
   const ctx = document.getElementById('chart-annualincome').getContext('2d');
   const useToday = isTodayMoney();
-  const dataSeries = r.annualIncomeData.map(d => useToday ? d.netReal : d.netNom);
-  const label = useToday ? "Total Net /mo — Today's £ (real)" : 'Total Net /mo — Nominal (actual £)';
+  const p = r.p;
+
+  const { chartAges, incActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
+
+  // Simulation: null before retirementAge or before currentAge
+  const simValues = chartAges.map(a => {
+    if (a < r.ages[0] || a < p.currentAge) return null;
+    const i = a - r.ages[0];
+    if (i >= r.annualIncomeData.length) return null;
+    return useToday ? r.annualIncomeData[i].netReal : r.annualIncomeData[i].netNom;
+  });
+  const simLabel = useToday ? "Total Net /mo — Today's £ (real)" : 'Total Net /mo — Nominal (actual £)';
+
+  // Income actuals: annual gross ÷ 12 → monthly; sparse
+  const hasIncomeActuals = Object.keys(incActualsByAge).length > 0;
+  const incActualsValues = chartAges.map(a => incActualsByAge[a] != null ? incActualsByAge[a] / 12 : null);
+
+  const overlayPlugin = {
+    id: 'overlay',
+    afterDraw(chart) {
+      if (!showTodayLine) return;
+      const { ctx: c, scales: { x, y } } = chart;
+      const xPx = x.getPixelForValue(todayIdx);
+      c.save(); c.strokeStyle = '#2563eb'; c.lineWidth = 1.5; c.setLineDash([4, 4]);
+      c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+      c.fillStyle = '#2563eb'; c.font = '11px system-ui,sans-serif';
+      c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 14); c.restore();
+    }
+  };
+
+  const datasets = [
+    { label: simLabel, data: simValues, borderColor: '#2563eb', backgroundColor: useToday ? 'rgba(37,99,235,0.08)' : 'transparent', fill: useToday, tension: 0.3, pointRadius: 0, borderWidth: 2, spanGaps: false },
+  ];
+  if (hasIncomeActuals) {
+    datasets.push({ label: 'Actual income /mo', data: incActualsValues, borderColor: '#16a34a', backgroundColor: '#16a34a', showLine: true, tension: 0.2, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2, spanGaps: false, fill: false });
+  }
+
   charts['annualincome'] = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: r.ages,
-      datasets: [
-        { label, data: dataSeries, borderColor: '#2563eb', backgroundColor: useToday ? 'rgba(37,99,235,0.08)' : 'transparent', fill: useToday, tension: 0.3, pointRadius: 0, borderWidth: 2 },
-      ]
-    },
+    plugins: [overlayPlugin],
+    data: { labels: chartAges, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
@@ -3347,73 +3475,69 @@ function renderActualsTab(r) {
       const yrsToRet    = Math.max(0, r.p.retirementAge - r.p.currentAge);
       const deflator    = i => Math.pow(1 / baseInfl, yrsToRet + i);
       const detVals     = Array.from(r.detPotByYear || []).map((v, i) => useToday ? v * deflator(i) : v);
-      const spAgeIdx    = r.ages.indexOf(r.p.spAge);
 
-      // Find the earliest journal entry across all event types and clip the chart to that age
-      const allDates = actualsEvents.map(e => e.date).filter(Boolean);
-      const earliestYear = allDates.length
-        ? Math.min(...allDates.map(d => new Date(d).getFullYear()))
-        : currentYear;
-      const earliestAge  = r.p.currentAge + (earliestYear - currentYear);
-      // Start one year before the earliest entry so there's visible context
-      const startAge     = Math.max(r.ages[0], earliestAge - 1);
-      const startIdx     = Math.max(0, r.ages.indexOf(startAge) !== -1 ? r.ages.indexOf(startAge) : 0);
+      const { chartAges, potActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
+      const spAgeIdx = chartAges.indexOf(r.p.spAge);
 
-      const slicedAges   = r.ages.slice(startIdx);
-      const slicedDet    = detVals.slice(startIdx);
-      const spIdxSliced  = spAgeIdx >= startIdx ? spAgeIdx - startIdx : -1;
+      // Simulation: null before retirementAge or before currentAge — no fabricated history
+      const simValues = chartAges.map(a => {
+        if (a < r.ages[0] || a < r.p.currentAge) return null;
+        const i = a - r.ages[0];
+        return i < detVals.length ? detVals[i] : null;
+      });
 
-      // Build actuals scatter relative to sliced labels
-      const actualsPoints = sortedValYears.map(yr => {
-        const origIdx = r.ages.indexOf(r.p.currentAge + (yr - currentYear));
-        if (origIdx < startIdx) return null;
-        const slicedI = origIdx - startIdx;
-        const v = useToday ? valByYear[yr] * deflator(origIdx) : valByYear[yr];
-        return { x: slicedI, y: v };
-      }).filter(Boolean);
+      // Actuals overlay: sparse over chartAges, spanGaps: false
+      const actualsValues = chartAges.map(a => {
+        if (potActualsByAge[a] == null) return null;
+        const simI = Math.max(0, a - r.ages[0]);
+        return useToday ? potActualsByAge[a] * deflator(simI) : potActualsByAge[a];
+      });
+      const actualsPointCount = Object.keys(potActualsByAge).length;
 
-      const spLinePlugin = {
-        id: 'spLine',
+      const overlayPlugin = {
+        id: 'overlay',
         afterDraw(chart) {
-          if (spIdxSliced < 0) return;
           const { ctx: c, scales: { x, y } } = chart;
-          const xPx = x.getPixelForValue(spIdxSliced);
-          c.save();
-          c.strokeStyle = '#d97706'; c.lineWidth = 1.5;
-          c.setLineDash([6, 4]);
-          c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
-          c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
-          c.textAlign = 'left'; c.fillText('State Pension', xPx + 4, y.top + 14);
-          c.restore();
+          if (spAgeIdx >= 0) {
+            const xPx = x.getPixelForValue(spAgeIdx);
+            c.save(); c.strokeStyle = '#d97706'; c.lineWidth = 1.5; c.setLineDash([6, 4]);
+            c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+            c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
+            c.textAlign = 'left'; c.fillText('State Pension', xPx + 4, y.top + 14); c.restore();
+          }
+          if (showTodayLine) {
+            const xPx = x.getPixelForValue(todayIdx);
+            c.save(); c.strokeStyle = '#2563eb'; c.lineWidth = 1.5; c.setLineDash([4, 4]);
+            c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+            c.fillStyle = '#2563eb'; c.font = '11px system-ui,sans-serif';
+            c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 28); c.restore();
+          }
         }
       };
 
       charts['actuals'] = new Chart(ctx, {
         type: 'line',
-        plugins: [spLinePlugin],
+        plugins: [overlayPlugin],
         data: {
-          labels: slicedAges,
+          labels: chartAges,
           datasets: [
             {
               label: 'Forecast (deterministic)',
-              data: slicedDet,
+              data: simValues,
               borderColor: 'rgba(37,99,235,0.5)',
               backgroundColor: 'rgba(37,99,235,0.06)',
               fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5,
-              borderDash: [5, 3],
+              borderDash: [5, 3], spanGaps: false,
             },
             {
               label: 'Actual valuations',
-              data: slicedAges.map((_, i) => {
-                const pt = actualsPoints.find(p => p.x === i);
-                return pt ? pt.y : null;
-              }),
+              data: actualsValues,
               borderColor: '#16a34a',
               backgroundColor: '#16a34a',
               type: 'scatter',
               pointRadius: 7,
               pointHoverRadius: 9,
-              showLine: actualsPoints.length > 1,
+              showLine: actualsPointCount > 1,
               tension: 0.2,
               borderWidth: 2,
               spanGaps: false,
@@ -3615,18 +3739,35 @@ function initApp() {
     });
   }
 
-  // Partner age validation: retirement age min tracks current age
-  const partnerAgeEl = document.getElementById('partner-age');
-  const partnerRetEl = document.getElementById('partner-retirement-age');
-  if (partnerAgeEl && partnerRetEl) {
-    partnerAgeEl.addEventListener('input', () => {
-      const minAge = +partnerAgeEl.value;
-      if (+partnerRetEl.value < minAge) {
-        partnerRetEl.value = minAge;
-        const label = document.getElementById('v-partner-retirement-age');
-        if (label) label.textContent = minAge;
+  // DOB change: update age label, persist, re-run
+  const _curDob = document.getElementById('current-dob');
+  if (_curDob) {
+    _curDob.addEventListener('input', () => {
+      const age = dobToAge(_curDob.value);
+      if (age > 0 && age < 120) document.getElementById('v-current-age').textContent = 'Age ' + age;
+    });
+    _curDob.addEventListener('change', () => {
+      const age = dobToAge(_curDob.value);
+      if (age > 0 && age < 120) {
+        document.getElementById('v-current-age').textContent = 'Age ' + age;
+        persistParams();
+        document.getElementById('run-btn').click();
       }
-      partnerRetEl.min = minAge;
+    });
+  }
+  const _parDob = document.getElementById('partner-dob');
+  if (_parDob) {
+    _parDob.addEventListener('input', () => {
+      const age = dobToAge(_parDob.value);
+      if (age > 0 && age < 120) document.getElementById('v-partner-age').textContent = 'Age ' + age;
+    });
+    _parDob.addEventListener('change', () => {
+      const age = dobToAge(_parDob.value);
+      if (age > 0 && age < 120) {
+        document.getElementById('v-partner-age').textContent = 'Age ' + age;
+        persistParams();
+        document.getElementById('run-btn').click();
+      }
     });
   }
 

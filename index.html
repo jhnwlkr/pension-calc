@@ -276,12 +276,12 @@
   <div class="section">
     <h3 class="section-title">Age & Retirement</h3>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Current age</span><span class="slider-val" id="v-current-age">55</span></div>
-      <input type="range" id="current-age" min="40" max="75" value="55">
+      <div class="slider-label"><span class="slider-name">Date of birth</span><span class="slider-val" id="v-current-age">Age 55</span></div>
+      <input type="date" id="current-dob" value="1971-01-01" style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem">
     </div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Retirement age</span><span class="slider-val" id="v-retirement-age">65</span></div>
-      <input type="range" id="retirement-age" min="40" max="75" value="65">
+      <input type="range" id="retirement-age" min="18" max="85" value="65">
     </div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Target end age</span><span class="slider-val" id="v-end-age">90</span></div>
@@ -349,12 +349,12 @@
     <div id="partner-section" class="hidden" style="margin-top:14px">
       <div style="font-size:0.72rem;color:var(--text2);margin-bottom:10px;padding:6px 8px;background:var(--surface2);border-radius:4px;border-left:3px solid var(--accent)">Partner's state pension is added to joint income. Survival probability reflects either partner outliving the plan.</div>
       <div class="slider-row">
-        <div class="slider-label"><span class="slider-name">Partner current age</span><span class="slider-val" id="v-partner-age">52</span></div>
-        <input type="range" id="partner-age" min="40" max="75" value="52">
+        <div class="slider-label"><span class="slider-name">Partner date of birth</span><span class="slider-val" id="v-partner-age">Age 52</span></div>
+        <input type="date" id="partner-dob" value="1974-01-01" style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem">
       </div>
       <div class="slider-row">
         <div class="slider-label"><span class="slider-name">Partner retirement age</span><span class="slider-val" id="v-partner-retirement-age">55</span></div>
-        <input type="range" id="partner-retirement-age" min="40" max="75" value="55">
+        <input type="range" id="partner-retirement-age" min="18" max="85" value="55">
       </div>
       
       <h3 style="margin:12px 0 8px 0;padding:0">Partner Pension Pots</h3>
