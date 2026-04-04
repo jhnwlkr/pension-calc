@@ -191,10 +191,10 @@ function openPotModal(potId, potSet) {
   document.getElementById('pot-modal-archive').style.display   = pot.archived ? 'none' : '';
   document.getElementById('pot-modal-unarchive').style.display = pot.archived ? ''     : 'none';
 
-  // Consolidate — only makes sense when there are other active pots
+  // Consolidate — only available for active (non-archived) pots with other active pots to merge into
   const others = pots.filter(p => p.id !== potId && !p.archived);
   const consolidateBtn = document.getElementById('pot-modal-consolidate-btn');
-  if (consolidateBtn) consolidateBtn.style.display = others.length ? '' : 'none';
+  if (consolidateBtn) consolidateBtn.style.display = (!pot.archived && others.length) ? '' : 'none';
 
   // Reset consolidate row
   const consolidateRow = document.getElementById('pot-modal-consolidate-row');
