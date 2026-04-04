@@ -7,22 +7,34 @@ import { runSimulation as runSimulationImpl } from './simulation.js';
 let nextPotId = 1;
 let potsData = [];
 let todayPrices = false; // Shared today’s-prices toggle state
+let groupsData = [];         // Pension pot groups: [{ uuid, name }]
+let partnerGroupsData = [];  // Partner pension pot groups
 
 
-function addPot(value, annualContrib, equityPct) {
+function addPot(value, annualContrib, equityPct, name) {
   const id = nextPotId++;
   potsData.push({
     id,
+    uuid: crypto.randomUUID(),
+    name: name || '',
     value: (value !== undefined && value !== null) ? +value : 0,
     annualContrib: (annualContrib !== undefined && annualContrib !== null) ? +annualContrib : 0,
     equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
+    groupUuid: null,
+    groupAllocationPct: null,
+    archived: false,
+    archivedDate: null,
+    consolidatedIntoUuid: null,
   });
   renderPotsUI();
 }
 
 function removePot(id) {
   if (potsData.length <= 1) return; // keep at least one
+  const _leaving = potsData.find(p => p.id === id);
+  const _oldGroup = _leaving?.groupUuid;
   potsData = potsData.filter(p => p.id !== id);
+  if (_oldGroup) dissolveIfSingleMember(_oldGroup, potsData, groupsData);
   renderPotsUI();
   persistParams();
 }
@@ -35,9 +47,16 @@ function renderPotsUI() {
     div.className = 'pot-card';
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title">Pot ${idx + 1}</span>
-        ${potsData.length > 1 ? `<button class="remove-btn" data-pot-id="${pot.id}">✕</button>` : ''}
+        <span class="pot-card-title" id="pot-title-${pot.id}">${pot.name || ('Pot ' + (idx + 1))}${pot.archived ? ' <span class="archived-badge">Archived</span>' : ''}</span>
+        ${potsData.length > 1 ? `<button class="remove-btn" data-pot-id="${pot.id}" data-pot-set="user" title="Archive / consolidate / delete">⋯</button>` : ''}
       </div>
+      <div style="margin-bottom:8px">
+        <input class="dyn-input" type="text" placeholder="Name (optional, e.g. SIPP)"
+          data-pot-id="${pot.id}" data-field="name"
+          value="${(pot.name || '').replace(/"/g, '&quot;')}"
+          style="font-size:0.8rem;color:var(--text2)">
+      </div>
+      ${buildGroupRowHTML(pot, groupsData, 'pot-id', '')}
       <div class="two-col" style="margin-bottom:8px">
         <div>
           <span class="field-label">Current value</span>
@@ -64,9 +83,9 @@ function renderPotsUI() {
     container.appendChild(div);
   });
 
-  // Wire remove buttons
+  // Wire action buttons (open modal)
   container.querySelectorAll('.remove-btn[data-pot-id]').forEach(btn => {
-    btn.addEventListener('click', () => removePot(+btn.dataset.potId));
+    btn.addEventListener('click', () => openPotModal(+btn.dataset.potId, 'user'));
   });
 
   // Wire number inputs
@@ -75,10 +94,66 @@ function renderPotsUI() {
       const potId = +inp.dataset.potId;
       const field = inp.dataset.field;
       const pot = potsData.find(p => p.id === potId);
-      if (pot) { pot[field] = +inp.value; }
+      if (pot) {
+        if (field === 'name') {
+          pot.name = inp.value;
+          const titleEl = document.getElementById('pot-title-' + potId);
+          if (titleEl) titleEl.textContent = inp.value || ('Pot ' + (potsData.indexOf(pot) + 1));
+        } else {
+          pot[field] = +inp.value;
+        }
+      }
+      if (field === 'groupAllocationPct') validateGroupAllocations(groupsData, potsData, '');
       persistParams();
     });
   });
+
+  // Wire group selects
+  container.querySelectorAll('.pot-group-select[data-pot-id]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const potId = +sel.dataset.potId;
+      const pot = potsData.find(p => p.id === potId);
+      if (!pot) return;
+      if (sel.value === '__new__') {
+        sel.value = pot.groupUuid || '';
+        const row = document.getElementById('group-create-' + potId);
+        if (row) { row.style.display = 'flex'; document.getElementById('group-create-input-' + potId)?.focus(); }
+      } else {
+        const oldGroup = pot.groupUuid;
+        pot.groupUuid = sel.value || null;
+        pot.groupAllocationPct = sel.value
+          ? (potsData.filter(p => p.groupUuid === sel.value).length === 0 ? 100 : 0)
+          : null;
+        if (oldGroup && oldGroup !== sel.value) dissolveIfSingleMember(oldGroup, potsData, groupsData);
+        validateGroupAllocations(groupsData, potsData, '');
+        renderPotsUI();
+        persistParams();
+      }
+    });
+  });
+
+  // Wire group create forms
+  potsData.forEach(pot => {
+    const row = document.getElementById('group-create-' + pot.id);
+    const input = document.getElementById('group-create-input-' + pot.id);
+    const addBtn = document.getElementById('group-create-btn-' + pot.id);
+    const cancelBtn = document.getElementById('group-create-cancel-' + pot.id);
+    const doCreate = () => {
+      const name = input?.value.trim();
+      if (!name) return;
+      const newGroup = { uuid: crypto.randomUUID(), name };
+      groupsData.push(newGroup);
+      pot.groupUuid = newGroup.uuid;
+      pot.groupAllocationPct = 100;
+      renderPotsUI();
+      persistParams();
+    };
+    addBtn?.addEventListener('click', doCreate);
+    input?.addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
+    cancelBtn?.addEventListener('click', () => { if (row) row.style.display = 'none'; });
+  });
+
+  validateGroupAllocations(groupsData, potsData, '');
 
   // Wire equity sliders
   container.querySelectorAll('.pot-equity-slider').forEach(slider => {
@@ -97,6 +172,203 @@ function renderPotsUI() {
 
 // Dynamic control wiring is done in initApp() to avoid DOM timing issues when the script is loaded.
 
+// ── Pot action modal ───────────────────────────────────────────────────────
+let _potModalState = { potId: null, potSet: 'user' };
+
+function openPotModal(potId, potSet) {
+  const pots = potSet === 'partner' ? partnerPotsData : potsData;
+  const pot = pots.find(p => p.id === potId);
+  if (!pot) return;
+
+  _potModalState = { potId, potSet };
+
+  const title = document.getElementById('pot-modal-title');
+  const sub   = document.getElementById('pot-modal-sub');
+  if (title) title.textContent = pot.name || ('Pot ' + (pots.indexOf(pot) + 1));
+  if (sub)   sub.textContent   = pot.archived ? 'This pot is currently archived.' : fmtGBP(pot.value) + ' current value';
+
+  // Archive vs Unarchive
+  document.getElementById('pot-modal-archive').style.display   = pot.archived ? 'none' : '';
+  document.getElementById('pot-modal-unarchive').style.display = pot.archived ? ''     : 'none';
+
+  // Consolidate — only available for active (non-archived) pots with other active pots to merge into
+  const others = pots.filter(p => p.id !== potId && !p.archived);
+  const consolidateBtn = document.getElementById('pot-modal-consolidate-btn');
+  if (consolidateBtn) consolidateBtn.style.display = (!pot.archived && others.length) ? '' : 'none';
+
+  // Reset consolidate row
+  const consolidateRow = document.getElementById('pot-modal-consolidate-row');
+  if (consolidateRow) consolidateRow.style.display = 'none';
+  const sel = document.getElementById('pot-modal-consolidate-select');
+  if (sel) {
+    sel.innerHTML = others.map((p, i) =>
+      `<option value="${p.id}">${p.name || ('Pot ' + (pots.indexOf(p) + 1))} — ${fmtGBP(p.value)}</option>`
+    ).join('');
+  }
+
+  // Delete — disabled when only 1 pot (for user pots); always allowed for partner
+  const deleteBtn = document.getElementById('pot-modal-delete');
+  if (deleteBtn) {
+    const tooFew = potSet === 'user' && potsData.filter(p => !p.archived).length <= 1 && !pot.archived;
+    deleteBtn.disabled = tooFew;
+    deleteBtn.title = tooFew ? 'Cannot delete the last active pot' : '';
+  }
+
+  document.getElementById('pot-action-modal').classList.remove('hidden');
+}
+
+function closePotModal() {
+  document.getElementById('pot-action-modal').classList.add('hidden');
+  _potModalState = { potId: null, potSet: 'user' };
+}
+
+function initPotModal() {
+  const modal = document.getElementById('pot-action-modal');
+
+  // Backdrop click closes
+  modal.addEventListener('click', e => { if (e.target === modal) closePotModal(); });
+  document.getElementById('pot-modal-cancel').addEventListener('click', closePotModal);
+
+  // Archive
+  document.getElementById('pot-modal-archive').addEventListener('click', () => {
+    const { potId, potSet } = _potModalState;
+    const pots = potSet === 'partner' ? partnerPotsData : potsData;
+    const pot = pots.find(p => p.id === potId);
+    if (!pot) return;
+    pot.archived = true;
+    pot.archivedDate = new Date().toISOString().slice(0, 10);
+    closePotModal();
+    potSet === 'partner' ? renderPartnerPotsUI() : renderPotsUI();
+    persistParams();
+  });
+
+  // Unarchive
+  document.getElementById('pot-modal-unarchive').addEventListener('click', () => {
+    const { potId, potSet } = _potModalState;
+    const pots = potSet === 'partner' ? partnerPotsData : potsData;
+    const pot = pots.find(p => p.id === potId);
+    if (!pot) return;
+    pot.archived = false;
+    pot.archivedDate = null;
+    pot.consolidatedIntoUuid = null;
+    closePotModal();
+    potSet === 'partner' ? renderPartnerPotsUI() : renderPotsUI();
+    persistParams();
+  });
+
+  // Consolidate — show target selector
+  document.getElementById('pot-modal-consolidate-btn').addEventListener('click', () => {
+    const row = document.getElementById('pot-modal-consolidate-row');
+    if (row) row.style.display = row.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // Consolidate — confirm
+  document.getElementById('pot-modal-consolidate-confirm').addEventListener('click', () => {
+    const { potId, potSet } = _potModalState;
+    const pots = potSet === 'partner' ? partnerPotsData : potsData;
+    const groups = potSet === 'partner' ? partnerGroupsData : groupsData;
+    const pot = pots.find(p => p.id === potId);
+    const targetId = +document.getElementById('pot-modal-consolidate-select').value;
+    const target = pots.find(p => p.id === targetId);
+    if (!pot || !target) return;
+
+    // Merge value and contributions into target
+    target.value += pot.value;
+    target.annualContrib += pot.annualContrib;
+
+    // Mark source as consolidated
+    pot.archived = true;
+    pot.archivedDate = new Date().toISOString().slice(0, 10);
+    pot.consolidatedIntoUuid = target.uuid;
+
+    // Handle group dissolution
+    if (pot.groupUuid) dissolveIfSingleMember(pot.groupUuid, pots, groups);
+
+    closePotModal();
+    potSet === 'partner' ? renderPartnerPotsUI() : renderPotsUI();
+    persistParams();
+  });
+
+  // Delete
+  document.getElementById('pot-modal-delete').addEventListener('click', () => {
+    const { potId, potSet } = _potModalState;
+    const pots = potSet === 'partner' ? partnerPotsData : potsData;
+    const groups = potSet === 'partner' ? partnerGroupsData : groupsData;
+    const pot = pots.find(p => p.id === potId);
+    if (!pot) return;
+    if (potSet === 'user' && potsData.filter(p => !p.archived).length <= 1 && !pot.archived) return;
+    const oldGroup = pot.groupUuid;
+    if (potSet === 'partner') {
+      partnerPotsData = partnerPotsData.filter(p => p.id !== potId);
+    } else {
+      potsData = potsData.filter(p => p.id !== potId);
+    }
+    if (oldGroup) dissolveIfSingleMember(oldGroup, pots, groups);
+    closePotModal();
+    potSet === 'partner' ? renderPartnerPotsUI() : renderPotsUI();
+    persistParams();
+  });
+}
+
+// ── Pot group helpers ──────────────────────────────────────────────────────
+function dissolveIfSingleMember(groupUuid, pots, groups) {
+  const members = pots.filter(p => p.groupUuid === groupUuid);
+  if (members.length < 2) {
+    members.forEach(p => { p.groupUuid = null; p.groupAllocationPct = null; });
+    const idx = groups.findIndex(g => g.uuid === groupUuid);
+    if (idx !== -1) groups.splice(idx, 1);
+  }
+}
+
+function validateGroupAllocations(groups, pots, idPfx) {
+  groups.forEach(group => {
+    const members = pots.filter(p => p.groupUuid === group.uuid);
+    const total = members.reduce((s, p) => s + (p.groupAllocationPct || 0), 0);
+    const ok = Math.abs(total - 100) < 0.5;
+    members.forEach(p => {
+      const el = document.getElementById(idPfx + 'group-alloc-warn-' + p.id);
+      if (el) el.style.display = ok ? 'none' : 'block';
+    });
+  });
+}
+
+function buildGroupRowHTML(pot, groups, potAttr, idPfx) {
+  const esc = s => String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  const opts = groups.map(g =>
+    `<option value="${g.uuid}"${pot.groupUuid === g.uuid ? ' selected' : ''}>${esc(g.name)}</option>`
+  ).join('');
+  const allocInput = pot.groupUuid ? `
+      <div class="input-group" style="width:88px;flex-shrink:0">
+        <input class="dyn-input" type="number" min="0" max="100" step="5"
+          data-${potAttr}="${pot.id}" data-field="groupAllocationPct"
+          value="${pot.groupAllocationPct ?? 100}" style="text-align:right">
+        <span class="input-suffix">%</span>
+      </div>` : '';
+  const warnEl = pot.groupUuid
+    ? `<div id="${idPfx}group-alloc-warn-${pot.id}" style="display:none;font-size:0.72rem;color:#f59e0b;margin-top:3px">Allocations in this group don't sum to 100%</div>`
+    : '';
+  return `
+    <div style="margin-bottom:8px">
+      <span class="field-label">Group <span style="font-weight:400;font-size:0.72rem">(optional)</span></span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <select class="dyn-select pot-group-select" data-${potAttr}="${pot.id}" style="flex:1">
+          <option value="">No group</option>
+          ${opts}
+          <option value="__new__">+ New group…</option>
+        </select>
+        ${allocInput}
+      </div>
+      ${warnEl}
+      <div id="${idPfx}group-create-${pot.id}" style="display:none;margin-top:5px;flex-wrap:wrap;gap:5px;align-items:center">
+        <input type="text" placeholder="Group name (e.g. Vanguard SIPP)"
+          id="${idPfx}group-create-input-${pot.id}"
+          class="dyn-input" style="flex:1;min-width:120px;border:1px solid var(--border);border-radius:5px;padding:4px 7px;font-size:0.8rem">
+        <button class="add-btn" id="${idPfx}group-create-btn-${pot.id}" style="padding:3px 9px;font-size:0.75rem">Add</button>
+        <button id="${idPfx}group-create-cancel-${pot.id}" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:0.82rem;line-height:1;padding:3px 4px">✕</button>
+      </div>
+    </div>`;
+}
+
 // ── Dynamic Incomes State ──────────────────────────────────────────────────
 let nextIncomeId = 1;
 let incomesData = [];
@@ -105,6 +377,7 @@ function addIncome(name, amount, frequency, inflationLinked = false) {
   const id = nextIncomeId++;
   incomesData.push({
     id,
+    uuid: crypto.randomUUID(),
     name: name || 'Income source',
     amount: amount !== undefined ? amount : 0,
     frequency: frequency || 'annual',
@@ -187,10 +460,12 @@ function renderIncomesUI() {
 let nextCashPotId = 1;
 let cashPotsData = [];
 
-function addCashPot(value, interestPct) {
+function addCashPot(value, interestPct, name) {
   const id = nextCashPotId++;
   cashPotsData.push({
     id,
+    uuid: crypto.randomUUID(),
+    name: name || '',
     value: (value !== undefined && value !== null) ? +value : 0,
     interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
   });
@@ -215,8 +490,14 @@ function renderCashPotsUI() {
     div.className = 'pot-card';
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title">Cash Pot ${idx + 1}</span>
+        <span class="pot-card-title" id="cash-pot-title-${pot.id}">${pot.name || ('Cash Pot ' + (idx + 1))}</span>
         <button class="remove-btn" data-cash-pot-id="${pot.id}">✕</button>
+      </div>
+      <div style="margin-bottom:8px">
+        <input class="dyn-input" type="text" placeholder="Name (optional, e.g. ISA)"
+          data-cash-pot-id="${pot.id}" data-field="name"
+          value="${(pot.name || '').replace(/"/g, '&quot;')}"
+          style="font-size:0.8rem;color:var(--text2)">
       </div>
       <div class="two-col">
         <div>
@@ -246,7 +527,15 @@ function renderCashPotsUI() {
       const potId = +inp.dataset.cashPotId;
       const field = inp.dataset.field;
       const pot = cashPotsData.find(p => p.id === potId);
-      if (pot) { pot[field] = +inp.value; }
+      if (pot) {
+        if (field === 'name') {
+          pot.name = inp.value;
+          const titleEl = document.getElementById('cash-pot-title-' + potId);
+          if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (cashPotsData.indexOf(pot) + 1));
+        } else {
+          pot[field] = +inp.value;
+        }
+      }
       persistParams();
     });
   });
@@ -262,19 +551,29 @@ let partnerCashPotsData = [];
 let nextPartnerIncomeId = 1;
 let partnerIncomesData = [];
 
-function addPartnerPot(value, annualContrib, equityPct) {
+function addPartnerPot(value, annualContrib, equityPct, name) {
   const id = nextPartnerPotId++;
   partnerPotsData.push({
     id,
+    uuid: crypto.randomUUID(),
+    name: name || '',
     value: (value !== undefined && value !== null) ? +value : 0,
     annualContrib: (annualContrib !== undefined && annualContrib !== null) ? +annualContrib : 0,
     equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
+    groupUuid: null,
+    groupAllocationPct: null,
+    archived: false,
+    archivedDate: null,
+    consolidatedIntoUuid: null,
   });
   renderPartnerPotsUI();
 }
 
 function removePartnerPot(id) {
+  const _leaving = partnerPotsData.find(p => p.id === id);
+  const _oldGroup = _leaving?.groupUuid;
   partnerPotsData = partnerPotsData.filter(p => p.id !== id);
+  if (_oldGroup) dissolveIfSingleMember(_oldGroup, partnerPotsData, partnerGroupsData);
   renderPartnerPotsUI();
   persistParams();
 }
@@ -292,9 +591,16 @@ function renderPartnerPotsUI() {
     div.className = 'pot-card';
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title">Pot ${idx + 1}</span>
-        <button class="remove-btn" data-ppartner-pot-id="${pot.id}">✕</button>
+        <span class="pot-card-title" id="ppartner-pot-title-${pot.id}">${pot.name || ('Pot ' + (idx + 1))}${pot.archived ? ' <span class="archived-badge">Archived</span>' : ''}</span>
+        <button class="remove-btn" data-ppartner-pot-id="${pot.id}" data-pot-set="partner" title="Archive / consolidate / delete">⋯</button>
       </div>
+      <div style="margin-bottom:8px">
+        <input class="dyn-input" type="text" placeholder="Name (optional, e.g. SIPP)"
+          data-ppartner-pot-id="${pot.id}" data-field="name"
+          value="${(pot.name || '').replace(/"/g, '&quot;')}"
+          style="font-size:0.8rem;color:var(--text2)">
+      </div>
+      ${buildGroupRowHTML(pot, partnerGroupsData, 'ppartner-pot-id', 'pp-')}
       <div class="two-col" style="margin-bottom:8px">
         <div>
           <span class="field-label">Current value</span>
@@ -319,15 +625,70 @@ function renderPartnerPotsUI() {
     container.appendChild(div);
   });
   container.querySelectorAll('.remove-btn[data-ppartner-pot-id]').forEach(btn => {
-    btn.addEventListener('click', () => removePartnerPot(+btn.dataset.ppartnerPotId));
+    btn.addEventListener('click', () => openPotModal(+btn.dataset.ppartnerPotId, 'partner'));
   });
   container.querySelectorAll('.dyn-input[data-ppartner-pot-id]').forEach(inp => {
     inp.addEventListener('input', () => {
       const pot = partnerPotsData.find(p => p.id === +inp.dataset.ppartnerPotId);
-      if (pot) { pot[inp.dataset.field] = +inp.value; }
+      if (pot) {
+        if (inp.dataset.field === 'name') {
+          pot.name = inp.value;
+          const titleEl = document.getElementById('ppartner-pot-title-' + pot.id);
+          if (titleEl) titleEl.textContent = inp.value || ('Pot ' + (partnerPotsData.indexOf(pot) + 1));
+        } else {
+          pot[inp.dataset.field] = +inp.value;
+        }
+      }
+      if (inp.dataset.field === 'groupAllocationPct') validateGroupAllocations(partnerGroupsData, partnerPotsData, 'pp-');
       persistParams();
     });
   });
+
+  // Wire group selects
+  container.querySelectorAll('.pot-group-select[data-ppartner-pot-id]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const potId = +sel.dataset.ppartnerPotId;
+      const pot = partnerPotsData.find(p => p.id === potId);
+      if (!pot) return;
+      if (sel.value === '__new__') {
+        sel.value = pot.groupUuid || '';
+        const row = document.getElementById('pp-group-create-' + potId);
+        if (row) { row.style.display = 'flex'; document.getElementById('pp-group-create-input-' + potId)?.focus(); }
+      } else {
+        const oldGroup = pot.groupUuid;
+        pot.groupUuid = sel.value || null;
+        pot.groupAllocationPct = sel.value
+          ? (partnerPotsData.filter(p => p.groupUuid === sel.value).length === 0 ? 100 : 0)
+          : null;
+        if (oldGroup && oldGroup !== sel.value) dissolveIfSingleMember(oldGroup, partnerPotsData, partnerGroupsData);
+        validateGroupAllocations(partnerGroupsData, partnerPotsData, 'pp-');
+        renderPartnerPotsUI();
+        persistParams();
+      }
+    });
+  });
+
+  // Wire group create forms
+  partnerPotsData.forEach(pot => {
+    const row = document.getElementById('pp-group-create-' + pot.id);
+    const input = document.getElementById('pp-group-create-input-' + pot.id);
+    const addBtn = document.getElementById('pp-group-create-btn-' + pot.id);
+    const cancelBtn = document.getElementById('pp-group-create-cancel-' + pot.id);
+    const doCreate = () => {
+      const name = input?.value.trim();
+      if (!name) return;
+      const newGroup = { uuid: crypto.randomUUID(), name };
+      partnerGroupsData.push(newGroup);
+      pot.groupUuid = newGroup.uuid;
+      pot.groupAllocationPct = 100;
+      renderPartnerPotsUI();
+      persistParams();
+    };
+    addBtn?.addEventListener('click', doCreate);
+    input?.addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
+    cancelBtn?.addEventListener('click', () => { if (row) row.style.display = 'none'; });
+  });
+
   container.querySelectorAll('.ppartner-pot-equity-slider').forEach(slider => {
     slider.addEventListener('input', () => {
       const pot = partnerPotsData.find(p => p.id === +slider.dataset.ppartnerPotId);
@@ -339,12 +700,16 @@ function renderPartnerPotsUI() {
       persistParams();
     });
   });
+
+  validateGroupAllocations(partnerGroupsData, partnerPotsData, 'pp-');
 }
 
-function addPartnerCashPot(value, interestPct) {
+function addPartnerCashPot(value, interestPct, name) {
   const id = nextPartnerCashPotId++;
   partnerCashPotsData.push({
     id,
+    uuid: crypto.randomUUID(),
+    name: name || '',
     value: (value !== undefined && value !== null) ? +value : 0,
     interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
   });
@@ -370,8 +735,14 @@ function renderPartnerCashPotsUI() {
     div.className = 'pot-card';
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title">Cash Pot ${idx + 1}</span>
+        <span class="pot-card-title" id="ppartner-cash-title-${pot.id}">${pot.name || ('Cash Pot ' + (idx + 1))}</span>
         <button class="remove-btn" data-ppartner-cash-id="${pot.id}">✕</button>
+      </div>
+      <div style="margin-bottom:8px">
+        <input class="dyn-input" type="text" placeholder="Name (optional, e.g. ISA)"
+          data-ppartner-cash-id="${pot.id}" data-field="name"
+          value="${(pot.name || '').replace(/"/g, '&quot;')}"
+          style="font-size:0.8rem;color:var(--text2)">
       </div>
       <div class="two-col">
         <div>
@@ -396,7 +767,15 @@ function renderPartnerCashPotsUI() {
   container.querySelectorAll('.dyn-input[data-ppartner-cash-id]').forEach(inp => {
     inp.addEventListener('input', () => {
       const pot = partnerCashPotsData.find(p => p.id === +inp.dataset.ppartnerCashId);
-      if (pot) { pot[inp.dataset.field] = +inp.value; }
+      if (pot) {
+        if (inp.dataset.field === 'name') {
+          pot.name = inp.value;
+          const titleEl = document.getElementById('ppartner-cash-title-' + pot.id);
+          if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (partnerCashPotsData.indexOf(pot) + 1));
+        } else {
+          pot[inp.dataset.field] = +inp.value;
+        }
+      }
       persistParams();
     });
   });
@@ -406,6 +785,7 @@ function addPartnerIncome(name, amount, frequency, inflationLinked) {
   const id = nextPartnerIncomeId++;
   partnerIncomesData.push({
     id,
+    uuid: crypto.randomUUID(),
     name: name || 'Income source',
     amount: amount !== undefined ? amount : 0,
     frequency: frequency || 'annual',
@@ -477,6 +857,11 @@ function renderPartnerIncomesUI() {
 }
 
 // ── Slider wiring ──────────────────────────────────────────────────────────
+function dobToAge(dobStr) {
+  if (!dobStr) return 0;
+  return Math.floor((Date.now() - new Date(dobStr)) / (365.25 * 86400000));
+}
+
 function getPartnerEnabled() {
   return document.getElementById('partner-enabled')?.checked || false;
 }
@@ -484,7 +869,7 @@ function getPartnerEnabled() {
 function getPartnerParams() {
   if (!getPartnerEnabled()) return null;
   return {
-    currentAge: +document.getElementById('partner-age').value,
+    currentAge: dobToAge(document.getElementById('partner-dob').value),
     retirementAge: +document.getElementById('partner-retirement-age').value,
     spAge: +document.getElementById('partner-sp-age').value,
     sp: +document.getElementById('partner-sp').value,
@@ -496,7 +881,7 @@ function getPartnerParams() {
 
 function getParams() {
   return {
-    currentAge: +document.getElementById('current-age').value,
+    currentAge: dobToAge(document.getElementById('current-dob').value),
     retirementAge: +document.getElementById('retirement-age').value,
     endAge: +document.getElementById('end-age').value,
     spAge: +document.getElementById('sp-age').value,
@@ -519,19 +904,12 @@ function getParams() {
 }
 
 function sanitizeParams() {
-  const current = document.getElementById('current-age');
   const retire = document.getElementById('retirement-age');
   const end = document.getElementById('end-age');
-  if (!current || !retire || !end) return;
-  const currentAge = +current.value;
+  if (!retire || !end) return;
   let retirementAge = +retire.value;
   let endAge = +end.value;
 
-  if (retirementAge < currentAge) {
-    retirementAge = currentAge;
-    retire.value = retirementAge;
-    document.getElementById('v-retirement-age').textContent = retirementAge;
-  }
   if (endAge <= retirementAge) {
     endAge = Math.max(retirementAge + 5, retirementAge + 1);
     end.value = endAge;
@@ -564,7 +942,7 @@ function setTodayMoney(checked, r) {
 }
 
 const sliders = [
-  ['current-age', v => v, ''], ['retirement-age', v => v, ''],
+  ['retirement-age', v => v, ''],
   ['end-age', v => v, ''], ['sp-age', v => v, ''],
   ['reduction-age', v => v, ''], ['reduction-pct', v => fmtPct(v), ''],
   ['drawdown', v => fmtGBP(v), ''], ['drawdown-pct', v => fmtPct(+v, 2), ''],
@@ -573,7 +951,6 @@ const sliders = [
   ['runs', v => fmt(v), ''],
 ];
 const partnerSliders = [
-  ['partner-age', v => v],
   ['partner-retirement-age', v => v],
   ['partner-sp-age', v => v],
   ['partner-sp', v => fmtGBP(v)],
@@ -596,16 +973,7 @@ partnerSliders.forEach(([id, formatter]) => {
   if (el && label) el.addEventListener('input', () => { label.textContent = formatter(+el.value); persistParams(); });
 });
 
-// Keep retirement-age min in sync with current-age, and end-age min with retirement-age
-document.getElementById('current-age').addEventListener('input', () => {
-  const currentAge = +document.getElementById('current-age').value;
-  const retireEl = document.getElementById('retirement-age');
-  retireEl.min = currentAge;
-  if (+retireEl.value < currentAge) {
-    retireEl.value = currentAge;
-    document.getElementById('v-retirement-age').textContent = currentAge;
-  }
-});
+// Keep end-age min in sync with retirement-age
 document.getElementById('retirement-age').addEventListener('input', () => {
   const retirementAge = +document.getElementById('retirement-age').value;
   const endEl = document.getElementById('end-age');
@@ -618,21 +986,436 @@ document.getElementById('retirement-age').addEventListener('input', () => {
 
 // ── Persistence ────────────────────────────────────────────────────────────
 const LS_KEY = 'pension-forecast-v7';
+const ACTUALS_KEY = 'pension-forecast-actuals-v1';
+const APP_VERSION = '1.0.0';
 const SLIDER_IDS = sliders.map(([id]) => id);
+
+// ── Actuals ledger ─────────────────────────────────────────────────────────
+// Events stored in localStorage under ACTUALS_KEY, separate from settings.
+// Event shape: { id, type, potUuid|incomeUuid, date, amount, notes, linkedEventId }
+let actualsEvents = [];   // full event log
+
+function loadActuals() {
+  try {
+    const raw = localStorage.getItem(ACTUALS_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      actualsEvents = Array.isArray(obj.events) ? obj.events : [];
+    }
+  } catch(e) { actualsEvents = []; }
+}
+
+function saveActuals() {
+  try {
+    localStorage.setItem(ACTUALS_KEY, JSON.stringify({ version: 1, events: actualsEvents }));
+  } catch(e) {}
+}
+
+function addActualEvent(event) {
+  actualsEvents.push({ id: crypto.randomUUID(), ...event });
+  saveActuals();
+}
+
+// ── Export / Import ────────────────────────────────────────────────────────
+function buildExportPayload() {
+  // Settings = projection assumptions only (not pot values/contributions, not income amounts)
+  const settings = {};
+  SLIDER_IDS.forEach(id => { settings[id] = document.getElementById(id)?.value; });
+  settings['guardrails']          = document.getElementById('guardrails')?.checked;
+  settings['drawdown-mode']       = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
+  settings['drawdown-inflation']  = document.getElementById('drawdown-inflation')?.checked;
+  settings['partner-enabled']     = getPartnerEnabled();
+  partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) settings[id] = el.value; });
+
+  // Actuals = all pot registries, income registries, groups, events
+  const actuals = {
+    potRegistry:            potsData.map(p => ({ ...p })),
+    cashPotRegistry:        cashPotsData.map(p => ({ ...p })),
+    partnerPotRegistry:     partnerPotsData.map(p => ({ ...p })),
+    partnerCashPotRegistry: partnerCashPotsData.map(p => ({ ...p })),
+    incomeRegistry:         incomesData.map(i => ({ ...i })),
+    partnerIncomeRegistry:  partnerIncomesData.map(i => ({ ...i })),
+    groups:                 groupsData.map(g => ({ ...g })),
+    partnerGroups:          partnerGroupsData.map(g => ({ ...g })),
+    events:                 actualsEvents.map(e => ({ ...e })),
+  };
+
+  return {
+    exportedAt:  new Date().toISOString(),
+    appVersion:  APP_VERSION,
+    actuals,
+    settings,
+  };
+}
+
+function exportBackup() {
+  const payload = buildExportPayload();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `pension-forecast-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  // Record export date for backup-age badge
+  try { localStorage.setItem('pension-forecast-last-export', new Date().toISOString()); } catch(e) {}
+  updateBackupBadge();
+}
+
+function importBackup(payload, mode) {
+  // mode: 'actuals' = restore actuals+registries only; 'full' = also restore settings
+  if (!payload || typeof payload !== 'object') return false;
+
+  const actuals = payload.actuals;
+  if (!actuals) return false;
+
+  // Restore pot registries
+  if (Array.isArray(actuals.potRegistry) && actuals.potRegistry.length > 0) {
+    potsData = [];
+    actuals.potRegistry.forEach(p => {
+      const id = nextPotId++;
+      potsData.push({
+        id,
+        uuid: p.uuid || crypto.randomUUID(),
+        name: p.name || '',
+        value: +p.value || 0,
+        annualContrib: +p.annualContrib || 0,
+        equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+        groupUuid: p.groupUuid || null,
+        groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
+        archived: p.archived === true,
+        archivedDate: p.archivedDate || null,
+        consolidatedIntoUuid: p.consolidatedIntoUuid || null,
+      });
+    });
+    renderPotsUI();
+  }
+  if (Array.isArray(actuals.cashPotRegistry)) {
+    cashPotsData = [];
+    actuals.cashPotRegistry.forEach(p => {
+      const id = nextCashPotId++;
+      cashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+    });
+    renderCashPotsUI();
+  }
+  if (Array.isArray(actuals.partnerPotRegistry) && actuals.partnerPotRegistry.length > 0) {
+    partnerPotsData = [];
+    actuals.partnerPotRegistry.forEach(p => {
+      const id = nextPartnerPotId++;
+      partnerPotsData.push({
+        id,
+        uuid: p.uuid || crypto.randomUUID(),
+        name: p.name || '',
+        value: +p.value || 0,
+        annualContrib: +p.annualContrib || 0,
+        equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+        groupUuid: p.groupUuid || null,
+        groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
+        archived: p.archived === true,
+        archivedDate: p.archivedDate || null,
+        consolidatedIntoUuid: p.consolidatedIntoUuid || null,
+      });
+    });
+    renderPartnerPotsUI();
+  }
+  if (Array.isArray(actuals.partnerCashPotRegistry)) {
+    partnerCashPotsData = [];
+    actuals.partnerCashPotRegistry.forEach(p => {
+      const id = nextPartnerCashPotId++;
+      partnerCashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+    });
+    renderPartnerCashPotsUI();
+  }
+  if (Array.isArray(actuals.incomeRegistry)) {
+    incomesData = [];
+    actuals.incomeRegistry.forEach(inc => {
+      const id = nextIncomeId++;
+      incomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
+    });
+    renderIncomesUI();
+  }
+  if (Array.isArray(actuals.partnerIncomeRegistry)) {
+    partnerIncomesData = [];
+    actuals.partnerIncomeRegistry.forEach(inc => {
+      const id = nextPartnerIncomeId++;
+      partnerIncomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
+    });
+    renderPartnerIncomesUI();
+  }
+  if (Array.isArray(actuals.groups))        groupsData = actuals.groups.filter(g => g.uuid && g.name);
+  if (Array.isArray(actuals.partnerGroups)) partnerGroupsData = actuals.partnerGroups.filter(g => g.uuid && g.name);
+
+  // Idempotent merge of events by id
+  if (Array.isArray(actuals.events)) {
+    const existingIds = new Set(actualsEvents.map(e => e.id));
+    actuals.events.forEach(e => { if (e.id && !existingIds.has(e.id)) actualsEvents.push(e); });
+    saveActuals();
+  }
+
+  if (mode === 'full' && payload.settings) {
+    restoreParams(payload.settings);
+  }
+
+  persistParams();
+  return true;
+}
+
+function updateBackupBadge() {
+  const badge = document.getElementById('backup-age-badge');
+  if (!badge) return;
+  let lastExport = null;
+  try { lastExport = localStorage.getItem('pension-forecast-last-export'); } catch(e) {}
+  if (!lastExport) {
+    badge.textContent = 'Never exported';
+    badge.className = 'backup-badge backup-badge--amber';
+    badge.style.display = '';
+    return;
+  }
+  const days = Math.floor((Date.now() - new Date(lastExport).getTime()) / 86400000);
+  if (days < 30) { badge.style.display = 'none'; return; }
+  badge.textContent = days >= 90 ? `Backup ${days}d ago — overdue` : `Backup ${days}d ago`;
+  badge.className   = `backup-badge ${days >= 90 ? 'backup-badge--red' : 'backup-badge--amber'}`;
+  badge.style.display = '';
+}
+
+function initImportDialog() {
+  const fileInput = document.getElementById('import-file-input');
+  const dialog    = document.getElementById('import-confirm-dialog');
+  const btnActuals = document.getElementById('import-actuals-btn');
+  const btnFull    = document.getElementById('import-full-btn');
+  const btnCancel  = document.getElementById('import-cancel-btn');
+  const fullWarn   = document.getElementById('import-full-warning');
+  let _pendingPayload = null;
+
+  document.getElementById('import-backup-btn').addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        _pendingPayload = JSON.parse(e.target.result);
+        if (!_pendingPayload?.actuals) { alert('Invalid backup file.'); _pendingPayload = null; return; }
+        // Show full-restore warning only if settings block is present
+        if (fullWarn) fullWarn.style.display = _pendingPayload.settings ? '' : 'none';
+        if (btnFull)  btnFull.style.display   = _pendingPayload.settings ? '' : 'none';
+        dialog.classList.remove('hidden');
+      } catch { alert('Could not read backup file.'); }
+      fileInput.value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  btnActuals?.addEventListener('click', () => {
+    if (_pendingPayload && importBackup(_pendingPayload, 'actuals')) {
+      dialog.classList.add('hidden'); _pendingPayload = null;
+    }
+  });
+  btnFull?.addEventListener('click', () => {
+    if (_pendingPayload && importBackup(_pendingPayload, 'full')) {
+      dialog.classList.add('hidden'); _pendingPayload = null;
+    }
+  });
+  btnCancel?.addEventListener('click', () => {
+    dialog.classList.add('hidden'); _pendingPayload = null;
+  });
+  dialog?.addEventListener('click', e => { if (e.target === dialog) { dialog.classList.add('hidden'); _pendingPayload = null; } });
+}
+
+// ── Actuals Journal form ───────────────────────────────────────────────────
+const JOURNAL_TYPE_META = {
+  pot_valuation:  { icon: '📊', label: 'Pension Pot Actual' },
+  cash_valuation: { icon: '💰', label: 'Cash Pot Actual' },
+  income_actual:  { icon: '📥', label: 'Other Income Actual' },
+};
+
+function _potDisplayName(pot, idx, prefix) {
+  return (pot.name || `${prefix} Pot ${idx + 1}`) + (pot.archived ? ' (archived)' : '');
+}
+function _incomeDisplayName(inc, idx, prefix) {
+  return inc.name || `${prefix} Income ${idx + 1}`;
+}
+function _cashDisplayName(cp, idx, prefix) {
+  return cp.name || `${prefix} Cash Pot ${idx + 1}`;
+}
+
+function populateJournalTargets() {
+  const type   = document.getElementById('journal-type').value;
+  const sel    = document.getElementById('journal-target');
+  const partner = document.getElementById('partner-enabled')?.checked;
+  sel.innerHTML = '';
+
+  const addGroup = (label, items) => {
+    if (!items.length) return;
+    const grp = document.createElement('optgroup');
+    grp.label = label;
+    items.forEach(([uuid, text]) => {
+      const opt = new Option(text, uuid);
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
+  };
+
+  if (type === 'pot_valuation') {
+    addGroup('Your groups', groupsData.map(g => ['group:' + g.uuid, '≡ ' + g.name]));
+    addGroup('Your pots',   potsData.map((p, i) => [p.uuid, _potDisplayName(p, i, 'Your')]));
+    if (partner) addGroup('Partner groups', partnerGroupsData.map(g => ['group:' + g.uuid, '≡ ' + g.name]));
+    if (partner) addGroup('Partner pots',   partnerPotsData.map((p, i) => [p.uuid, _potDisplayName(p, i, "Partner's")]));
+  } else if (type === 'cash_valuation') {
+    addGroup('Your cash',    cashPotsData.map((p, i) => [p.uuid, _cashDisplayName(p, i, 'Your')]));
+    if (partner) addGroup('Partner cash', partnerCashPotsData.map((p, i) => [p.uuid, _cashDisplayName(p, i, "Partner's")]));
+  } else if (type === 'income_actual') {
+    addGroup('Your income',    incomesData.map((inc, i) => [inc.uuid, _incomeDisplayName(inc, i, 'Your')]));
+    if (partner) addGroup('Partner income', partnerIncomesData.map((inc, i) => [inc.uuid, _incomeDisplayName(inc, i, "Partner's")]));
+  }
+
+  if (!sel.options.length) {
+    sel.appendChild(new Option('— no targets available —', ''));
+  }
+}
+
+function renderJournalRecent() {
+  const section    = document.getElementById('journal-recent');
+  const list       = document.getElementById('journal-list');
+  const countEl    = document.getElementById('journal-count');
+  const total      = actualsEvents.length;
+  if (!total) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  countEl.textContent   = `${total} total`;
+  const recent = [...actualsEvents].reverse().slice(0, 8);
+  list.innerHTML = recent.map(e => {
+    const meta   = JOURNAL_TYPE_META[e.type] || { icon: '📝', label: e.type };
+    const amount = e.amount != null ? `£${Number(e.amount).toLocaleString('en-GB')}` : '';
+    const note   = e.notes ? ` · ${e.notes}` : '';
+    const name   = e.targetName || e.targetUuid?.slice(0, 8) || '—';
+    return `<div class="journal-entry">
+      <span class="journal-entry-icon">${meta.icon}</span>
+      <div class="journal-entry-body">
+        <div class="journal-entry-title">${name}</div>
+        <div class="journal-entry-meta">${e.date || ''} · ${meta.label} · ${amount}${note}</div>
+      </div>
+      <button class="journal-entry-del" data-event-id="${e.id}" title="Delete entry">×</button>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.journal-entry-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      actualsEvents = actualsEvents.filter(ev => ev.id !== btn.dataset.eventId);
+      saveActuals();
+      renderJournalRecent();
+    });
+  });
+}
+
+function initJournalForm() {
+  const typeEl   = document.getElementById('journal-type');
+  const dateEl   = document.getElementById('journal-date');
+  const amountEl = document.getElementById('journal-amount');
+  const notesEl  = document.getElementById('journal-notes');
+  const addBtn   = document.getElementById('journal-add-btn');
+  const feedback = document.getElementById('journal-feedback');
+  let _fbTimer   = null;
+
+  // Default date = today
+  dateEl.value = new Date().toISOString().slice(0, 10);
+
+  // Rebuild target dropdown on type change, and also when the user opens the target select
+  // (so it always reflects the latest added/removed pots without patching all render fns)
+  typeEl.addEventListener('change', populateJournalTargets);
+  document.getElementById('journal-target').addEventListener('mousedown', populateJournalTargets);
+  populateJournalTargets();
+
+  addBtn.addEventListener('click', () => {
+    const type      = typeEl.value;
+    const targetSel = document.getElementById('journal-target');
+    const targetUuid = targetSel.value;
+    const date      = dateEl.value;
+    const amount    = parseFloat(amountEl.value);
+
+    if (!targetUuid) { alert('Please select a target.'); return; }
+    if (!date)       { alert('Please enter a date.'); return; }
+    if (isNaN(amount) || amount < 0) { alert('Please enter a valid amount.'); return; }
+
+    const notes = notesEl.value.trim() || null;
+
+    if (targetUuid.startsWith('group:')) {
+      // Fan out: one event per pot in the group, proportional to groupAllocationPct
+      const groupUuid = targetUuid.slice(6);
+      const groupLabel = targetSel.options[targetSel.selectedIndex]?.text.replace(/^≡\s*/, '') || groupUuid;
+      // Determine which pots array this group belongs to
+      const isPartnerGroup = partnerGroupsData.some(g => g.uuid === groupUuid);
+      const srcPots = (isPartnerGroup ? partnerPotsData : potsData).filter(p => p.groupUuid === groupUuid);
+      if (!srcPots.length) { alert('No pots are assigned to this group.'); return; }
+
+      // Compute weights: use groupAllocationPct if set and sum > 0, else equal split
+      const totalPct = srcPots.reduce((s, p) => s + (p.groupAllocationPct || 0), 0);
+      const useEqual = totalPct === 0;
+      const batchId  = crypto.randomUUID(); // link events so they can be managed together
+
+      srcPots.forEach(pot => {
+        const weight = useEqual ? (1 / srcPots.length) : (pot.groupAllocationPct || 0) / totalPct;
+        const alloc  = Math.round(amount * weight * 100) / 100;
+        addActualEvent({
+          type,
+          targetUuid: pot.uuid,
+          targetName: pot.name || groupLabel,
+          date,
+          amount: alloc,
+          notes: notes ? `${notes} (via ${groupLabel})` : `via ${groupLabel}`,
+          groupBatchId: batchId,
+        });
+      });
+    } else {
+      // Single target
+      const allTargets = [
+        ...potsData, ...partnerPotsData,
+        ...cashPotsData, ...partnerCashPotsData,
+        ...incomesData, ...partnerIncomesData,
+      ];
+      const match = allTargets.find(x => x.uuid === targetUuid);
+      const targetName = match?.name || targetSel.options[targetSel.selectedIndex]?.text || targetUuid;
+
+      addActualEvent({
+        type,
+        targetUuid,
+        targetName,
+        date,
+        amount,
+        notes,
+      });
+    }
+
+    renderJournalRecent();
+    // Reset form (keep type and date so rapid logging is easy)
+    amountEl.value = '';
+    notesEl.value  = '';
+
+    clearTimeout(_fbTimer);
+    feedback.style.display = '';
+    _fbTimer = setTimeout(() => { feedback.style.display = 'none'; }, 2500);
+  });
+}
 
 function persistParams() {
   const obj = {};
   SLIDER_IDS.forEach(id => { obj[id] = document.getElementById(id).value; });
+  const _cdob = document.getElementById('current-dob'); if (_cdob) obj['current-dob'] = _cdob.value;
+  const _pdob = document.getElementById('partner-dob'); if (_pdob) obj['partner-dob'] = _pdob.value;
   obj['guardrails'] = document.getElementById('guardrails').checked ? '1' : '0';
   obj['today-money'] = isTodayMoney() ? '1' : '0';
   obj['drawdown-mode'] = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
   obj['drawdown-inflation'] = document.getElementById('drawdown-inflation').checked ? '1' : '0';
   obj['pots'] = JSON.stringify(potsData);
+  obj['groups'] = JSON.stringify(groupsData);
   obj['incomes'] = JSON.stringify(incomesData);
   obj['cashPots'] = JSON.stringify(cashPotsData);
   obj['partner-enabled'] = getPartnerEnabled() ? '1' : '0';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) obj[id] = el.value; });
   obj['partner-pots'] = JSON.stringify(partnerPotsData);
+  obj['partner-groups'] = JSON.stringify(partnerGroupsData);
   obj['partner-cashPots'] = JSON.stringify(partnerCashPotsData);
   obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
   obj['active-tab'] = document.querySelector('.tab.active')?.dataset.tab || 'pot';
@@ -671,7 +1454,7 @@ function loadPersistedParams() {
           const raw = localStorage.getItem(LS_KEY);
           if (raw) {
             const ls = JSON.parse(raw);
-            ['pots','incomes','cashPots','partner-pots','partner-cashPots','partner-incomes'].forEach(k => {
+            ['pots','groups','incomes','cashPots','partner-pots','partner-groups','partner-cashPots','partner-incomes'].forEach(k => {
               if (ls[k] && !obj[k]) obj[k] = ls[k];
             });
           }
@@ -709,6 +1492,12 @@ function restoreParams(obj) {
     setTodayMoney(checked, null);
   }
   // Restore pots
+  if (obj['groups']) {
+    try {
+      const saved = JSON.parse(obj['groups']);
+      if (Array.isArray(saved)) groupsData = saved.filter(g => g.uuid && g.name);
+    } catch(e) {}
+  }
   if (obj['pots']) {
     try {
       const saved = JSON.parse(obj['pots']);
@@ -716,7 +1505,19 @@ function restoreParams(obj) {
         potsData = [];
         saved.forEach(p => {
           const id = nextPotId++;
-          potsData.push({ id, value: +p.value || 0, annualContrib: +p.annualContrib || 0, equityPct: p.equityPct !== undefined ? +p.equityPct : 80 });
+          potsData.push({
+            id,
+            uuid: p.uuid || crypto.randomUUID(),
+            name: p.name || '',
+            value: +p.value || 0,
+            annualContrib: +p.annualContrib || 0,
+            equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+            groupUuid: p.groupUuid || null,
+            groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
+            archived: p.archived === true,
+            archivedDate: p.archivedDate || null,
+            consolidatedIntoUuid: p.consolidatedIntoUuid || null,
+          });
         });
         renderPotsUI();
       }
@@ -730,7 +1531,14 @@ function restoreParams(obj) {
         incomesData = [];
         saved.forEach(inc => {
           const id = nextIncomeId++;
-          incomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
+          incomesData.push({
+            id,
+            uuid: inc.uuid || crypto.randomUUID(),
+            name: inc.name || 'Income source',
+            amount: inc.amount || 0,
+            frequency: inc.frequency || 'annual',
+            inflationLinked: inc.inflationLinked === true,
+          });
         });
         renderIncomesUI();
       }
@@ -744,7 +1552,13 @@ function restoreParams(obj) {
         cashPotsData = [];
         saved.forEach(p => {
           const id = nextCashPotId++;
-          cashPotsData.push({ id, value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+          cashPotsData.push({
+            id,
+            uuid: p.uuid || crypto.randomUUID(),
+            name: p.name || '',
+            value: +p.value || 0,
+            interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
+          });
         });
         renderCashPotsUI();
       }
@@ -765,6 +1579,12 @@ function restoreParams(obj) {
     const label = document.getElementById('v-' + id);
     if (el) { el.value = obj[id]; if (label) label.textContent = formatter(+obj[id]); }
   });
+  if (obj['partner-groups']) {
+    try {
+      const saved = JSON.parse(obj['partner-groups']);
+      if (Array.isArray(saved)) partnerGroupsData = saved.filter(g => g.uuid && g.name);
+    } catch(e) {}
+  }
   if (obj['partner-pots']) {
     try {
       const saved = JSON.parse(obj['partner-pots']);
@@ -772,7 +1592,19 @@ function restoreParams(obj) {
         partnerPotsData = [];
         saved.forEach(p => {
           const id = nextPartnerPotId++;
-          partnerPotsData.push({ id, value: +p.value || 0, annualContrib: +p.annualContrib || 0, equityPct: p.equityPct !== undefined ? +p.equityPct : 80 });
+          partnerPotsData.push({
+            id,
+            uuid: p.uuid || crypto.randomUUID(),
+            name: p.name || '',
+            value: +p.value || 0,
+            annualContrib: +p.annualContrib || 0,
+            equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+            groupUuid: p.groupUuid || null,
+            groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
+            archived: p.archived === true,
+            archivedDate: p.archivedDate || null,
+            consolidatedIntoUuid: p.consolidatedIntoUuid || null,
+          });
         });
         renderPartnerPotsUI();
       }
@@ -785,7 +1617,13 @@ function restoreParams(obj) {
         partnerCashPotsData = [];
         saved.forEach(p => {
           const id = nextPartnerCashPotId++;
-          partnerCashPotsData.push({ id, value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+          partnerCashPotsData.push({
+            id,
+            uuid: p.uuid || crypto.randomUUID(),
+            name: p.name || '',
+            value: +p.value || 0,
+            interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
+          });
         });
         renderPartnerCashPotsUI();
       }
@@ -798,7 +1636,14 @@ function restoreParams(obj) {
         partnerIncomesData = [];
         saved.forEach(inc => {
           const id = nextPartnerIncomeId++;
-          partnerIncomesData.push({ id, name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
+          partnerIncomesData.push({
+            id,
+            uuid: inc.uuid || crypto.randomUUID(),
+            name: inc.name || 'Income source',
+            amount: inc.amount || 0,
+            frequency: inc.frequency || 'annual',
+            inflationLinked: inc.inflationLinked === true,
+          });
         });
         renderPartnerIncomesUI();
       }
@@ -818,6 +1663,37 @@ function restoreParams(obj) {
   if (obj['hist-replay-year'] !== undefined) {
     const el = document.getElementById('hist-replay-year');
     if (el && el.querySelector(`option[value="${obj['hist-replay-year']}"]`)) el.value = obj['hist-replay-year'];
+  }
+  // Restore DOB inputs (with migration from old integer current-age saves)
+  {
+    const el = document.getElementById('current-dob');
+    const lbl = document.getElementById('v-current-age');
+    if (obj['current-dob'] && el) {
+      el.value = obj['current-dob'];
+      if (el._flatpickr) el._flatpickr.setDate(obj['current-dob'], false);
+      if (lbl) lbl.textContent = 'Age ' + dobToAge(obj['current-dob']);
+    } else if (obj['current-age'] && el) {
+      const age = +obj['current-age'];
+      const dob = new Date(Date.now() - age * 365.25 * 86400000).toISOString().slice(0, 10);
+      el.value = dob;
+      if (el._flatpickr) el._flatpickr.setDate(dob, false);
+      if (lbl) lbl.textContent = 'Age ' + age;
+    }
+  }
+  {
+    const el = document.getElementById('partner-dob');
+    const lbl = document.getElementById('v-partner-age');
+    if (obj['partner-dob'] && el) {
+      el.value = obj['partner-dob'];
+      if (el._flatpickr) el._flatpickr.setDate(obj['partner-dob'], false);
+      if (lbl) lbl.textContent = 'Age ' + dobToAge(obj['partner-dob']);
+    } else if (obj['partner-age'] && el) {
+      const age = +obj['partner-age'];
+      const dob = new Date(Date.now() - age * 365.25 * 86400000).toISOString().slice(0, 10);
+      el.value = dob;
+      if (el._flatpickr) el._flatpickr.setDate(dob, false);
+      if (lbl) lbl.textContent = 'Age ' + age;
+    }
   }
 }
 
@@ -1029,9 +1905,122 @@ function buildAnnualIncomeData(r) {
 let lastResults = null;
 let charts = {};
 
+// ── Recalibration engine ───────────────────────────────────────────────────
+// Applies the most recent actuals journal entries to a params object,
+// returning a new params with pot values, cash pot values, and income amounts
+// replaced by the latest logged actuals. Also advances currentAge to the
+// as-of date so the simulation projects from actual present state.
+//
+// Called with a deep-cloned params so the original (UI) state is never mutated.
+function applyActualsRecalibration(p, events) {
+  if (!events || events.length === 0) return p;
+  const calYear = new Date().getFullYear();
+
+  // ── Helper: latest event per targetUuid for a given type ────────────────
+  function latestByUuid(type) {
+    const map = {};
+    events
+      .filter(e => e.type === type && e.date && e.targetUuid && e.amount != null)
+      .forEach(e => {
+        const prev = map[e.targetUuid];
+        if (!prev || e.date > prev.date) map[e.targetUuid] = e;
+      });
+    return map;
+  }
+
+  const latestPotVals    = latestByUuid('pot_valuation');
+  const latestCashVals   = latestByUuid('cash_valuation');
+  const latestIncomeVals = latestByUuid('income_actual');
+
+  // ── Find as-of year: the most recent date across all used actuals ────────
+  const allUsed = [
+    ...Object.values(latestPotVals),
+    ...Object.values(latestCashVals),
+    ...Object.values(latestIncomeVals),
+  ];
+  if (allUsed.length === 0) return p;
+
+  const asOfYear = Math.max(...allUsed.map(e => new Date(e.date).getFullYear()));
+  const ageDelta = asOfYear - calYear;       // years between most recent journal entry and today
+  const newCurrentAge = p.currentAge + ageDelta;
+
+  // Can't recalibrate beyond end age
+  if (newCurrentAge >= p.endAge) return p;
+
+  // Deep clone so we never mutate the live params
+  const rp = JSON.parse(JSON.stringify(p));
+  rp.currentAge = Math.max(rp.currentAge, newCurrentAge);
+
+  // ── Pension pots ─────────────────────────────────────────────────────────
+  // When multiple pot_valuation events share the same targetUuid but come from a
+  // group fan-out in the same year, they've already been summed per-pot.
+  // latestByUuid gives the single most-recent event per pot uuid.
+  rp.pots = rp.pots.map(pot => {
+    const ev = latestPotVals[pot.uuid];
+    if (!ev) return pot;
+    return {
+      ...pot,
+      value: Number(ev.amount),
+      // Zero contributions for the years already elapsed up to as-of date
+      // (the logged value already includes them)
+      annualContrib: pot.annualContrib,
+    };
+  });
+
+  // ── Cash pots ─────────────────────────────────────────────────────────────
+  rp.cashPots = rp.cashPots.map(cp => {
+    const ev = latestCashVals[cp.uuid];
+    if (!ev) return cp;
+    return { ...cp, value: Number(ev.amount) };
+  });
+
+  // ── Partner pots ──────────────────────────────────────────────────────────
+  if (rp.partner) {
+    rp.partner.pots = (rp.partner.pots || []).map(pot => {
+      const ev = latestPotVals[pot.uuid];
+      if (!ev) return pot;
+      return { ...pot, value: Number(ev.amount) };
+    });
+    rp.partner.cashPots = (rp.partner.cashPots || []).map(cp => {
+      const ev = latestCashVals[cp.uuid];
+      if (!ev) return cp;
+      return { ...cp, value: Number(ev.amount) };
+    });
+  }
+
+  // ── Other incomes ─────────────────────────────────────────────────────────
+  // income_actual amount = gross annual income for the year logged.
+  // Replace the income source's amount so the forward projection uses it.
+  rp.incomes = rp.incomes.map(inc => {
+    const ev = latestIncomeVals[inc.uuid];
+    if (!ev) return inc;
+    // Normalise to annual regardless of income frequency setting
+    const annualAmount = inc.frequency === 'monthly'
+      ? Number(ev.amount)   // event already logged as annual gross
+      : Number(ev.amount);
+    return { ...inc, amount: annualAmount };
+  });
+  if (rp.partner) {
+    rp.partner.incomes = (rp.partner.incomes || []).map(inc => {
+      const ev = latestIncomeVals[inc.uuid];
+      if (!ev) return inc;
+      return { ...inc, amount: Number(ev.amount) };
+    });
+  }
+
+  return rp;
+}
+
+function isRecalibrationEnabled() {
+  return document.getElementById('recalibrate-toggle')?.checked && actualsEvents.length > 0;
+}
+
 function runSimulation() {
   sanitizeParams();
-  const r = runSimulationImpl(getParams());
+  const base = getParams();
+  const p = isRecalibrationEnabled() ? applyActualsRecalibration(base, actualsEvents) : base;
+  const r = runSimulationImpl(p);
+  if (r) r._recalibrated = isRecalibrationEnabled();
   lastResults = r;
   return r;
 }
@@ -1416,6 +2405,43 @@ function gridColor() { return isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,
 function textColor() { return isDark() ? '#9ca3af' : '#6b7280'; }
 function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
 
+// ── Shared actuals data builder for charts ────────────────────────────────
+// Returns chart axis extended left to cover pre-retirement journal entries,
+// plus sparse actuals maps keyed by age. Used by all main chart functions.
+function buildActualsChartData(r) {
+  const p = r.p;
+  const calYear = new Date().getFullYear();
+  // Find the earliest age present in any journal entry
+  const journalAgeMin = actualsEvents.filter(e => e.date).reduce((mn, e) => {
+    const a = p.currentAge + (new Date(e.date).getFullYear() - calYear);
+    return Math.min(mn, a);
+  }, r.ages[0]);
+  const chartStartAge = Math.min(r.ages[0], journalAgeMin);
+  const chartEndAge = r.ages[r.ages.length - 1];
+  const chartAges = [];
+  for (let a = chartStartAge; a <= chartEndAge; a++) chartAges.push(a);
+  // Pot + cash actuals: sum all events per calendar-year-bucket
+  const potActualsByAge = {};
+  actualsEvents
+    .filter(e => (e.type === 'pot_valuation' || e.type === 'cash_valuation') && e.date && e.amount != null)
+    .forEach(e => {
+      const age = p.currentAge + (new Date(e.date).getFullYear() - calYear);
+      potActualsByAge[age] = (potActualsByAge[age] || 0) + Number(e.amount);
+    });
+  // Income actuals: sum per calendar-year-bucket
+  const incActualsByAge = {};
+  actualsEvents
+    .filter(e => e.type === 'income_actual' && e.date && e.amount != null)
+    .forEach(e => {
+      const age = p.currentAge + (new Date(e.date).getFullYear() - calYear);
+      incActualsByAge[age] = (incActualsByAge[age] || 0) + Number(e.amount);
+    });
+  // "Today" vertical marker: only shown when user is already in retirement
+  const todayIdx = chartAges.indexOf(p.currentAge);
+  const showTodayLine = p.currentAge > p.retirementAge && todayIdx >= 0;
+  return { chartAges, potActualsByAge, incActualsByAge, todayIdx, showTodayLine };
+}
+
 // ── Pot Chart (Deterministic) ─────────────────────────────────────────────
 function renderPotChart(r) {
   if (!chartAvailable()) return;
@@ -1424,45 +2450,68 @@ function renderPotChart(r) {
   if (!chartEl) return;
   const ctx = chartEl.getContext('2d');
   const useToday = isTodayMoney();
-  const baseInflFactor = 1 + (r.p?.inflation || 0) / 100;
-  const yearsToRetirement = Math.max(0, r.p.retirementAge - r.p.currentAge);
+  const p = r.p;
+  const baseInflFactor = 1 + (p?.inflation || 0) / 100;
+  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
   const deflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
-  const spAgeIdx = r.ages.indexOf(r.p.spAge);
   const returnPct = r.returnPct ?? 5;
 
+  // Simulation values indexed from r.ages[0] = retirementAge
   const detVals = Array.from(r.detPotByYear || []).map((v, i) => useToday ? v * deflator(i) : v);
+
+  const { chartAges, potActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
+  const spAgeIdx = chartAges.indexOf(p.spAge);
+
+  // Simulation: null before retirementAge or before currentAge — no fabricated history
+  const simValues = chartAges.map(a => {
+    if (a < r.ages[0] || a < p.currentAge) return null;
+    const i = a - r.ages[0];
+    return i < detVals.length ? detVals[i] : null;
+  });
+
+  // Actuals overlay: sparse array, gaps left blank (spanGaps: false)
+  const hasActuals = Object.keys(potActualsByAge).length > 0;
+  const actualsValues = chartAges.map(a => {
+    if (potActualsByAge[a] == null) return null;
+    const simI = Math.max(0, a - r.ages[0]);
+    return useToday ? potActualsByAge[a] * deflator(simI) : potActualsByAge[a];
+  });
 
   const titleEl = document.getElementById('pot-chart-title');
   if (titleEl) titleEl.textContent = `Pot Balance — Deterministic Projection (${returnPct}% return)`;
 
-  const spLinePlugin = {
-    id: 'spLine',
+  const overlayPlugin = {
+    id: 'overlay',
     afterDraw(chart) {
-      if (spAgeIdx < 0) return;
       const { ctx: c, scales: { x, y } } = chart;
-      const xPx = x.getPixelForValue(spAgeIdx);
-      c.save();
-      c.strokeStyle = '#d97706';
-      c.lineWidth = 1.5;
-      c.setLineDash([6, 4]);
-      c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
-      c.fillStyle = '#d97706';
-      c.font = '11px system-ui,sans-serif';
-      c.textAlign = 'left';
-      c.fillText('State Pension', xPx + 4, y.top + 14);
-      c.restore();
+      if (spAgeIdx >= 0) {
+        const xPx = x.getPixelForValue(spAgeIdx);
+        c.save(); c.strokeStyle = '#d97706'; c.lineWidth = 1.5; c.setLineDash([6, 4]);
+        c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+        c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
+        c.textAlign = 'left'; c.fillText('State Pension', xPx + 4, y.top + 14); c.restore();
+      }
+      if (showTodayLine) {
+        const xPx = x.getPixelForValue(todayIdx);
+        c.save(); c.strokeStyle = '#2563eb'; c.lineWidth = 1.5; c.setLineDash([4, 4]);
+        c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+        c.fillStyle = '#2563eb'; c.font = '11px system-ui,sans-serif';
+        c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 28); c.restore();
+      }
     }
   };
 
+  const datasets = [
+    { label: `${returnPct}% return (projected)`, data: simValues, borderColor: 'rgba(37,99,235,1)', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2, spanGaps: false },
+  ];
+  if (hasActuals) {
+    datasets.push({ label: 'Actual total pot', data: actualsValues, borderColor: '#16a34a', backgroundColor: '#16a34a', showLine: true, tension: 0.2, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2, spanGaps: false, fill: false });
+  }
+
   charts['pot'] = new Chart(ctx, {
     type: 'line',
-    plugins: [spLinePlugin],
-    data: {
-      labels: r.ages,
-      datasets: [
-        { label: `${returnPct}% return`, data: detVals, borderColor: 'rgba(37,99,235,1)', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 },
-      ]
-    },
+    plugins: [overlayPlugin],
+    data: { labels: chartAges, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
@@ -1483,46 +2532,66 @@ function renderMonteCarloChart(r) {
   if (!chartEl) return;
   const ctx = chartEl.getContext('2d');
   const [p5, p25, p50, p75, p95] = r.percentileData;
-  const spAgeIdx = r.ages.indexOf(r.p.spAge);
+  const p = r.p;
   const useToday = isTodayMoney();
-  const baseInflFactor = 1 + (r.p?.inflation || 0) / 100;
-  const yearsToRetirement = Math.max(0, r.p.retirementAge - r.p.currentAge);
+  const baseInflFactor = 1 + (p?.inflation || 0) / 100;
+  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
   const deflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
 
-  const mapSeries = (arr) => Array.from(arr).map((v, i) => useToday ? v * deflator(i) : v);
+  const { chartAges, potActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
+  const spAgeIdx = chartAges.indexOf(p.spAge);
 
-  const spLinePlugin = {
-    id: 'spLine',
+  // Map a percentile series onto the extended chart axis; null before retirementAge or currentAge
+  const mapSeries = (arr) => chartAges.map(a => {
+    if (a < r.ages[0] || a < p.currentAge) return null;
+    const i = a - r.ages[0];
+    return i < arr.length ? (useToday ? arr[i] * deflator(i) : arr[i]) : null;
+  });
+
+  // Actuals overlay: sparse, spanGaps: false
+  const hasActuals = Object.keys(potActualsByAge).length > 0;
+  const actualsValues = chartAges.map(a => {
+    if (potActualsByAge[a] == null) return null;
+    const simI = Math.max(0, a - r.ages[0]);
+    return useToday ? potActualsByAge[a] * deflator(simI) : potActualsByAge[a];
+  });
+
+  const overlayPlugin = {
+    id: 'overlay',
     afterDraw(chart) {
-      if (spAgeIdx < 0) return;
       const { ctx: c, scales: { x, y } } = chart;
-      const xPx = x.getPixelForValue(spAgeIdx);
-      c.save();
-      c.strokeStyle = '#d97706';
-      c.lineWidth = 1.5;
-      c.setLineDash([6, 4]);
-      c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
-      c.fillStyle = '#d97706';
-      c.font = '11px system-ui,sans-serif';
-      c.textAlign = 'left';
-      c.fillText('State Pension', xPx + 4, y.top + 14);
-      c.restore();
+      if (spAgeIdx >= 0) {
+        const xPx = x.getPixelForValue(spAgeIdx);
+        c.save(); c.strokeStyle = '#d97706'; c.lineWidth = 1.5; c.setLineDash([6, 4]);
+        c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+        c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
+        c.textAlign = 'left'; c.fillText('State Pension', xPx + 4, y.top + 14); c.restore();
+      }
+      if (showTodayLine) {
+        const xPx = x.getPixelForValue(todayIdx);
+        c.save(); c.strokeStyle = '#2563eb'; c.lineWidth = 1.5; c.setLineDash([4, 4]);
+        c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+        c.fillStyle = '#2563eb'; c.font = '11px system-ui,sans-serif';
+        c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 28); c.restore();
+      }
     }
   };
 
+  const datasets = [
+    { label: '95th', data: mapSeries(p95), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1, spanGaps: false },
+    { label: '75th', data: mapSeries(p75), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1, spanGaps: false },
+    { label: 'Median', data: mapSeries(p50), borderColor: 'rgba(37,99,235,1)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2, spanGaps: false },
+    { label: '25th', data: mapSeries(p25), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1, spanGaps: false },
+    { label: '5th', data: mapSeries(p5), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1, spanGaps: false },
+  ];
+  if (hasActuals) {
+    datasets.push({ label: 'Actual total pot', data: actualsValues, borderColor: '#16a34a', backgroundColor: '#16a34a', showLine: true, tension: 0.2, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2, spanGaps: false, fill: false });
+  }
+
   charts['montecarlo'] = new Chart(ctx, {
     type: 'line',
-    plugins: [spLinePlugin],
-    data: {
-      labels: r.ages,
-      datasets: [
-        { label: '95th', data: mapSeries(p95), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
-        { label: '75th', data: mapSeries(p75), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
-        { label: 'Median', data: mapSeries(p50), borderColor: 'rgba(37,99,235,1)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2 },
-        { label: '25th', data: mapSeries(p25), borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 1 },
-        { label: '5th', data: mapSeries(p5), borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.08)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1 },
-      ]
-    },
+    plugins: [overlayPlugin],
+    data: { labels: chartAges, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
@@ -1956,16 +3025,47 @@ function renderAnnualIncomeChart(r) {
   destroyChart('annualincome');
   const ctx = document.getElementById('chart-annualincome').getContext('2d');
   const useToday = isTodayMoney();
-  const dataSeries = r.annualIncomeData.map(d => useToday ? d.netReal : d.netNom);
-  const label = useToday ? "Total Net /mo — Today's £ (real)" : 'Total Net /mo — Nominal (actual £)';
+  const p = r.p;
+
+  const { chartAges, incActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
+
+  // Simulation: null before retirementAge or before currentAge
+  const simValues = chartAges.map(a => {
+    if (a < r.ages[0] || a < p.currentAge) return null;
+    const i = a - r.ages[0];
+    if (i >= r.annualIncomeData.length) return null;
+    return useToday ? r.annualIncomeData[i].netReal : r.annualIncomeData[i].netNom;
+  });
+  const simLabel = useToday ? "Total Net /mo — Today's £ (real)" : 'Total Net /mo — Nominal (actual £)';
+
+  // Income actuals: annual gross ÷ 12 → monthly; sparse
+  const hasIncomeActuals = Object.keys(incActualsByAge).length > 0;
+  const incActualsValues = chartAges.map(a => incActualsByAge[a] != null ? incActualsByAge[a] / 12 : null);
+
+  const overlayPlugin = {
+    id: 'overlay',
+    afterDraw(chart) {
+      if (!showTodayLine) return;
+      const { ctx: c, scales: { x, y } } = chart;
+      const xPx = x.getPixelForValue(todayIdx);
+      c.save(); c.strokeStyle = '#2563eb'; c.lineWidth = 1.5; c.setLineDash([4, 4]);
+      c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+      c.fillStyle = '#2563eb'; c.font = '11px system-ui,sans-serif';
+      c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 14); c.restore();
+    }
+  };
+
+  const datasets = [
+    { label: simLabel, data: simValues, borderColor: '#2563eb', backgroundColor: useToday ? 'rgba(37,99,235,0.08)' : 'transparent', fill: useToday, tension: 0.3, pointRadius: 0, borderWidth: 2, spanGaps: false },
+  ];
+  if (hasIncomeActuals) {
+    datasets.push({ label: 'Actual income /mo', data: incActualsValues, borderColor: '#16a34a', backgroundColor: '#16a34a', showLine: true, tension: 0.2, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2, spanGaps: false, fill: false });
+  }
+
   charts['annualincome'] = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: r.ages,
-      datasets: [
-        { label, data: dataSeries, borderColor: '#2563eb', backgroundColor: useToday ? 'rgba(37,99,235,0.08)' : 'transparent', fill: useToday, tension: 0.3, pointRadius: 0, borderWidth: 2 },
-      ]
-    },
+    plugins: [overlayPlugin],
+    data: { labels: chartAges, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
@@ -2312,8 +3412,176 @@ function renderHistoricalReplayTab(r) {
   }
 }
 
+// ── Actuals Tab ───────────────────────────────────────────────────────────
+function renderActualsTab(r) {
+  const hasEvents = actualsEvents.length > 0;
+  document.getElementById('actuals-empty-note').style.display = hasEvents ? 'none' : '';
+  document.getElementById('actuals-cards').style.display      = hasEvents ? ''     : 'none';
+  const badge = document.getElementById('recalibrated-badge');
+  if (badge) badge.style.display = r?._recalibrated ? '' : 'none';
+  if (!hasEvents) return;
+
+  const currentYear = new Date().getFullYear();
+
+  // ── Map event date → age index in r.ages ────────────────────────────────
+  function dateToAgeIdx(dateStr) {
+    const year = new Date(dateStr).getFullYear();
+    const age  = r.p.currentAge + (year - currentYear);
+    return r.ages.indexOf(age);
+  }
+
+  // ── Pot valuation events: sum by date-bucket (year) ─────────────────────
+  const valByYear = {};  // year → summed amount
+  actualsEvents
+    .filter(e => e.type === 'pot_valuation' && e.date && e.amount != null)
+    .forEach(e => {
+      const yr = new Date(e.date).getFullYear();
+      valByYear[yr] = (valByYear[yr] || 0) + Number(e.amount);
+    });
+
+  const sortedValYears = Object.keys(valByYear).map(Number).sort((a, b) => a - b);
+
+  // ── Summary cards ─────────────────────────────────────────────────────
+  if (sortedValYears.length > 0) {
+    const latestYear = sortedValYears[sortedValYears.length - 1];
+    const latestVal  = valByYear[latestYear];
+    const ageIdx     = r.p.currentAge + (latestYear - currentYear);
+    const forecastIdx = r.ages.indexOf(ageIdx);
+    const forecastVal = forecastIdx >= 0 ? (r.detPotByYear?.[forecastIdx] || 0) : null;
+    const divergence  = forecastVal != null ? latestVal - forecastVal : null;
+
+    document.getElementById('ac-latest-val').textContent  = fmtGBP(latestVal);
+    document.getElementById('ac-latest-date').textContent = `${latestYear} combined valuation`;
+
+    if (forecastVal != null) {
+      document.getElementById('ac-forecast-val').textContent = fmtGBP(forecastVal);
+      const divEl  = document.getElementById('ac-divergence');
+      const subEl  = document.getElementById('ac-divergence-sub');
+      const pct    = forecastVal > 0 ? ((divergence / forecastVal) * 100).toFixed(1) : '—';
+      divEl.textContent = (divergence >= 0 ? '+' : '') + fmtGBP(divergence);
+      divEl.className   = 'card-value ' + (divergence >= 0 ? 'green' : 'red');
+      subEl.textContent = `${divergence >= 0 ? '+' : ''}${pct}% vs forecast`;
+    } else {
+      document.getElementById('ac-forecast-val').textContent = '—';
+      document.getElementById('ac-divergence').textContent   = '—';
+      document.getElementById('ac-divergence-sub').textContent = 'age outside projection range';
+    }
+  }
+
+  // ── Overlay chart ─────────────────────────────────────────────────────
+  if (chartAvailable()) {
+    destroyChart('actuals');
+    const chartEl = document.getElementById('chart-actuals');
+    if (chartEl) {
+      const ctx = chartEl.getContext('2d');
+      const useToday    = isTodayMoney();
+      const baseInfl    = 1 + (r.p?.inflation || 0) / 100;
+      const yrsToRet    = Math.max(0, r.p.retirementAge - r.p.currentAge);
+      const deflator    = i => Math.pow(1 / baseInfl, yrsToRet + i);
+      const detVals     = Array.from(r.detPotByYear || []).map((v, i) => useToday ? v * deflator(i) : v);
+
+      const { chartAges, potActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
+      const spAgeIdx = chartAges.indexOf(r.p.spAge);
+
+      // Simulation: null before retirementAge or before currentAge — no fabricated history
+      const simValues = chartAges.map(a => {
+        if (a < r.ages[0] || a < r.p.currentAge) return null;
+        const i = a - r.ages[0];
+        return i < detVals.length ? detVals[i] : null;
+      });
+
+      // Actuals overlay: sparse over chartAges, spanGaps: false
+      const actualsValues = chartAges.map(a => {
+        if (potActualsByAge[a] == null) return null;
+        const simI = Math.max(0, a - r.ages[0]);
+        return useToday ? potActualsByAge[a] * deflator(simI) : potActualsByAge[a];
+      });
+      const actualsPointCount = Object.keys(potActualsByAge).length;
+
+      const overlayPlugin = {
+        id: 'overlay',
+        afterDraw(chart) {
+          const { ctx: c, scales: { x, y } } = chart;
+          if (spAgeIdx >= 0) {
+            const xPx = x.getPixelForValue(spAgeIdx);
+            c.save(); c.strokeStyle = '#d97706'; c.lineWidth = 1.5; c.setLineDash([6, 4]);
+            c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+            c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
+            c.textAlign = 'left'; c.fillText('State Pension', xPx + 4, y.top + 14); c.restore();
+          }
+          if (showTodayLine) {
+            const xPx = x.getPixelForValue(todayIdx);
+            c.save(); c.strokeStyle = '#2563eb'; c.lineWidth = 1.5; c.setLineDash([4, 4]);
+            c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+            c.fillStyle = '#2563eb'; c.font = '11px system-ui,sans-serif';
+            c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 28); c.restore();
+          }
+        }
+      };
+
+      charts['actuals'] = new Chart(ctx, {
+        type: 'line',
+        plugins: [overlayPlugin],
+        data: {
+          labels: chartAges,
+          datasets: [
+            {
+              label: 'Forecast (deterministic)',
+              data: simValues,
+              borderColor: 'rgba(37,99,235,0.5)',
+              backgroundColor: 'rgba(37,99,235,0.06)',
+              fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5,
+              borderDash: [5, 3], spanGaps: false,
+            },
+            {
+              label: 'Actual valuations',
+              data: actualsValues,
+              borderColor: '#16a34a',
+              backgroundColor: '#16a34a',
+              type: 'scatter',
+              pointRadius: 7,
+              pointHoverRadius: 9,
+              showLine: actualsPointCount > 1,
+              tension: 0.2,
+              borderWidth: 2,
+              spanGaps: false,
+            },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { color: textColor(), font: { size: 11 } } } },
+          scales: {
+            x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
+            y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() },
+              title: { display: true, text: useToday ? 'Pot Value (£, today\'s money)' : 'Pot Value (£, nominal)', color: textColor() } }
+          }
+        }
+      });
+    }
+  }
+
+  // ── Income actuals table ──────────────────────────────────────────────
+  const incomeRows = actualsEvents
+    .filter(e => e.type === 'income_actual' && e.date)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const incomeTbody = document.getElementById('actuals-income-tbody');
+  if (incomeTbody) {
+    incomeTbody.innerHTML = incomeRows.length
+      ? incomeRows.map(e => `<tr>
+          <td>${e.date}</td>
+          <td>${e.targetName || '—'}</td>
+          <td style="text-align:right">${fmtGBP(e.amount)}</td>
+          <td style="color:var(--text2)">${e.notes || ''}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:12px">No income actuals logged</td></tr>';
+  }
+
+}
+
 // ── Tab switching ──────────────────────────────────────────────────────────
-const tabDefs = ['pot', 'annualincome', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo', 'historicalreplay'];
+const tabDefs = ['pot', 'annualincome', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo', 'historicalreplay', 'actuals'];
 function setActiveTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   tabDefs.forEach(t => {
@@ -2335,6 +3603,7 @@ document.querySelectorAll('.tab').forEach(btn => {
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
       else if (tab === 'montecarlo') { renderMonteCarloChart(lastResults); renderMonteCarloTable(lastResults, +document.getElementById('mc-pctile').value); }
       else if (tab === 'historicalreplay') renderHistoricalReplayTab(lastResults);
+      else if (tab === 'actuals') renderActualsTab(lastResults);
     }
     // Sync active checkbox state to persisted value when tabs change
     setTodayMoney(todayPrices, lastResults);
@@ -2376,6 +3645,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
       else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
       else if (activeTab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
       else if (activeTab === 'historicalreplay') renderHistoricalReplayTab(r);
+      else if (activeTab === 'actuals') renderActualsTab(r);
 
       setActiveTab(activeTab);
     } catch (err) {
@@ -2438,6 +3708,17 @@ function initApp() {
   const addPotBtn = document.getElementById('add-pot-btn');
   if (addPotBtn) addPotBtn.addEventListener('click', () => { addPot(0, 0, 80); persistParams(); });
 
+  initPotModal();
+  loadActuals();
+  initImportDialog();
+  initJournalForm();
+  renderJournalRecent();
+  document.getElementById('export-backup-btn')?.addEventListener('click', exportBackup);
+  updateBackupBadge();
+  document.getElementById('recalibrate-toggle')?.addEventListener('change', () => {
+    document.getElementById('run-btn').click();
+  });
+
   const addIncomeBtn = document.getElementById('add-income-btn');
   if (addIncomeBtn) addIncomeBtn.addEventListener('click', () => { addIncome('Income source', 0, 'annual', 20); persistParams(); });
 
@@ -2462,20 +3743,7 @@ function initApp() {
     });
   }
 
-  // Partner age validation: retirement age min tracks current age
-  const partnerAgeEl = document.getElementById('partner-age');
-  const partnerRetEl = document.getElementById('partner-retirement-age');
-  if (partnerAgeEl && partnerRetEl) {
-    partnerAgeEl.addEventListener('input', () => {
-      const minAge = +partnerAgeEl.value;
-      if (+partnerRetEl.value < minAge) {
-        partnerRetEl.value = minAge;
-        const label = document.getElementById('v-partner-retirement-age');
-        if (label) label.textContent = minAge;
-      }
-      partnerRetEl.min = minAge;
-    });
-  }
+  // DOB pickers initialised after restoreParams() — see end of initApp
 
   const mcPctileSlider = document.getElementById('mc-pctile');
   const mcPctileLabel  = document.getElementById('v-mc-pctile');
@@ -2537,6 +3805,32 @@ function initApp() {
   // Slider input dispatches during restoreParams call persistParams before pots are loaded,
   // so this final call overwrites storage with the complete correct state.
   persistParams();
+
+  // ── Flatpickr DOB pickers ─────────────────────────────────────────────
+  // Initialised here so defaultDate picks up the already-restored value.
+  function _initDobPicker(inputId, labelId) {
+    const el = document.getElementById(inputId);
+    const lbl = document.getElementById(labelId);
+    if (!el || !window.flatpickr) return;
+    flatpickr(el, {
+      dateFormat: 'Y-m-d',
+      maxDate: 'today',
+      minDate: '1930-01-01',
+      defaultDate: el.value || null,
+      disableMobile: true,
+      onChange(selectedDates, dateStr) {
+        if (!dateStr) return;
+        const age = dobToAge(dateStr);
+        if (age > 0 && age < 120) {
+          if (lbl) lbl.textContent = 'Age ' + age;
+          persistParams();
+          document.getElementById('run-btn').click();
+        }
+      }
+    });
+  }
+  _initDobPicker('current-dob', 'v-current-age');
+  _initDobPicker('partner-dob', 'v-partner-age');
 
   document.getElementById('run-btn').click();
 }

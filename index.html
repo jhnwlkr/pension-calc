@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UK Retirement Calculator</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <style>
   :root {
     --bg: #f5f5f5; --surface: #ffffff; --surface2: #f0f0f0;
@@ -187,9 +189,55 @@
     .tw-person-heading { font-size: 0.76rem; }
     .tw-heading { font-size: 0.88rem; }
   }
+  /* Pot action modal */
+  .pot-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:200; display:flex; align-items:center; justify-content:center; }
+  .pot-modal-backdrop.hidden { display:none; }
+  .pot-modal { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px 22px; width:min(360px,92vw); box-shadow:0 8px 24px rgba(0,0,0,0.18); }
+  .pot-modal h4 { font-size:0.9rem; font-weight:600; margin-bottom:4px; }
+  .pot-modal .pot-modal-sub { font-size:0.77rem; color:var(--text2); margin-bottom:16px; }
+  .pot-modal-actions { display:flex; flex-direction:column; gap:8px; }
+  .pot-modal-actions button { width:100%; padding:9px 14px; border-radius:6px; font-size:0.82rem; font-weight:600; cursor:pointer; text-align:left; border:1px solid var(--border); background:var(--surface2); color:var(--text); transition:opacity .15s; }
+  .pot-modal-actions button:hover { opacity:0.8; }
+  .pot-modal-actions .btn-danger { background:rgba(220,38,38,0.08); border-color:var(--red); color:var(--red); }
+  .pot-modal-actions .btn-cancel { background:transparent; border-color:var(--border); color:var(--text2); }
+  .pot-modal-consolidate { display:none; margin-top:8px; }
+  .pot-modal-consolidate select { width:100%; margin-bottom:8px; }
+  .archived-badge { display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; font-weight:600; padding:2px 7px; border-radius:4px; background:rgba(217,119,6,0.12); color:var(--amber); border:1px solid rgba(217,119,6,0.3); }
+  .backup-badge { display:inline-flex; align-items:center; font-size:0.7rem; font-weight:600; padding:2px 7px; border-radius:4px; margin-left:8px; vertical-align:middle; }
+  .backup-badge--amber { background:rgba(217,119,6,0.12); color:var(--amber); border:1px solid rgba(217,119,6,0.3); }
+  .backup-badge--red   { background:rgba(220,38,38,0.12); color:#f87171; border:1px solid rgba(220,38,38,0.3); }
+  .import-full-warning { font-size:0.78rem; color:#fbbf24; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); border-radius:6px; padding:8px 10px; margin:6px 0; }
+  .journal-entry { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); font-size:0.78rem; }
+  .journal-entry:last-child { border-bottom:none; }
+  .journal-entry-icon { font-size:1rem; flex-shrink:0; margin-top:1px; }
+  .journal-entry-body { flex:1; min-width:0; }
+  .journal-entry-title { font-weight:600; color:var(--text1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .journal-entry-meta  { color:var(--text2); margin-top:1px; }
+  .journal-entry-del   { background:none; border:none; cursor:pointer; color:var(--text2); font-size:0.9rem; padding:0 2px; flex-shrink:0; line-height:1; }
+  .journal-entry-del:hover { color:var(--red); }
 </style>
 </head>
 <body>
+<!-- Pot action modal (archive / consolidate / delete) -->
+<div id="pot-action-modal" class="pot-modal-backdrop hidden" role="dialog" aria-modal="true">
+  <div class="pot-modal">
+    <h4 id="pot-modal-title">Pension Pot</h4>
+    <div class="pot-modal-sub" id="pot-modal-sub"></div>
+    <div class="pot-modal-actions">
+      <button id="pot-modal-archive">📦 Archive this pot</button>
+      <button id="pot-modal-unarchive" style="display:none">↩ Unarchive this pot</button>
+      <div>
+        <button id="pot-modal-consolidate-btn">🔀 Consolidate into another pot</button>
+        <div class="pot-modal-consolidate" id="pot-modal-consolidate-row">
+          <select id="pot-modal-consolidate-select" class="dyn-select" style="margin-top:6px"></select>
+          <button id="pot-modal-consolidate-confirm" class="add-btn" style="width:100%;margin-top:4px">Confirm consolidation</button>
+        </div>
+      </div>
+      <button id="pot-modal-delete" class="btn-danger">🗑 Delete this pot</button>
+      <button id="pot-modal-cancel" class="btn-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
 <div class="header">
   <div class="header-text">
     <div style="display:flex;align-items:center;gap:12px">
@@ -230,12 +278,12 @@
   <div class="section">
     <h3 class="section-title">Age & Retirement</h3>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Current age</span><span class="slider-val" id="v-current-age">55</span></div>
-      <input type="range" id="current-age" min="40" max="75" value="55">
+      <div class="slider-label"><span class="slider-name">Date of birth</span><span class="slider-val" id="v-current-age">Age 55</span></div>
+      <input type="text" id="current-dob" placeholder="Select date of birth" readonly style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem;cursor:pointer">
     </div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Retirement age</span><span class="slider-val" id="v-retirement-age">65</span></div>
-      <input type="range" id="retirement-age" min="40" max="75" value="65">
+      <input type="range" id="retirement-age" min="18" max="85" value="65">
     </div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Target end age</span><span class="slider-val" id="v-end-age">90</span></div>
@@ -303,12 +351,12 @@
     <div id="partner-section" class="hidden" style="margin-top:14px">
       <div style="font-size:0.72rem;color:var(--text2);margin-bottom:10px;padding:6px 8px;background:var(--surface2);border-radius:4px;border-left:3px solid var(--accent)">Partner's state pension is added to joint income. Survival probability reflects either partner outliving the plan.</div>
       <div class="slider-row">
-        <div class="slider-label"><span class="slider-name">Partner current age</span><span class="slider-val" id="v-partner-age">52</span></div>
-        <input type="range" id="partner-age" min="40" max="75" value="52">
+        <div class="slider-label"><span class="slider-name">Partner date of birth</span><span class="slider-val" id="v-partner-age">Age 52</span></div>
+        <input type="text" id="partner-dob" placeholder="Select date of birth" readonly style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem;cursor:pointer">
       </div>
       <div class="slider-row">
         <div class="slider-label"><span class="slider-name">Partner retirement age</span><span class="slider-val" id="v-partner-retirement-age">55</span></div>
-        <input type="range" id="partner-retirement-age" min="40" max="75" value="55">
+        <input type="range" id="partner-retirement-age" min="18" max="85" value="55">
       </div>
       
       <h3 style="margin:12px 0 8px 0;padding:0">Partner Pension Pots</h3>
@@ -398,6 +446,89 @@
     </div>
   </div>
 
+  <!-- Actuals Journal -->
+  <div class="section" id="journal-section">
+    <h3 class="section-title">Actuals Journal</h3>
+    <p style="font-size:0.78rem;color:var(--text2);margin:0 0 12px">Log pot valuations and income received to recalibrate your forecast against reality.</p>
+
+    <div style="margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border)">
+        <input type="checkbox" id="recalibrate-toggle" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <span>
+          <span class="slider-name" style="display:block">Use actuals in simulation</span>
+          <span style="font-size:0.72rem;color:var(--text2)">Replaces pot values &amp; income with latest journal entries</span>
+        </span>
+      </label>
+    </div>
+
+    <div id="journal-form">
+      <div style="margin-bottom:8px">
+        <label class="field-label" for="journal-type">Entry type</label>
+        <select id="journal-type" class="dyn-select" style="width:100%">
+          <option value="pot_valuation">Pension Pot Actual</option>
+          <option value="cash_valuation">Cash Pot Actual</option>
+          <option value="income_actual">Other Income Actual</option>
+        </select>
+      </div>
+      <div style="margin-bottom:8px">
+        <label class="field-label" for="journal-target">Target</label>
+        <select id="journal-target" class="dyn-select" style="width:100%"></select>
+      </div>
+      <div class="two-col" style="margin-bottom:8px">
+        <div>
+          <label class="field-label" for="journal-date">Date</label>
+          <input type="date" id="journal-date" class="dyn-input" style="width:100%;box-sizing:border-box">
+        </div>
+        <div>
+          <label class="field-label" for="journal-amount">Amount (£)</label>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input type="number" id="journal-amount" class="dyn-input" min="0" step="100" placeholder="0">
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:8px">
+        <label class="field-label" for="journal-notes">Notes <span style="font-weight:400;color:var(--text2)">(optional)</span></label>
+        <input type="text" id="journal-notes" class="dyn-input" style="width:100%;box-sizing:border-box" placeholder="e.g. end-of-year statement">
+      </div>
+      <button id="journal-add-btn" class="add-btn" style="width:100%">+ Log entry</button>
+      <div id="journal-feedback" style="display:none;font-size:0.78rem;color:var(--green);margin-top:6px;text-align:center">✓ Entry logged</div>
+    </div>
+
+    <div id="journal-recent" style="margin-top:14px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:0.75rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.04em">Recent entries</span>
+        <span id="journal-count" style="font-size:0.75rem;color:var(--text2)"></span>
+      </div>
+      <div id="journal-list"></div>
+    </div>
+  </div>
+
+  <!-- Backup -->
+  <div class="section" id="backup-section">
+    <h3 class="section-title">Backup <span id="backup-age-badge" class="backup-badge" style="display:none"></span></h3>
+    <p style="font-size:0.78rem;color:var(--text2);margin:0 0 10px">Export your pots, income sources, and actuals journal as a JSON file you can re-import later.</p>
+    <button id="export-backup-btn" class="add-btn" style="width:100%;margin-bottom:8px">⬇ Export backup</button>
+    <button id="import-backup-btn" class="add-btn" style="width:100%;background:var(--surface2)">⬆ Import backup…</button>
+    <input type="file" id="import-file-input" accept=".json" style="display:none">
+  </div>
+
+</div>
+
+<!-- Import confirm dialog -->
+<div id="import-confirm-dialog" class="pot-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="import-dialog-title">
+  <div class="pot-modal">
+    <h4 id="import-dialog-title">Import backup</h4>
+    <p style="font-size:0.82rem;color:var(--text2);margin:0 0 14px">What would you like to restore from this file?</p>
+    <div class="pot-modal-actions">
+      <button id="import-actuals-btn" class="add-btn" style="width:100%">↩ Restore pots, income &amp; actuals only</button>
+      <div id="import-full-warning" class="import-full-warning">
+        <strong>⚠ This will overwrite your current projection settings</strong> (ages, return rate, inflation, drawdown amount). Your current values will be lost.
+      </div>
+      <button id="import-full-btn" class="add-btn" style="width:100%;background:#b45309;color:#fff">⚠ Restore everything (incl. settings)</button>
+      <button id="import-cancel-btn" class="btn-cancel">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <div class="main">
@@ -450,6 +581,7 @@
     <button class="tab" data-tab="netmonthly">Net Monthly Income</button>
     <button class="tab" data-tab="montecarlo">Monte Carlo</button>
     <button class="tab" data-tab="historicalreplay">Historical Replay</button>
+    <button class="tab" data-tab="actuals">Actuals</button>
   </div>
 
   <div class="chart-panel">
@@ -585,6 +717,61 @@
           <tr><td colspan="14" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
         </tbody>
       </table>
+      </div>
+    </div>
+
+    <div id="tab-actuals" class="hidden">
+      <h2 style="margin:0 0 6px;font-size:1.14rem">Actuals vs Forecast <span id="recalibrated-badge" style="display:none;font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(22,163,74,0.12);color:var(--green);border:1px solid rgba(22,163,74,0.3);vertical-align:middle;margin-left:8px">✦ Recalibrated</span></h2>
+      <div class="ai-note" id="actuals-empty-note">No actuals logged yet. Use the <strong>Actuals Journal</strong> in the settings panel to log pot valuations, contributions, and income received.</div>
+
+      <!-- Recalibration summary cards -->
+      <div id="actuals-cards" style="display:none">
+        <div class="cards" style="margin-bottom:16px">
+          <div class="card">
+            <div class="card-label">Most Recent Pot Valuation</div>
+            <div class="card-value" id="ac-latest-val">—</div>
+            <div class="card-sub" id="ac-latest-date"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Forecast at That Date</div>
+            <div class="card-value" id="ac-forecast-val">—</div>
+            <div class="card-sub">deterministic projection</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Divergence</div>
+            <div class="card-value" id="ac-divergence">—</div>
+            <div class="card-sub" id="ac-divergence-sub">vs forecast</div>
+          </div>
+        </div>
+
+        <!-- Overlay chart -->
+        <div style="margin-bottom:20px">
+          <h3 style="margin:0 0 8px;font-size:1rem">Pot Balance — Forecast vs Actuals</h3>
+          <div class="chart-wrap"><canvas id="chart-actuals"></canvas></div>
+        </div>
+
+        <!-- Income actuals table -->
+        <div id="actuals-income-section">
+          <h3 style="margin:0 0 8px;font-size:1rem">Income Actuals</h3>
+          <div class="table-scroll">
+          <table class="ann-table" id="actuals-income-table">
+            <thead>
+              <tr>
+                <th style="text-align:left">Date</th>
+                <th style="text-align:left">Source</th>
+                <th>Amount</th>
+                <th style="text-align:left">Notes</th>
+              </tr>
+            </thead>
+            <tbody id="actuals-income-tbody">
+              <tr><td colspan="4" style="text-align:center;color:var(--text2);padding:20px">No income actuals logged</td></tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+
+        <!-- Contribution actuals table -->
+        </div>
       </div>
     </div>
 
