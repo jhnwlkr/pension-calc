@@ -22,6 +22,9 @@ function addPot(value, annualContrib, equityPct, name) {
     equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
     groupUuid: null,
     groupAllocationPct: null,
+    archived: false,
+    archivedDate: null,
+    consolidatedIntoUuid: null,
   });
   renderPotsUI();
 }
@@ -44,8 +47,8 @@ function renderPotsUI() {
     div.className = 'pot-card';
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title" id="pot-title-${pot.id}">${pot.name || ('Pot ' + (idx + 1))}</span>
-        ${potsData.length > 1 ? `<button class="remove-btn" data-pot-id="${pot.id}">✕</button>` : ''}
+        <span class="pot-card-title" id="pot-title-${pot.id}">${pot.name || ('Pot ' + (idx + 1))}${pot.archived ? ' <span class="archived-badge">Archived</span>' : ''}</span>
+        ${potsData.length > 1 ? `<button class="remove-btn" data-pot-id="${pot.id}" data-pot-set="user" title="Archive / consolidate / delete">⋯</button>` : ''}
       </div>
       <div style="margin-bottom:8px">
         <input class="dyn-input" type="text" placeholder="Name (optional, e.g. SIPP)"
@@ -80,9 +83,9 @@ function renderPotsUI() {
     container.appendChild(div);
   });
 
-  // Wire remove buttons
+  // Wire action buttons (open modal)
   container.querySelectorAll('.remove-btn[data-pot-id]').forEach(btn => {
-    btn.addEventListener('click', () => removePot(+btn.dataset.potId));
+    btn.addEventListener('click', () => openPotModal(+btn.dataset.potId, 'user'));
   });
 
   // Wire number inputs
@@ -168,6 +171,144 @@ function renderPotsUI() {
 }
 
 // Dynamic control wiring is done in initApp() to avoid DOM timing issues when the script is loaded.
+
+// ── Pot action modal ───────────────────────────────────────────────────────
+let _potModalState = { potId: null, potSet: 'user' };
+
+function openPotModal(potId, potSet) {
+  const pots = potSet === 'partner' ? partnerPotsData : potsData;
+  const pot = pots.find(p => p.id === potId);
+  if (!pot) return;
+
+  _potModalState = { potId, potSet };
+
+  const title = document.getElementById('pot-modal-title');
+  const sub   = document.getElementById('pot-modal-sub');
+  if (title) title.textContent = pot.name || ('Pot ' + (pots.indexOf(pot) + 1));
+  if (sub)   sub.textContent   = pot.archived ? 'This pot is currently archived.' : fmtGBP(pot.value) + ' current value';
+
+  // Archive vs Unarchive
+  document.getElementById('pot-modal-archive').style.display   = pot.archived ? 'none' : '';
+  document.getElementById('pot-modal-unarchive').style.display = pot.archived ? ''     : 'none';
+
+  // Consolidate — only makes sense when there are other active pots
+  const others = pots.filter(p => p.id !== potId && !p.archived);
+  const consolidateBtn = document.getElementById('pot-modal-consolidate-btn');
+  if (consolidateBtn) consolidateBtn.style.display = others.length ? '' : 'none';
+
+  // Reset consolidate row
+  const consolidateRow = document.getElementById('pot-modal-consolidate-row');
+  if (consolidateRow) consolidateRow.style.display = 'none';
+  const sel = document.getElementById('pot-modal-consolidate-select');
+  if (sel) {
+    sel.innerHTML = others.map((p, i) =>
+      `<option value="${p.id}">${p.name || ('Pot ' + (pots.indexOf(p) + 1))} — ${fmtGBP(p.value)}</option>`
+    ).join('');
+  }
+
+  // Delete — disabled when only 1 pot (for user pots); always allowed for partner
+  const deleteBtn = document.getElementById('pot-modal-delete');
+  if (deleteBtn) {
+    const tooFew = potSet === 'user' && potsData.filter(p => !p.archived).length <= 1 && !pot.archived;
+    deleteBtn.disabled = tooFew;
+    deleteBtn.title = tooFew ? 'Cannot delete the last active pot' : '';
+  }
+
+  document.getElementById('pot-action-modal').classList.remove('hidden');
+}
+
+function closePotModal() {
+  document.getElementById('pot-action-modal').classList.add('hidden');
+  _potModalState = { potId: null, potSet: 'user' };
+}
+
+function initPotModal() {
+  const modal = document.getElementById('pot-action-modal');
+
+  // Backdrop click closes
+  modal.addEventListener('click', e => { if (e.target === modal) closePotModal(); });
+  document.getElementById('pot-modal-cancel').addEventListener('click', closePotModal);
+
+  // Archive
+  document.getElementById('pot-modal-archive').addEventListener('click', () => {
+    const { potId, potSet } = _potModalState;
+    const pots = potSet === 'partner' ? partnerPotsData : potsData;
+    const pot = pots.find(p => p.id === potId);
+    if (!pot) return;
+    pot.archived = true;
+    pot.archivedDate = new Date().toISOString().slice(0, 10);
+    closePotModal();
+    potSet === 'partner' ? renderPartnerPotsUI() : renderPotsUI();
+    persistParams();
+  });
+
+  // Unarchive
+  document.getElementById('pot-modal-unarchive').addEventListener('click', () => {
+    const { potId, potSet } = _potModalState;
+    const pots = potSet === 'partner' ? partnerPotsData : potsData;
+    const pot = pots.find(p => p.id === potId);
+    if (!pot) return;
+    pot.archived = false;
+    pot.archivedDate = null;
+    pot.consolidatedIntoUuid = null;
+    closePotModal();
+    potSet === 'partner' ? renderPartnerPotsUI() : renderPotsUI();
+    persistParams();
+  });
+
+  // Consolidate — show target selector
+  document.getElementById('pot-modal-consolidate-btn').addEventListener('click', () => {
+    const row = document.getElementById('pot-modal-consolidate-row');
+    if (row) row.style.display = row.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // Consolidate — confirm
+  document.getElementById('pot-modal-consolidate-confirm').addEventListener('click', () => {
+    const { potId, potSet } = _potModalState;
+    const pots = potSet === 'partner' ? partnerPotsData : potsData;
+    const groups = potSet === 'partner' ? partnerGroupsData : groupsData;
+    const pot = pots.find(p => p.id === potId);
+    const targetId = +document.getElementById('pot-modal-consolidate-select').value;
+    const target = pots.find(p => p.id === targetId);
+    if (!pot || !target) return;
+
+    // Merge value and contributions into target
+    target.value += pot.value;
+    target.annualContrib += pot.annualContrib;
+
+    // Mark source as consolidated
+    pot.archived = true;
+    pot.archivedDate = new Date().toISOString().slice(0, 10);
+    pot.consolidatedIntoUuid = target.uuid;
+
+    // Handle group dissolution
+    if (pot.groupUuid) dissolveIfSingleMember(pot.groupUuid, pots, groups);
+
+    closePotModal();
+    potSet === 'partner' ? renderPartnerPotsUI() : renderPotsUI();
+    persistParams();
+  });
+
+  // Delete
+  document.getElementById('pot-modal-delete').addEventListener('click', () => {
+    const { potId, potSet } = _potModalState;
+    const pots = potSet === 'partner' ? partnerPotsData : potsData;
+    const groups = potSet === 'partner' ? partnerGroupsData : groupsData;
+    const pot = pots.find(p => p.id === potId);
+    if (!pot) return;
+    if (potSet === 'user' && potsData.filter(p => !p.archived).length <= 1 && !pot.archived) return;
+    const oldGroup = pot.groupUuid;
+    if (potSet === 'partner') {
+      partnerPotsData = partnerPotsData.filter(p => p.id !== potId);
+    } else {
+      potsData = potsData.filter(p => p.id !== potId);
+    }
+    if (oldGroup) dissolveIfSingleMember(oldGroup, pots, groups);
+    closePotModal();
+    potSet === 'partner' ? renderPartnerPotsUI() : renderPotsUI();
+    persistParams();
+  });
+}
 
 // ── Pot group helpers ──────────────────────────────────────────────────────
 function dissolveIfSingleMember(groupUuid, pots, groups) {
@@ -421,6 +562,9 @@ function addPartnerPot(value, annualContrib, equityPct, name) {
     equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
     groupUuid: null,
     groupAllocationPct: null,
+    archived: false,
+    archivedDate: null,
+    consolidatedIntoUuid: null,
   });
   renderPartnerPotsUI();
 }
@@ -447,8 +591,8 @@ function renderPartnerPotsUI() {
     div.className = 'pot-card';
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title" id="ppartner-pot-title-${pot.id}">${pot.name || ('Pot ' + (idx + 1))}</span>
-        <button class="remove-btn" data-ppartner-pot-id="${pot.id}">✕</button>
+        <span class="pot-card-title" id="ppartner-pot-title-${pot.id}">${pot.name || ('Pot ' + (idx + 1))}${pot.archived ? ' <span class="archived-badge">Archived</span>' : ''}</span>
+        <button class="remove-btn" data-ppartner-pot-id="${pot.id}" data-pot-set="partner" title="Archive / consolidate / delete">⋯</button>
       </div>
       <div style="margin-bottom:8px">
         <input class="dyn-input" type="text" placeholder="Name (optional, e.g. SIPP)"
@@ -481,7 +625,7 @@ function renderPartnerPotsUI() {
     container.appendChild(div);
   });
   container.querySelectorAll('.remove-btn[data-ppartner-pot-id]').forEach(btn => {
-    btn.addEventListener('click', () => removePartnerPot(+btn.dataset.ppartnerPotId));
+    btn.addEventListener('click', () => openPotModal(+btn.dataset.ppartnerPotId, 'partner'));
   });
   container.querySelectorAll('.dyn-input[data-ppartner-pot-id]').forEach(inp => {
     inp.addEventListener('input', () => {
@@ -969,6 +1113,9 @@ function restoreParams(obj) {
             equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
             groupUuid: p.groupUuid || null,
             groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
+            archived: p.archived === true,
+            archivedDate: p.archivedDate || null,
+            consolidatedIntoUuid: p.consolidatedIntoUuid || null,
           });
         });
         renderPotsUI();
@@ -1053,6 +1200,9 @@ function restoreParams(obj) {
             equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
             groupUuid: p.groupUuid || null,
             groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
+            archived: p.archived === true,
+            archivedDate: p.archivedDate || null,
+            consolidatedIntoUuid: p.consolidatedIntoUuid || null,
           });
         });
         renderPartnerPotsUI();
@@ -2731,6 +2881,8 @@ function initApp() {
 
   const addPotBtn = document.getElementById('add-pot-btn');
   if (addPotBtn) addPotBtn.addEventListener('click', () => { addPot(0, 0, 80); persistParams(); });
+
+  initPotModal();
 
   const addIncomeBtn = document.getElementById('add-income-btn');
   if (addIncomeBtn) addIncomeBtn.addEventListener('click', () => { addIncome('Income source', 0, 'annual', 20); persistParams(); });

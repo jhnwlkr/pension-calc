@@ -187,9 +187,43 @@
     .tw-person-heading { font-size: 0.76rem; }
     .tw-heading { font-size: 0.88rem; }
   }
+  /* Pot action modal */
+  .pot-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:200; display:flex; align-items:center; justify-content:center; }
+  .pot-modal-backdrop.hidden { display:none; }
+  .pot-modal { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px 22px; width:min(360px,92vw); box-shadow:0 8px 24px rgba(0,0,0,0.18); }
+  .pot-modal h4 { font-size:0.9rem; font-weight:600; margin-bottom:4px; }
+  .pot-modal .pot-modal-sub { font-size:0.77rem; color:var(--text2); margin-bottom:16px; }
+  .pot-modal-actions { display:flex; flex-direction:column; gap:8px; }
+  .pot-modal-actions button { width:100%; padding:9px 14px; border-radius:6px; font-size:0.82rem; font-weight:600; cursor:pointer; text-align:left; border:1px solid var(--border); background:var(--surface2); color:var(--text); transition:opacity .15s; }
+  .pot-modal-actions button:hover { opacity:0.8; }
+  .pot-modal-actions .btn-danger { background:rgba(220,38,38,0.08); border-color:var(--red); color:var(--red); }
+  .pot-modal-actions .btn-cancel { background:transparent; border-color:var(--border); color:var(--text2); }
+  .pot-modal-consolidate { display:none; margin-top:8px; }
+  .pot-modal-consolidate select { width:100%; margin-bottom:8px; }
+  .archived-badge { display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; font-weight:600; padding:2px 7px; border-radius:4px; background:rgba(217,119,6,0.12); color:var(--amber); border:1px solid rgba(217,119,6,0.3); }
 </style>
 </head>
 <body>
+<!-- Pot action modal (archive / consolidate / delete) -->
+<div id="pot-action-modal" class="pot-modal-backdrop hidden" role="dialog" aria-modal="true">
+  <div class="pot-modal">
+    <h4 id="pot-modal-title">Pension Pot</h4>
+    <div class="pot-modal-sub" id="pot-modal-sub"></div>
+    <div class="pot-modal-actions">
+      <button id="pot-modal-archive">📦 Archive this pot</button>
+      <button id="pot-modal-unarchive" style="display:none">↩ Unarchive this pot</button>
+      <div>
+        <button id="pot-modal-consolidate-btn">🔀 Consolidate into another pot</button>
+        <div class="pot-modal-consolidate" id="pot-modal-consolidate-row">
+          <select id="pot-modal-consolidate-select" class="dyn-select" style="margin-top:6px"></select>
+          <button id="pot-modal-consolidate-confirm" class="add-btn" style="width:100%;margin-top:4px">Confirm consolidation</button>
+        </div>
+      </div>
+      <button id="pot-modal-delete" class="btn-danger">🗑 Delete this pot</button>
+      <button id="pot-modal-cancel" class="btn-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
 <div class="header">
   <div class="header-text">
     <div style="display:flex;align-items:center;gap:12px">
