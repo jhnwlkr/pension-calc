@@ -998,7 +998,244 @@ document.getElementById('retirement-age').addEventListener('input', () => {
 
 // ── Persistence ────────────────────────────────────────────────────────────
 const LS_KEY = 'pension-forecast-v7';
+const ACTUALS_KEY = 'pension-forecast-actuals-v1';
+const APP_VERSION = '1.0.0';
 const SLIDER_IDS = sliders.map(([id]) => id);
+
+// ── Actuals ledger ─────────────────────────────────────────────────────────
+// Events stored in localStorage under ACTUALS_KEY, separate from settings.
+// Event shape: { id, type, potUuid|incomeUuid, date, amount, notes, linkedEventId }
+let actualsEvents = [];   // full event log
+
+function loadActuals() {
+  try {
+    const raw = localStorage.getItem(ACTUALS_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      actualsEvents = Array.isArray(obj.events) ? obj.events : [];
+    }
+  } catch(e) { actualsEvents = []; }
+}
+
+function saveActuals() {
+  try {
+    localStorage.setItem(ACTUALS_KEY, JSON.stringify({ version: 1, events: actualsEvents }));
+  } catch(e) {}
+}
+
+function addActualEvent(event) {
+  actualsEvents.push({ id: crypto.randomUUID(), ...event });
+  saveActuals();
+}
+
+// ── Export / Import ────────────────────────────────────────────────────────
+function buildExportPayload() {
+  // Settings = projection assumptions only (not pot values/contributions, not income amounts)
+  const settings = {};
+  SLIDER_IDS.forEach(id => { settings[id] = document.getElementById(id)?.value; });
+  settings['guardrails']          = document.getElementById('guardrails')?.checked;
+  settings['drawdown-mode']       = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
+  settings['drawdown-inflation']  = document.getElementById('drawdown-inflation')?.checked;
+  settings['partner-enabled']     = getPartnerEnabled();
+  partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) settings[id] = el.value; });
+
+  // Actuals = all pot registries, income registries, groups, events
+  const actuals = {
+    potRegistry:            potsData.map(p => ({ ...p })),
+    cashPotRegistry:        cashPotsData.map(p => ({ ...p })),
+    partnerPotRegistry:     partnerPotsData.map(p => ({ ...p })),
+    partnerCashPotRegistry: partnerCashPotsData.map(p => ({ ...p })),
+    incomeRegistry:         incomesData.map(i => ({ ...i })),
+    partnerIncomeRegistry:  partnerIncomesData.map(i => ({ ...i })),
+    groups:                 groupsData.map(g => ({ ...g })),
+    partnerGroups:          partnerGroupsData.map(g => ({ ...g })),
+    events:                 actualsEvents.map(e => ({ ...e })),
+  };
+
+  return {
+    exportedAt:  new Date().toISOString(),
+    appVersion:  APP_VERSION,
+    actuals,
+    settings,
+  };
+}
+
+function exportBackup() {
+  const payload = buildExportPayload();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `pension-forecast-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  // Record export date for backup-age badge
+  try { localStorage.setItem('pension-forecast-last-export', new Date().toISOString()); } catch(e) {}
+  updateBackupBadge();
+}
+
+function importBackup(payload, mode) {
+  // mode: 'actuals' = restore actuals+registries only; 'full' = also restore settings
+  if (!payload || typeof payload !== 'object') return false;
+
+  const actuals = payload.actuals;
+  if (!actuals) return false;
+
+  // Restore pot registries
+  if (Array.isArray(actuals.potRegistry) && actuals.potRegistry.length > 0) {
+    potsData = [];
+    actuals.potRegistry.forEach(p => {
+      const id = nextPotId++;
+      potsData.push({
+        id,
+        uuid: p.uuid || crypto.randomUUID(),
+        name: p.name || '',
+        value: +p.value || 0,
+        annualContrib: +p.annualContrib || 0,
+        equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+        groupUuid: p.groupUuid || null,
+        groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
+        archived: p.archived === true,
+        archivedDate: p.archivedDate || null,
+        consolidatedIntoUuid: p.consolidatedIntoUuid || null,
+      });
+    });
+    renderPotsUI();
+  }
+  if (Array.isArray(actuals.cashPotRegistry)) {
+    cashPotsData = [];
+    actuals.cashPotRegistry.forEach(p => {
+      const id = nextCashPotId++;
+      cashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+    });
+    renderCashPotsUI();
+  }
+  if (Array.isArray(actuals.partnerPotRegistry) && actuals.partnerPotRegistry.length > 0) {
+    partnerPotsData = [];
+    actuals.partnerPotRegistry.forEach(p => {
+      const id = nextPartnerPotId++;
+      partnerPotsData.push({
+        id,
+        uuid: p.uuid || crypto.randomUUID(),
+        name: p.name || '',
+        value: +p.value || 0,
+        annualContrib: +p.annualContrib || 0,
+        equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+        groupUuid: p.groupUuid || null,
+        groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
+        archived: p.archived === true,
+        archivedDate: p.archivedDate || null,
+        consolidatedIntoUuid: p.consolidatedIntoUuid || null,
+      });
+    });
+    renderPartnerPotsUI();
+  }
+  if (Array.isArray(actuals.partnerCashPotRegistry)) {
+    partnerCashPotsData = [];
+    actuals.partnerCashPotRegistry.forEach(p => {
+      const id = nextPartnerCashPotId++;
+      partnerCashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+    });
+    renderPartnerCashPotsUI();
+  }
+  if (Array.isArray(actuals.incomeRegistry)) {
+    incomesData = [];
+    actuals.incomeRegistry.forEach(inc => {
+      const id = nextIncomeId++;
+      incomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
+    });
+    renderIncomesUI();
+  }
+  if (Array.isArray(actuals.partnerIncomeRegistry)) {
+    partnerIncomesData = [];
+    actuals.partnerIncomeRegistry.forEach(inc => {
+      const id = nextPartnerIncomeId++;
+      partnerIncomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
+    });
+    renderPartnerIncomesUI();
+  }
+  if (Array.isArray(actuals.groups))        groupsData = actuals.groups.filter(g => g.uuid && g.name);
+  if (Array.isArray(actuals.partnerGroups)) partnerGroupsData = actuals.partnerGroups.filter(g => g.uuid && g.name);
+
+  // Idempotent merge of events by id
+  if (Array.isArray(actuals.events)) {
+    const existingIds = new Set(actualsEvents.map(e => e.id));
+    actuals.events.forEach(e => { if (e.id && !existingIds.has(e.id)) actualsEvents.push(e); });
+    saveActuals();
+  }
+
+  if (mode === 'full' && payload.settings) {
+    restoreParams(payload.settings);
+  }
+
+  persistParams();
+  return true;
+}
+
+function updateBackupBadge() {
+  const badge = document.getElementById('backup-age-badge');
+  if (!badge) return;
+  let lastExport = null;
+  try { lastExport = localStorage.getItem('pension-forecast-last-export'); } catch(e) {}
+  if (!lastExport) {
+    badge.textContent = 'Never exported';
+    badge.className = 'backup-badge backup-badge--amber';
+    badge.style.display = '';
+    return;
+  }
+  const days = Math.floor((Date.now() - new Date(lastExport).getTime()) / 86400000);
+  if (days < 30) { badge.style.display = 'none'; return; }
+  badge.textContent = days >= 90 ? `Backup ${days}d ago — overdue` : `Backup ${days}d ago`;
+  badge.className   = `backup-badge ${days >= 90 ? 'backup-badge--red' : 'backup-badge--amber'}`;
+  badge.style.display = '';
+}
+
+function initImportDialog() {
+  const fileInput = document.getElementById('import-file-input');
+  const dialog    = document.getElementById('import-confirm-dialog');
+  const btnActuals = document.getElementById('import-actuals-btn');
+  const btnFull    = document.getElementById('import-full-btn');
+  const btnCancel  = document.getElementById('import-cancel-btn');
+  const fullWarn   = document.getElementById('import-full-warning');
+  let _pendingPayload = null;
+
+  document.getElementById('import-backup-btn').addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        _pendingPayload = JSON.parse(e.target.result);
+        if (!_pendingPayload?.actuals) { alert('Invalid backup file.'); _pendingPayload = null; return; }
+        // Show full-restore warning only if settings block is present
+        if (fullWarn) fullWarn.style.display = _pendingPayload.settings ? '' : 'none';
+        if (btnFull)  btnFull.style.display   = _pendingPayload.settings ? '' : 'none';
+        dialog.classList.remove('hidden');
+      } catch { alert('Could not read backup file.'); }
+      fileInput.value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  btnActuals?.addEventListener('click', () => {
+    if (_pendingPayload && importBackup(_pendingPayload, 'actuals')) {
+      dialog.classList.add('hidden'); _pendingPayload = null;
+    }
+  });
+  btnFull?.addEventListener('click', () => {
+    if (_pendingPayload && importBackup(_pendingPayload, 'full')) {
+      dialog.classList.add('hidden'); _pendingPayload = null;
+    }
+  });
+  btnCancel?.addEventListener('click', () => {
+    dialog.classList.add('hidden'); _pendingPayload = null;
+  });
+  dialog?.addEventListener('click', e => { if (e.target === dialog) { dialog.classList.add('hidden'); _pendingPayload = null; } });
+}
 
 function persistParams() {
   const obj = {};
@@ -2883,6 +3120,10 @@ function initApp() {
   if (addPotBtn) addPotBtn.addEventListener('click', () => { addPot(0, 0, 80); persistParams(); });
 
   initPotModal();
+  loadActuals();
+  initImportDialog();
+  document.getElementById('export-backup-btn')?.addEventListener('click', exportBackup);
+  updateBackupBadge();
 
   const addIncomeBtn = document.getElementById('add-income-btn');
   if (addIncomeBtn) addIncomeBtn.addEventListener('click', () => { addIncome('Income source', 0, 'annual', 20); persistParams(); });

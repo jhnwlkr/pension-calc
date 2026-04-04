@@ -201,6 +201,10 @@
   .pot-modal-consolidate { display:none; margin-top:8px; }
   .pot-modal-consolidate select { width:100%; margin-bottom:8px; }
   .archived-badge { display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; font-weight:600; padding:2px 7px; border-radius:4px; background:rgba(217,119,6,0.12); color:var(--amber); border:1px solid rgba(217,119,6,0.3); }
+  .backup-badge { display:inline-flex; align-items:center; font-size:0.7rem; font-weight:600; padding:2px 7px; border-radius:4px; margin-left:8px; vertical-align:middle; }
+  .backup-badge--amber { background:rgba(217,119,6,0.12); color:var(--amber); border:1px solid rgba(217,119,6,0.3); }
+  .backup-badge--red   { background:rgba(220,38,38,0.12); color:#f87171; border:1px solid rgba(220,38,38,0.3); }
+  .import-full-warning { font-size:0.78rem; color:#fbbf24; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); border-radius:6px; padding:8px 10px; margin:6px 0; }
 </style>
 </head>
 <body>
@@ -432,6 +436,31 @@
     </div>
   </div>
 
+  <!-- Backup -->
+  <div class="section" id="backup-section">
+    <h3 class="section-title">Backup <span id="backup-age-badge" class="backup-badge" style="display:none"></span></h3>
+    <p style="font-size:0.78rem;color:var(--text2);margin:0 0 10px">Export your pots, income sources, and actuals journal as a JSON file you can re-import later.</p>
+    <button id="export-backup-btn" class="add-btn" style="width:100%;margin-bottom:8px">⬇ Export backup</button>
+    <button id="import-backup-btn" class="add-btn" style="width:100%;background:var(--surface2)">⬆ Import backup…</button>
+    <input type="file" id="import-file-input" accept=".json" style="display:none">
+  </div>
+
+</div>
+
+<!-- Import confirm dialog -->
+<div id="import-confirm-dialog" class="pot-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="import-dialog-title">
+  <div class="pot-modal">
+    <h4 id="import-dialog-title">Import backup</h4>
+    <p style="font-size:0.82rem;color:var(--text2);margin:0 0 14px">What would you like to restore from this file?</p>
+    <div class="pot-modal-actions">
+      <button id="import-actuals-btn" class="add-btn" style="width:100%">↩ Restore pots, income &amp; actuals only</button>
+      <div id="import-full-warning" class="import-full-warning">
+        <strong>⚠ This will overwrite your current projection settings</strong> (ages, return rate, inflation, drawdown amount). Your current values will be lost.
+      </div>
+      <button id="import-full-btn" class="add-btn" style="width:100%;background:#b45309;color:#fff">⚠ Restore everything (incl. settings)</button>
+      <button id="import-cancel-btn" class="btn-cancel">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <div class="main">
