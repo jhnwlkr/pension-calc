@@ -205,6 +205,14 @@
   .backup-badge--amber { background:rgba(217,119,6,0.12); color:var(--amber); border:1px solid rgba(217,119,6,0.3); }
   .backup-badge--red   { background:rgba(220,38,38,0.12); color:#f87171; border:1px solid rgba(220,38,38,0.3); }
   .import-full-warning { font-size:0.78rem; color:#fbbf24; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); border-radius:6px; padding:8px 10px; margin:6px 0; }
+  .journal-entry { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); font-size:0.78rem; }
+  .journal-entry:last-child { border-bottom:none; }
+  .journal-entry-icon { font-size:1rem; flex-shrink:0; margin-top:1px; }
+  .journal-entry-body { flex:1; min-width:0; }
+  .journal-entry-title { font-weight:600; color:var(--text1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .journal-entry-meta  { color:var(--text2); margin-top:1px; }
+  .journal-entry-del   { background:none; border:none; cursor:pointer; color:var(--text2); font-size:0.9rem; padding:0 2px; flex-shrink:0; line-height:1; }
+  .journal-entry-del:hover { color:var(--red); }
 </style>
 </head>
 <body>
@@ -433,6 +441,55 @@
           <span style="font-size:0.72rem;color:var(--text2)">10% income cut when pot drops &gt;20% below its value at retirement</span>
         </span>
       </label>
+    </div>
+  </div>
+
+  <!-- Actuals Journal -->
+  <div class="section" id="journal-section">
+    <h3 class="section-title">Actuals Journal</h3>
+    <p style="font-size:0.78rem;color:var(--text2);margin:0 0 12px">Log pot valuations and income received to recalibrate your forecast against reality.</p>
+
+    <div id="journal-form">
+      <div style="margin-bottom:8px">
+        <label class="field-label" for="journal-type">Entry type</label>
+        <select id="journal-type" class="dyn-select" style="width:100%">
+          <option value="pot_valuation">Pension pot valuation</option>
+          <option value="cash_valuation">Cash pot valuation</option>
+          <option value="income_actual">Income received</option>
+          <option value="contrib_actual">Contribution made</option>
+        </select>
+      </div>
+      <div style="margin-bottom:8px">
+        <label class="field-label" for="journal-target">Target</label>
+        <select id="journal-target" class="dyn-select" style="width:100%"></select>
+      </div>
+      <div class="two-col" style="margin-bottom:8px">
+        <div>
+          <label class="field-label" for="journal-date">Date</label>
+          <input type="date" id="journal-date" class="dyn-input" style="width:100%;box-sizing:border-box">
+        </div>
+        <div>
+          <label class="field-label" for="journal-amount">Amount (£)</label>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input type="number" id="journal-amount" class="dyn-input" min="0" step="100" placeholder="0">
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:8px">
+        <label class="field-label" for="journal-notes">Notes <span style="font-weight:400;color:var(--text2)">(optional)</span></label>
+        <input type="text" id="journal-notes" class="dyn-input" style="width:100%;box-sizing:border-box" placeholder="e.g. end-of-year statement">
+      </div>
+      <button id="journal-add-btn" class="add-btn" style="width:100%">+ Log entry</button>
+      <div id="journal-feedback" style="display:none;font-size:0.78rem;color:var(--green);margin-top:6px;text-align:center">✓ Entry logged</div>
+    </div>
+
+    <div id="journal-recent" style="margin-top:14px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:0.75rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.04em">Recent entries</span>
+        <span id="journal-count" style="font-size:0.75rem;color:var(--text2)"></span>
+      </div>
+      <div id="journal-list"></div>
     </div>
   </div>
 

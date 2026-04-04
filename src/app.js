@@ -1237,7 +1237,150 @@ function initImportDialog() {
   dialog?.addEventListener('click', e => { if (e.target === dialog) { dialog.classList.add('hidden'); _pendingPayload = null; } });
 }
 
-function persistParams() {
+// ── Actuals Journal form ───────────────────────────────────────────────────
+const JOURNAL_TYPE_META = {
+  pot_valuation:  { icon: '📊', label: 'Pot valuation' },
+  cash_valuation: { icon: '💰', label: 'Cash valuation' },
+  income_actual:  { icon: '📥', label: 'Income received' },
+  contrib_actual: { icon: '📤', label: 'Contribution' },
+};
+
+function _potDisplayName(pot, idx, prefix) {
+  return (pot.name || `${prefix} Pot ${idx + 1}`) + (pot.archived ? ' (archived)' : '');
+}
+function _incomeDisplayName(inc, idx, prefix) {
+  return inc.name || `${prefix} Income ${idx + 1}`;
+}
+function _cashDisplayName(cp, idx, prefix) {
+  return cp.name || `${prefix} Cash Pot ${idx + 1}`;
+}
+
+function populateJournalTargets() {
+  const type   = document.getElementById('journal-type').value;
+  const sel    = document.getElementById('journal-target');
+  const partner = document.getElementById('partner-enabled')?.checked;
+  sel.innerHTML = '';
+
+  const addGroup = (label, items) => {
+    if (!items.length) return;
+    const grp = document.createElement('optgroup');
+    grp.label = label;
+    items.forEach(([uuid, text]) => {
+      const opt = new Option(text, uuid);
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
+  };
+
+  if (type === 'pot_valuation') {
+    addGroup('Your pots',    potsData.map((p, i) => [p.uuid, _potDisplayName(p, i, 'Your')]));
+    if (partner) addGroup('Partner pots', partnerPotsData.map((p, i) => [p.uuid, _potDisplayName(p, i, "Partner's")]));
+  } else if (type === 'cash_valuation') {
+    addGroup('Your cash',    cashPotsData.map((p, i) => [p.uuid, _cashDisplayName(p, i, 'Your')]));
+    if (partner) addGroup('Partner cash', partnerCashPotsData.map((p, i) => [p.uuid, _cashDisplayName(p, i, "Partner's")]));
+  } else if (type === 'income_actual') {
+    addGroup('Your income',    incomesData.map((inc, i) => [inc.uuid, _incomeDisplayName(inc, i, 'Your')]));
+    if (partner) addGroup('Partner income', partnerIncomesData.map((inc, i) => [inc.uuid, _incomeDisplayName(inc, i, "Partner's")]));
+  } else if (type === 'contrib_actual') {
+    addGroup('Your pots',    potsData.map((p, i) => [p.uuid, _potDisplayName(p, i, 'Your')]));
+    if (partner) addGroup('Partner pots', partnerPotsData.map((p, i) => [p.uuid, _potDisplayName(p, i, "Partner's")]));
+  }
+
+  if (!sel.options.length) {
+    sel.appendChild(new Option('— no targets available —', ''));
+  }
+}
+
+function renderJournalRecent() {
+  const section    = document.getElementById('journal-recent');
+  const list       = document.getElementById('journal-list');
+  const countEl    = document.getElementById('journal-count');
+  const total      = actualsEvents.length;
+  if (!total) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  countEl.textContent   = `${total} total`;
+  const recent = [...actualsEvents].reverse().slice(0, 8);
+  list.innerHTML = recent.map(e => {
+    const meta   = JOURNAL_TYPE_META[e.type] || { icon: '📝', label: e.type };
+    const amount = e.amount != null ? `£${Number(e.amount).toLocaleString('en-GB')}` : '';
+    const note   = e.notes ? ` · ${e.notes}` : '';
+    const name   = e.targetName || e.targetUuid?.slice(0, 8) || '—';
+    return `<div class="journal-entry">
+      <span class="journal-entry-icon">${meta.icon}</span>
+      <div class="journal-entry-body">
+        <div class="journal-entry-title">${name}</div>
+        <div class="journal-entry-meta">${e.date || ''} · ${meta.label} · ${amount}${note}</div>
+      </div>
+      <button class="journal-entry-del" data-event-id="${e.id}" title="Delete entry">×</button>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.journal-entry-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      actualsEvents = actualsEvents.filter(ev => ev.id !== btn.dataset.eventId);
+      saveActuals();
+      renderJournalRecent();
+    });
+  });
+}
+
+function initJournalForm() {
+  const typeEl   = document.getElementById('journal-type');
+  const dateEl   = document.getElementById('journal-date');
+  const amountEl = document.getElementById('journal-amount');
+  const notesEl  = document.getElementById('journal-notes');
+  const addBtn   = document.getElementById('journal-add-btn');
+  const feedback = document.getElementById('journal-feedback');
+  let _fbTimer   = null;
+
+  // Default date = today
+  dateEl.value = new Date().toISOString().slice(0, 10);
+
+  // Rebuild target dropdown on type change, and also when the user opens the target select
+  // (so it always reflects the latest added/removed pots without patching all render fns)
+  typeEl.addEventListener('change', populateJournalTargets);
+  document.getElementById('journal-target').addEventListener('mousedown', populateJournalTargets);
+  populateJournalTargets();
+
+  addBtn.addEventListener('click', () => {
+    const type      = typeEl.value;
+    const targetSel = document.getElementById('journal-target');
+    const targetUuid = targetSel.value;
+    const date      = dateEl.value;
+    const amount    = parseFloat(amountEl.value);
+
+    if (!targetUuid) { alert('Please select a target.'); return; }
+    if (!date)       { alert('Please enter a date.'); return; }
+    if (isNaN(amount) || amount < 0) { alert('Please enter a valid amount.'); return; }
+
+    // Resolve a display name for the target
+    const allTargets = [
+      ...potsData, ...partnerPotsData,
+      ...cashPotsData, ...partnerCashPotsData,
+      ...incomesData, ...partnerIncomesData,
+    ];
+    const match = allTargets.find(x => x.uuid === targetUuid);
+    const targetName = match?.name || targetSel.options[targetSel.selectedIndex]?.text || targetUuid;
+
+    addActualEvent({
+      type,
+      targetUuid,
+      targetName,
+      date,
+      amount,
+      notes: notesEl.value.trim() || null,
+    });
+
+    renderJournalRecent();
+    // Reset form (keep type and date so rapid logging is easy)
+    amountEl.value = '';
+    notesEl.value  = '';
+
+    clearTimeout(_fbTimer);
+    feedback.style.display = '';
+    _fbTimer = setTimeout(() => { feedback.style.display = 'none'; }, 2500);
+  });
+}
   const obj = {};
   SLIDER_IDS.forEach(id => { obj[id] = document.getElementById(id).value; });
   obj['guardrails'] = document.getElementById('guardrails').checked ? '1' : '0';
@@ -3122,6 +3265,8 @@ function initApp() {
   initPotModal();
   loadActuals();
   initImportDialog();
+  initJournalForm();
+  renderJournalRecent();
   document.getElementById('export-backup-btn')?.addEventListener('click', exportBackup);
   updateBackupBadge();
 
