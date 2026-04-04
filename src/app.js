@@ -3234,20 +3234,35 @@ function renderActualsTab(r) {
       const detVals     = Array.from(r.detPotByYear || []).map((v, i) => useToday ? v * deflator(i) : v);
       const spAgeIdx    = r.ages.indexOf(r.p.spAge);
 
-      // Build actuals scatter: one point per year bucket
+      // Find the earliest journal entry across all event types and clip the chart to that age
+      const allDates = actualsEvents.map(e => e.date).filter(Boolean);
+      const earliestYear = allDates.length
+        ? Math.min(...allDates.map(d => new Date(d).getFullYear()))
+        : currentYear;
+      const earliestAge  = r.p.currentAge + (earliestYear - currentYear);
+      // Start one year before the earliest entry so there's visible context
+      const startAge     = Math.max(r.ages[0], earliestAge - 1);
+      const startIdx     = Math.max(0, r.ages.indexOf(startAge) !== -1 ? r.ages.indexOf(startAge) : 0);
+
+      const slicedAges   = r.ages.slice(startIdx);
+      const slicedDet    = detVals.slice(startIdx);
+      const spIdxSliced  = spAgeIdx >= startIdx ? spAgeIdx - startIdx : -1;
+
+      // Build actuals scatter relative to sliced labels
       const actualsPoints = sortedValYears.map(yr => {
-        const idx = r.ages.indexOf(r.p.currentAge + (yr - currentYear));
-        if (idx < 0) return null;
-        const v = useToday ? valByYear[yr] * deflator(idx) : valByYear[yr];
-        return { x: idx, y: v };
+        const origIdx = r.ages.indexOf(r.p.currentAge + (yr - currentYear));
+        if (origIdx < startIdx) return null;
+        const slicedI = origIdx - startIdx;
+        const v = useToday ? valByYear[yr] * deflator(origIdx) : valByYear[yr];
+        return { x: slicedI, y: v };
       }).filter(Boolean);
 
       const spLinePlugin = {
         id: 'spLine',
         afterDraw(chart) {
-          if (spAgeIdx < 0) return;
+          if (spIdxSliced < 0) return;
           const { ctx: c, scales: { x, y } } = chart;
-          const xPx = x.getPixelForValue(spAgeIdx);
+          const xPx = x.getPixelForValue(spIdxSliced);
           c.save();
           c.strokeStyle = '#d97706'; c.lineWidth = 1.5;
           c.setLineDash([6, 4]);
@@ -3262,11 +3277,11 @@ function renderActualsTab(r) {
         type: 'line',
         plugins: [spLinePlugin],
         data: {
-          labels: r.ages,
+          labels: slicedAges,
           datasets: [
             {
               label: 'Forecast (deterministic)',
-              data: detVals,
+              data: slicedDet,
               borderColor: 'rgba(37,99,235,0.5)',
               backgroundColor: 'rgba(37,99,235,0.06)',
               fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5,
@@ -3274,7 +3289,7 @@ function renderActualsTab(r) {
             },
             {
               label: 'Actual valuations',
-              data: r.ages.map((_, i) => {
+              data: slicedAges.map((_, i) => {
                 const pt = actualsPoints.find(p => p.x === i);
                 return pt ? pt.y : null;
               }),
