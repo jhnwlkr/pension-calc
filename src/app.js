@@ -1273,8 +1273,10 @@ function populateJournalTargets() {
   };
 
   if (type === 'pot_valuation') {
-    addGroup('Your pots',    potsData.map((p, i) => [p.uuid, _potDisplayName(p, i, 'Your')]));
-    if (partner) addGroup('Partner pots', partnerPotsData.map((p, i) => [p.uuid, _potDisplayName(p, i, "Partner's")]));
+    addGroup('Your groups', groupsData.map(g => ['group:' + g.uuid, '≡ ' + g.name]));
+    addGroup('Your pots',   potsData.map((p, i) => [p.uuid, _potDisplayName(p, i, 'Your')]));
+    if (partner) addGroup('Partner groups', partnerGroupsData.map(g => ['group:' + g.uuid, '≡ ' + g.name]));
+    if (partner) addGroup('Partner pots',   partnerPotsData.map((p, i) => [p.uuid, _potDisplayName(p, i, "Partner's")]));
   } else if (type === 'cash_valuation') {
     addGroup('Your cash',    cashPotsData.map((p, i) => [p.uuid, _cashDisplayName(p, i, 'Your')]));
     if (partner) addGroup('Partner cash', partnerCashPotsData.map((p, i) => [p.uuid, _cashDisplayName(p, i, "Partner's")]));
@@ -1282,8 +1284,10 @@ function populateJournalTargets() {
     addGroup('Your income',    incomesData.map((inc, i) => [inc.uuid, _incomeDisplayName(inc, i, 'Your')]));
     if (partner) addGroup('Partner income', partnerIncomesData.map((inc, i) => [inc.uuid, _incomeDisplayName(inc, i, "Partner's")]));
   } else if (type === 'contrib_actual') {
-    addGroup('Your pots',    potsData.map((p, i) => [p.uuid, _potDisplayName(p, i, 'Your')]));
-    if (partner) addGroup('Partner pots', partnerPotsData.map((p, i) => [p.uuid, _potDisplayName(p, i, "Partner's")]));
+    addGroup('Your groups', groupsData.map(g => ['group:' + g.uuid, '≡ ' + g.name]));
+    addGroup('Your pots',   potsData.map((p, i) => [p.uuid, _potDisplayName(p, i, 'Your')]));
+    if (partner) addGroup('Partner groups', partnerGroupsData.map(g => ['group:' + g.uuid, '≡ ' + g.name]));
+    if (partner) addGroup('Partner pots',   partnerPotsData.map((p, i) => [p.uuid, _potDisplayName(p, i, "Partner's")]));
   }
 
   if (!sel.options.length) {
@@ -1353,23 +1357,54 @@ function initJournalForm() {
     if (!date)       { alert('Please enter a date.'); return; }
     if (isNaN(amount) || amount < 0) { alert('Please enter a valid amount.'); return; }
 
-    // Resolve a display name for the target
-    const allTargets = [
-      ...potsData, ...partnerPotsData,
-      ...cashPotsData, ...partnerCashPotsData,
-      ...incomesData, ...partnerIncomesData,
-    ];
-    const match = allTargets.find(x => x.uuid === targetUuid);
-    const targetName = match?.name || targetSel.options[targetSel.selectedIndex]?.text || targetUuid;
+    const notes = notesEl.value.trim() || null;
 
-    addActualEvent({
-      type,
-      targetUuid,
-      targetName,
-      date,
-      amount,
-      notes: notesEl.value.trim() || null,
-    });
+    if (targetUuid.startsWith('group:')) {
+      // Fan out: one event per pot in the group, proportional to groupAllocationPct
+      const groupUuid = targetUuid.slice(6);
+      const groupLabel = targetSel.options[targetSel.selectedIndex]?.text.replace(/^≡\s*/, '') || groupUuid;
+      // Determine which pots array this group belongs to
+      const isPartnerGroup = partnerGroupsData.some(g => g.uuid === groupUuid);
+      const srcPots = (isPartnerGroup ? partnerPotsData : potsData).filter(p => p.groupUuid === groupUuid);
+      if (!srcPots.length) { alert('No pots are assigned to this group.'); return; }
+
+      // Compute weights: use groupAllocationPct if set and sum > 0, else equal split
+      const totalPct = srcPots.reduce((s, p) => s + (p.groupAllocationPct || 0), 0);
+      const useEqual = totalPct === 0;
+      const batchId  = crypto.randomUUID(); // link events so they can be managed together
+
+      srcPots.forEach(pot => {
+        const weight = useEqual ? (1 / srcPots.length) : (pot.groupAllocationPct || 0) / totalPct;
+        const alloc  = Math.round(amount * weight * 100) / 100;
+        addActualEvent({
+          type,
+          targetUuid: pot.uuid,
+          targetName: pot.name || groupLabel,
+          date,
+          amount: alloc,
+          notes: notes ? `${notes} (via ${groupLabel})` : `via ${groupLabel}`,
+          groupBatchId: batchId,
+        });
+      });
+    } else {
+      // Single target
+      const allTargets = [
+        ...potsData, ...partnerPotsData,
+        ...cashPotsData, ...partnerCashPotsData,
+        ...incomesData, ...partnerIncomesData,
+      ];
+      const match = allTargets.find(x => x.uuid === targetUuid);
+      const targetName = match?.name || targetSel.options[targetSel.selectedIndex]?.text || targetUuid;
+
+      addActualEvent({
+        type,
+        targetUuid,
+        targetName,
+        date,
+        amount,
+        notes,
+      });
+    }
 
     renderJournalRecent();
     // Reset form (keep type and date so rapid logging is easy)
