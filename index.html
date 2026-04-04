@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UK Retirement Calculator</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <style>
   :root {
     --bg: #f5f5f5; --surface: #ffffff; --surface2: #f0f0f0;
@@ -277,7 +279,7 @@
     <h3 class="section-title">Age & Retirement</h3>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Date of birth</span><span class="slider-val" id="v-current-age">Age 55</span></div>
-      <input type="date" id="current-dob" value="1971-01-01" style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem">
+      <input type="text" id="current-dob" placeholder="Select date of birth" readonly style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem;cursor:pointer">
     </div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Retirement age</span><span class="slider-val" id="v-retirement-age">65</span></div>
@@ -350,7 +352,7 @@
       <div style="font-size:0.72rem;color:var(--text2);margin-bottom:10px;padding:6px 8px;background:var(--surface2);border-radius:4px;border-left:3px solid var(--accent)">Partner's state pension is added to joint income. Survival probability reflects either partner outliving the plan.</div>
       <div class="slider-row">
         <div class="slider-label"><span class="slider-name">Partner date of birth</span><span class="slider-val" id="v-partner-age">Age 52</span></div>
-        <input type="date" id="partner-dob" value="1974-01-01" style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem">
+        <input type="text" id="partner-dob" placeholder="Select date of birth" readonly style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem;cursor:pointer">
       </div>
       <div class="slider-row">
         <div class="slider-label"><span class="slider-name">Partner retirement age</span><span class="slider-val" id="v-partner-retirement-age">55</span></div>

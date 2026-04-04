@@ -1670,11 +1670,13 @@ function restoreParams(obj) {
     const lbl = document.getElementById('v-current-age');
     if (obj['current-dob'] && el) {
       el.value = obj['current-dob'];
+      if (el._flatpickr) el._flatpickr.setDate(obj['current-dob'], false);
       if (lbl) lbl.textContent = 'Age ' + dobToAge(obj['current-dob']);
     } else if (obj['current-age'] && el) {
       const age = +obj['current-age'];
       const dob = new Date(Date.now() - age * 365.25 * 86400000).toISOString().slice(0, 10);
       el.value = dob;
+      if (el._flatpickr) el._flatpickr.setDate(dob, false);
       if (lbl) lbl.textContent = 'Age ' + age;
     }
   }
@@ -1683,11 +1685,13 @@ function restoreParams(obj) {
     const lbl = document.getElementById('v-partner-age');
     if (obj['partner-dob'] && el) {
       el.value = obj['partner-dob'];
+      if (el._flatpickr) el._flatpickr.setDate(obj['partner-dob'], false);
       if (lbl) lbl.textContent = 'Age ' + dobToAge(obj['partner-dob']);
     } else if (obj['partner-age'] && el) {
       const age = +obj['partner-age'];
       const dob = new Date(Date.now() - age * 365.25 * 86400000).toISOString().slice(0, 10);
       el.value = dob;
+      if (el._flatpickr) el._flatpickr.setDate(dob, false);
       if (lbl) lbl.textContent = 'Age ' + age;
     }
   }
@@ -3739,37 +3743,7 @@ function initApp() {
     });
   }
 
-  // DOB change: update age label, persist, re-run
-  const _curDob = document.getElementById('current-dob');
-  if (_curDob) {
-    _curDob.addEventListener('input', () => {
-      const age = dobToAge(_curDob.value);
-      if (age > 0 && age < 120) document.getElementById('v-current-age').textContent = 'Age ' + age;
-    });
-    _curDob.addEventListener('change', () => {
-      const age = dobToAge(_curDob.value);
-      if (age > 0 && age < 120) {
-        document.getElementById('v-current-age').textContent = 'Age ' + age;
-        persistParams();
-        document.getElementById('run-btn').click();
-      }
-    });
-  }
-  const _parDob = document.getElementById('partner-dob');
-  if (_parDob) {
-    _parDob.addEventListener('input', () => {
-      const age = dobToAge(_parDob.value);
-      if (age > 0 && age < 120) document.getElementById('v-partner-age').textContent = 'Age ' + age;
-    });
-    _parDob.addEventListener('change', () => {
-      const age = dobToAge(_parDob.value);
-      if (age > 0 && age < 120) {
-        document.getElementById('v-partner-age').textContent = 'Age ' + age;
-        persistParams();
-        document.getElementById('run-btn').click();
-      }
-    });
-  }
+  // DOB pickers initialised after restoreParams() — see end of initApp
 
   const mcPctileSlider = document.getElementById('mc-pctile');
   const mcPctileLabel  = document.getElementById('v-mc-pctile');
@@ -3831,6 +3805,32 @@ function initApp() {
   // Slider input dispatches during restoreParams call persistParams before pots are loaded,
   // so this final call overwrites storage with the complete correct state.
   persistParams();
+
+  // ── Flatpickr DOB pickers ─────────────────────────────────────────────
+  // Initialised here so defaultDate picks up the already-restored value.
+  function _initDobPicker(inputId, labelId) {
+    const el = document.getElementById(inputId);
+    const lbl = document.getElementById(labelId);
+    if (!el || !window.flatpickr) return;
+    flatpickr(el, {
+      dateFormat: 'Y-m-d',
+      maxDate: 'today',
+      minDate: '1930-01-01',
+      defaultDate: el.value || null,
+      disableMobile: true,
+      onChange(selectedDates, dateStr) {
+        if (!dateStr) return;
+        const age = dobToAge(dateStr);
+        if (age > 0 && age < 120) {
+          if (lbl) lbl.textContent = 'Age ' + age;
+          persistParams();
+          document.getElementById('run-btn').click();
+        }
+      }
+    });
+  }
+  _initDobPicker('current-dob', 'v-current-age');
+  _initDobPicker('partner-dob', 'v-partner-age');
 
   document.getElementById('run-btn').click();
 }
