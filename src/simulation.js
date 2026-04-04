@@ -40,13 +40,16 @@ export const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
 export function runDeterministicProjection(p, returnPct) {
   const years = p.endAge - p.retirementAge;
   if (years <= 0) return null;
-  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  // Use exact fractional age from DOB for precise contribution counting
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
+  const fullYearsToRet = Math.floor(yearsToRetirement);
+  const partialYear = yearsToRetirement - fullYearsToRet;
   const ret = 1 + returnPct / 100;
   const baseInflFactor = 1 + p.inflation / 100;
 
   const partnerPots = p.partner?.pots || [];
   const yearsToPartnerRet = p.partner
-    ? Math.max(0, Math.min(p.partner.retirementAge - p.currentAge, yearsToRetirement))
+    ? Math.max(0, Math.min(p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge), yearsToRetirement))
     : yearsToRetirement;
   const allPotsConfig = [
     ...p.pots.map(pot => ({ ...pot, contribStopYear: yearsToRetirement })),
@@ -57,8 +60,13 @@ export function runDeterministicProjection(p, returnPct) {
   let pensionPot = 0;
   for (const pot of allPotsConfig) {
     let val = pot.value;
-    for (let y = 0; y < yearsToRetirement; y++) {
+    for (let y = 0; y < fullYearsToRet; y++) {
       val = val * ret + (y < pot.contribStopYear ? (pot.annualContrib || 0) : 0);
+    }
+    // Partial final year: prorated contribution + fractional compounding
+    if (partialYear > 0) {
+      const partialContrib = fullYearsToRet < pot.contribStopYear ? (pot.annualContrib || 0) * partialYear : 0;
+      val = val * Math.pow(ret, partialYear) + partialContrib;
     }
     pensionPot += Math.max(0, val);
   }
@@ -66,10 +74,8 @@ export function runDeterministicProjection(p, returnPct) {
   // Cash pots pre-retirement
   const allCashPots = [...(p.cashPots || []), ...(p.partner?.cashPots || [])];
   const cashBals = allCashPots.map(cp => {
-    let val = cp.value;
     const r2 = 1 + cp.interestPct / 100;
-    for (let y = 0; y < yearsToRetirement; y++) val *= r2;
-    return Math.max(0, val);
+    return Math.max(0, cp.value * Math.pow(r2, yearsToRetirement));
   });
 
   // --- Retirement: year-by-year ---
@@ -311,12 +317,14 @@ export function runSimulation(p) {
   const ages = Array.from({ length: years + 1 }, (_, i) => p.retirementAge + i);
   const nRuns = p.runs;
 
-  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
+  const fullYearsToRet = Math.floor(yearsToRetirement);
+  const partialYear = yearsToRetirement - fullYearsToRet;
 
   // Partner pots: contributions stop at partner.retirementAge; then pure growth to primary retirement
   const partnerPots = p.partner?.pots || [];
   const yearsToPartnerRet = p.partner
-    ? Math.max(0, Math.min(p.partner.retirementAge - p.currentAge, yearsToRetirement))
+    ? Math.max(0, Math.min(p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge), yearsToRetirement))
     : yearsToRetirement;
   const numPrimaryPots = p.pots.length;
   // Merged pots: primary (contributions all the way) then partner (contributions stop at partner retirement)
@@ -336,8 +344,15 @@ export function runSimulation(p) {
       allPotsConfig.forEach((pot, pi) => {
         let val = pot.value;
         const eq = (pot.equityPct || 80) / 100;
-        for (let y = 0; y < yearsToRetirement; y++) {
+        for (let y = 0; y < fullYearsToRet; y++) {
           val = val * historicalReturn(eq) + (y < pot.contribStopYear ? (pot.annualContrib || 0) : 0);
+        }
+        // Partial final year: deterministic return for fraction + prorated contribution
+        if (partialYear > 0) {
+          const partialContrib = fullYearsToRet < pot.contribStopYear ? (pot.annualContrib || 0) * partialYear : 0;
+          // Use the expected return (not random) for sub-year remainder to avoid noise
+          const partialRet = 1 + ((eq * 5.5 + (1 - eq) * 2.5) / 100); // ~blended expected
+          val = val * Math.pow(partialRet, partialYear) + partialContrib;
         }
         startPotsPerRun[r][pi] = Math.max(0, val);
       });
@@ -349,10 +364,8 @@ export function runSimulation(p) {
   const numCashPots = allCashPots.length;
   const startCashPotVals = new Float64Array(numCashPots);
   allCashPots.forEach((cp, ci) => {
-    let val = cp.value;
     const rate = 1 + cp.interestPct / 100;
-    for (let y = 0; y < yearsToRetirement; y++) val *= rate;
-    startCashPotVals[ci] = Math.max(0, val);
+    startCashPotVals[ci] = Math.max(0, cp.value * Math.pow(rate, yearsToRetirement));
   });
 
   const startTotals = new Float64Array(nRuns);

@@ -862,6 +862,11 @@ function dobToAge(dobStr) {
   return Math.floor((Date.now() - new Date(dobStr)) / (365.25 * 86400000));
 }
 
+function dobToAgeExact(dobStr) {
+  if (!dobStr) return 0;
+  return (Date.now() - new Date(dobStr)) / (365.25 * 86400000);
+}
+
 function getPartnerEnabled() {
   return document.getElementById('partner-enabled')?.checked || false;
 }
@@ -870,6 +875,7 @@ function getPartnerParams() {
   if (!getPartnerEnabled()) return null;
   return {
     currentAge: dobToAge(document.getElementById('partner-dob').value),
+    currentAgeFrac: dobToAgeExact(document.getElementById('partner-dob').value),
     retirementAge: +document.getElementById('partner-retirement-age').value,
     spAge: +document.getElementById('partner-sp-age').value,
     sp: +document.getElementById('partner-sp').value,
@@ -882,6 +888,7 @@ function getPartnerParams() {
 function getParams() {
   return {
     currentAge: dobToAge(document.getElementById('current-dob').value),
+    currentAgeFrac: dobToAgeExact(document.getElementById('current-dob').value),
     retirementAge: +document.getElementById('retirement-age').value,
     endAge: +document.getElementById('end-age').value,
     spAge: +document.getElementById('sp-age').value,
