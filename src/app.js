@@ -1381,6 +1381,8 @@ function initJournalForm() {
     _fbTimer = setTimeout(() => { feedback.style.display = 'none'; }, 2500);
   });
 }
+
+function persistParams() {
   const obj = {};
   SLIDER_IDS.forEach(id => { obj[id] = document.getElementById(id).value; });
   obj['guardrails'] = document.getElementById('guardrails').checked ? '1' : '0';
