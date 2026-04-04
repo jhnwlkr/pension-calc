@@ -1,7 +1,7 @@
 import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js';
 import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS } from './constants.js';
 import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet } from './model.js';
-import { runSimulation as runSimulationImpl } from './simulation.js';
+import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js';
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
 let nextPotId = 1;
@@ -3437,144 +3437,207 @@ function renderActualsTab(r) {
   if (!hasEvents) return;
 
   const currentYear = new Date().getFullYear();
+  const baseP   = getParams();          // un-recalibrated settings values
+  const allPots = baseP.pots || [];
+  const returnPct = r.returnPct ?? 5;
+  const useToday  = isTodayMoney();
+  const baseInfl  = 1 + (baseP.inflation || 0) / 100;
 
-  // ── Map event date → age index in r.ages ────────────────────────────────
-  function dateToAgeIdx(dateStr) {
-    const year = new Date(dateStr).getFullYear();
-    const age  = r.p.currentAge + (year - currentYear);
-    return r.ages.indexOf(age);
+  function deflate(val, dateStr) {
+    if (!useToday) return val;
+    return val * Math.pow(1 / baseInfl, parseInt(dateStr, 10) - currentYear);
   }
 
-  // ── Pot valuation events: sum by date-bucket (year) ─────────────────────
-  const valByYear = {};  // year → summed amount
-  actualsEvents
-    .filter(e => e.type === 'pot_valuation' && e.date && e.amount != null)
-    .forEach(e => {
-      const yr = new Date(e.date).getFullYear();
-      valByYear[yr] = (valByYear[yr] || 0) + Number(e.amount);
-    });
+  // ── Build per-date snapshot totals ────────────────────────────────────
+  // For every unique snapshot date: each pot gets its latest journaled value
+  // up to that date, falling back to the settings value if none exists yet.
+  const allSnapshotDates = [...new Set(
+    actualsEvents
+      .filter(e => e.type === 'pot_valuation' && e.date)
+      .map(e => e.date)
+  )].sort();
 
-  const sortedValYears = Object.keys(valByYear).map(Number).sort((a, b) => a - b);
+  const potEvents = actualsEvents
+    .filter(e => e.type === 'pot_valuation' && e.date && e.amount != null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const snapshotData = allSnapshotDates.map(date => {
+    const perPot = allPots.map(pot => {
+      // Latest journaled event for this pot up to and including this date
+      const latest = potEvents
+        .filter(e => e.targetUuid === pot.uuid && e.date <= date)
+        .at(-1);
+      const value = latest ? Number(latest.amount) : pot.value;
+      return { name: pot.name, value, isActual: !!latest };
+    });
+    return { date, total: perPot.reduce((s, p) => s + p.value, 0), perPot };
+  });
 
   // ── Summary cards ─────────────────────────────────────────────────────
-  if (sortedValYears.length > 0) {
-    const latestYear = sortedValYears[sortedValYears.length - 1];
-    const latestVal  = valByYear[latestYear];
-    const ageIdx     = r.p.currentAge + (latestYear - currentYear);
-    const forecastIdx = r.ages.indexOf(ageIdx);
+  if (snapshotData.length > 0) {
+    const latest     = snapshotData.at(-1);
+    const latestVal  = latest.total;
+    const latestYear = parseInt(latest.date, 10);
+    const ageAtLatest = baseP.currentAge + (latestYear - currentYear);
+    const forecastIdx = r.ages.indexOf(ageAtLatest);
+    // Compare against the un-recalibrated forecast so divergence is meaningful
     const forecastVal = forecastIdx >= 0 ? (r.detPotByYear?.[forecastIdx] || 0) : null;
     const divergence  = forecastVal != null ? latestVal - forecastVal : null;
 
     document.getElementById('ac-latest-val').textContent  = fmtGBP(latestVal);
-    document.getElementById('ac-latest-date').textContent = `${latestYear} combined valuation`;
+    document.getElementById('ac-latest-date').textContent = latest.date;
 
-    if (forecastVal != null) {
+    if (forecastVal != null && !r._recalibrated) {
       document.getElementById('ac-forecast-val').textContent = fmtGBP(forecastVal);
-      const divEl  = document.getElementById('ac-divergence');
-      const subEl  = document.getElementById('ac-divergence-sub');
-      const pct    = forecastVal > 0 ? ((divergence / forecastVal) * 100).toFixed(1) : '—';
+      const divEl = document.getElementById('ac-divergence');
+      const subEl = document.getElementById('ac-divergence-sub');
+      const pct   = forecastVal > 0 ? ((divergence / forecastVal) * 100).toFixed(1) : '—';
       divEl.textContent = (divergence >= 0 ? '+' : '') + fmtGBP(divergence);
       divEl.className   = 'card-value ' + (divergence >= 0 ? 'green' : 'red');
-      subEl.textContent = `${divergence >= 0 ? '+' : ''}${pct}% vs forecast`;
+      subEl.textContent = `${divergence >= 0 ? '+' : ''}${pct}% vs original forecast`;
     } else {
-      document.getElementById('ac-forecast-val').textContent = '—';
+      document.getElementById('ac-forecast-val').textContent = r._recalibrated ? '(recalibrated)' : '—';
       document.getElementById('ac-divergence').textContent   = '—';
-      document.getElementById('ac-divergence-sub').textContent = 'age outside projection range';
+      document.getElementById('ac-divergence-sub').textContent = r._recalibrated
+        ? 'turn off recalibration to compare'
+        : 'age outside projection range';
     }
   }
 
-  // ── Overlay chart ─────────────────────────────────────────────────────
+  // ── Build recalibrated forecast (always, regardless of toggle) ────────
+  // Pots: latest actual per pot (or settings value if no actuals for that pot)
+  const rp = applyActualsRecalibration(baseP, actualsEvents);
+  const yearsToRetirement = Math.max(0, rp.retirementAge - (rp.currentAgeFrac ?? rp.currentAge));
+  const retirementYear = currentYear + Math.round(yearsToRetirement);
+  const ret = 1 + returnPct / 100;
+
+  const forecastPoints = [];  // { date: 'YYYY-01-01', y: nominal }
+
+  // Pre-retirement: one annual milestone per year from next year up to (not including) retirement
+  for (let yr = currentYear + 1; yr < retirementYear; yr++) {
+    const dy = yr - currentYear;
+    let total = 0;
+    for (const pot of rp.pots) {
+      let val = pot.value;
+      for (let j = 0; j < dy; j++) val = val * ret + (pot.annualContrib || 0);
+      total += val;
+    }
+    forecastPoints.push({ date: `${yr}-01-01`, y: total });
+  }
+
+  // Post-retirement: deterministic projection from recalibrated starting values
+  const det = runDeterministicProjection({ ...rp, taxFreeFrac: r.taxFreeFrac ?? 0.25 }, returnPct);
+  if (det) {
+    for (let i = 0; i < det.detPotByYear.length; i++) {
+      forecastPoints.push({ date: `${retirementYear + i}-01-01`, y: det.detPotByYear[i] });
+    }
+  }
+
+  // ── Chart ─────────────────────────────────────────────────────────────
   if (chartAvailable()) {
     destroyChart('actuals');
     const chartEl = document.getElementById('chart-actuals');
-    if (chartEl) {
-      const ctx = chartEl.getContext('2d');
-      const useToday    = isTodayMoney();
-      const baseInfl    = 1 + (r.p?.inflation || 0) / 100;
-      const yrsToRet    = Math.max(0, r.p.retirementAge - r.p.currentAge);
-      const deflator    = i => Math.pow(1 / baseInfl, yrsToRet + i);
-      const detVals     = Array.from(r.detPotByYear || []).map((v, i) => useToday ? v * deflator(i) : v);
+    if (!chartEl) return;
+    const ctx = chartEl.getContext('2d');
 
-      const { chartAges, potActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
-      const spAgeIdx = chartAges.indexOf(r.p.spAge);
+    const lastActualDate  = allSnapshotDates.at(-1) || '';
+    const forecastDates   = forecastPoints.map(p => p.date).filter(d => d > lastActualDate);
+    const forecastDateSet = new Set(forecastDates);
+    const allLabels       = [...allSnapshotDates, ...forecastDates];
 
-      // Simulation: null before retirementAge or before currentAge — no fabricated history
-      const simValues = chartAges.map(a => {
-        if (a < r.ages[0] || a < r.p.currentAge) return null;
-        const i = a - r.ages[0];
-        return i < detVals.length ? detVals[i] : null;
-      });
+    // Actuals line: value at each snapshot date, null elsewhere
+    const actualsDataArr = allLabels.map((d, i) =>
+      i < allSnapshotDates.length ? deflate(snapshotData[i].total, d) : null
+    );
 
-      // Actuals overlay: sparse over chartAges, spanGaps: false
-      const actualsValues = chartAges.map(a => {
-        if (potActualsByAge[a] == null) return null;
-        const simI = Math.max(0, a - r.ages[0]);
-        return useToday ? potActualsByAge[a] * deflator(simI) : potActualsByAge[a];
-      });
-      const actualsPointCount = Object.keys(potActualsByAge).length;
+    // Forecast line: null for actuals dates, value at forecast dates
+    const forecastMap = Object.fromEntries(forecastPoints.map(p => [p.date, p.y]));
+    const forecastDataArr = allLabels.map(d =>
+      forecastDateSet.has(d) ? deflate(forecastMap[d], d) : null
+    );
 
-      const overlayPlugin = {
-        id: 'overlay',
-        afterDraw(chart) {
-          const { ctx: c, scales: { x, y } } = chart;
-          if (spAgeIdx >= 0) {
-            const xPx = x.getPixelForValue(spAgeIdx);
-            c.save(); c.strokeStyle = '#d97706'; c.lineWidth = 1.5; c.setLineDash([6, 4]);
-            c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
-            c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
-            c.textAlign = 'left'; c.fillText('State Pension', xPx + 4, y.top + 14); c.restore();
-          }
-          if (showTodayLine) {
-            const xPx = x.getPixelForValue(todayIdx);
-            c.save(); c.strokeStyle = '#2563eb'; c.lineWidth = 1.5; c.setLineDash([4, 4]);
-            c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
-            c.fillStyle = '#2563eb'; c.font = '11px system-ui,sans-serif';
-            c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 28); c.restore();
-          }
+    const overlayPlugin = {
+      id: 'overlay',
+      afterDraw(chart) {
+        const { ctx: c, scales: { x, y } } = chart;
+        const retIdx = allLabels.indexOf(`${retirementYear}-01-01`);
+        if (retIdx >= 0) {
+          const xPx = x.getPixelForValue(retIdx);
+          c.save(); c.strokeStyle = '#d97706'; c.lineWidth = 1.5; c.setLineDash([6, 4]);
+          c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+          c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
+          c.textAlign = 'left'; c.fillText('Retirement', xPx + 4, y.top + 14); c.restore();
         }
-      };
+      }
+    };
 
-      charts['actuals'] = new Chart(ctx, {
-        type: 'line',
-        plugins: [overlayPlugin],
-        data: {
-          labels: chartAges,
-          datasets: [
-            {
-              label: 'Forecast (deterministic)',
-              data: simValues,
-              borderColor: 'rgba(37,99,235,0.5)',
-              backgroundColor: 'rgba(37,99,235,0.06)',
-              fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5,
-              borderDash: [5, 3], spanGaps: false,
-            },
-            {
-              label: 'Actual valuations',
-              data: actualsValues,
-              borderColor: '#16a34a',
-              backgroundColor: '#16a34a',
-              type: 'scatter',
-              pointRadius: 7,
-              pointHoverRadius: 9,
-              showLine: actualsPointCount > 1,
-              tension: 0.2,
-              borderWidth: 2,
-              spanGaps: false,
-            },
-          ]
+    charts['actuals'] = new Chart(ctx, {
+      type: 'line',
+      plugins: [overlayPlugin],
+      data: {
+        labels: allLabels,
+        datasets: [
+          {
+            label: 'Actual total pot',
+            data: actualsDataArr,
+            borderColor: '#16a34a',
+            backgroundColor: 'rgba(22,163,74,0.08)',
+            fill: false, tension: 0.1, pointRadius: 2, pointHoverRadius: 6,
+            borderWidth: 2, spanGaps: false,
+          },
+          {
+            label: `Forecast (${returnPct}% return, from latest actuals)`,
+            data: forecastDataArr,
+            borderColor: 'rgba(37,99,235,0.7)',
+            backgroundColor: 'rgba(37,99,235,0.06)',
+            fill: true, tension: 0.3, pointRadius: 4, pointHoverRadius: 6,
+            borderWidth: 1.5, borderDash: [5, 3], spanGaps: false,
+          },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: textColor(), font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              title: items => items[0]?.label || '',
+              afterBody: items => {
+                const idx = items[0]?.dataIndex;
+                if (idx == null || idx >= snapshotData.length) return [];
+                const pots = snapshotData[idx].perPot;
+                return [
+                  '─────────────────',
+                  ...pots.map(p => `${p.name}: ${fmtGBP(p.value)}${p.isActual ? '' : ' (est.)'}`),
+                ];
+              },
+            }
+          }
         },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: { legend: { labels: { color: textColor(), font: { size: 11 } } } },
-          scales: {
-            x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
-            y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() },
-              title: { display: true, text: useToday ? 'Pot Value (£, today\'s money)' : 'Pot Value (£, nominal)', color: textColor() } }
+        scales: {
+          x: {
+            ticks: {
+              color: textColor(),
+              maxRotation: 45,
+              autoSkip: true,
+              maxTicksLimit: 16,
+              callback(val, idx) {
+                const lbl = allLabels[idx] || '';
+                return lbl.endsWith('-01-01') ? lbl.slice(0, 4) : lbl.slice(0, 7);
+              }
+            },
+            grid: { color: gridColor() },
+            title: { display: true, text: 'Date', color: textColor() }
+          },
+          y: {
+            ticks: { color: textColor(), callback: v => fmtAxisGBP(v) },
+            grid: { color: gridColor() },
+            title: { display: true, text: useToday ? "Pot Value (£, today's money)" : 'Pot Value (£, nominal)', color: textColor() }
           }
         }
-      });
-    }
+      }
+    });
   }
 
   // ── Income actuals table ──────────────────────────────────────────────
@@ -3592,7 +3655,6 @@ function renderActualsTab(r) {
         </tr>`).join('')
       : '<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:12px">No income actuals logged</td></tr>';
   }
-
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
