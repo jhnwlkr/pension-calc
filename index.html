@@ -570,6 +570,7 @@
     <button class="tab" data-tab="netmonthly">Net Monthly Income</button>
     <button class="tab" data-tab="montecarlo">Monte Carlo</button>
     <button class="tab" data-tab="historicalreplay">Historical Replay</button>
+    <button class="tab" data-tab="actuals">Actuals</button>
   </div>
 
   <div class="chart-panel">
@@ -705,6 +706,78 @@
           <tr><td colspan="14" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
         </tbody>
       </table>
+      </div>
+    </div>
+
+    <div id="tab-actuals" class="hidden">
+      <h2 style="margin:0 0 6px;font-size:1.14rem">Actuals vs Forecast</h2>
+      <div class="ai-note" id="actuals-empty-note">No actuals logged yet. Use the <strong>Actuals Journal</strong> in the settings panel to log pot valuations, contributions, and income received.</div>
+
+      <!-- Recalibration summary cards -->
+      <div id="actuals-cards" style="display:none">
+        <div class="cards" style="margin-bottom:16px">
+          <div class="card">
+            <div class="card-label">Most Recent Pot Valuation</div>
+            <div class="card-value" id="ac-latest-val">—</div>
+            <div class="card-sub" id="ac-latest-date"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Forecast at That Date</div>
+            <div class="card-value" id="ac-forecast-val">—</div>
+            <div class="card-sub">deterministic projection</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Divergence</div>
+            <div class="card-value" id="ac-divergence">—</div>
+            <div class="card-sub" id="ac-divergence-sub">vs forecast</div>
+          </div>
+        </div>
+
+        <!-- Overlay chart -->
+        <div style="margin-bottom:20px">
+          <h3 style="margin:0 0 8px;font-size:1rem">Pot Balance — Forecast vs Actuals</h3>
+          <div class="chart-wrap"><canvas id="chart-actuals"></canvas></div>
+        </div>
+
+        <!-- Income actuals table -->
+        <div id="actuals-income-section">
+          <h3 style="margin:0 0 8px;font-size:1rem">Income Actuals</h3>
+          <div class="table-scroll">
+          <table class="ann-table" id="actuals-income-table">
+            <thead>
+              <tr>
+                <th style="text-align:left">Date</th>
+                <th style="text-align:left">Source</th>
+                <th>Amount</th>
+                <th style="text-align:left">Notes</th>
+              </tr>
+            </thead>
+            <tbody id="actuals-income-tbody">
+              <tr><td colspan="4" style="text-align:center;color:var(--text2);padding:20px">No income actuals logged</td></tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+
+        <!-- Contribution actuals table -->
+        <div id="actuals-contrib-section" style="margin-top:16px">
+          <h3 style="margin:0 0 8px;font-size:1rem">Contribution Actuals</h3>
+          <div class="table-scroll">
+          <table class="ann-table" id="actuals-contrib-table">
+            <thead>
+              <tr>
+                <th style="text-align:left">Date</th>
+                <th style="text-align:left">Pot</th>
+                <th>Amount</th>
+                <th style="text-align:left">Notes</th>
+              </tr>
+            </thead>
+            <tbody id="actuals-contrib-tbody">
+              <tr><td colspan="4" style="text-align:center;color:var(--text2);padding:20px">No contribution actuals logged</td></tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
       </div>
     </div>
 

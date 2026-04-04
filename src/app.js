@@ -3173,8 +3173,178 @@ function renderHistoricalReplayTab(r) {
   }
 }
 
+// ── Actuals Tab ───────────────────────────────────────────────────────────
+function renderActualsTab(r) {
+  const hasEvents = actualsEvents.length > 0;
+  document.getElementById('actuals-empty-note').style.display = hasEvents ? 'none' : '';
+  document.getElementById('actuals-cards').style.display      = hasEvents ? ''     : 'none';
+  if (!hasEvents) return;
+
+  const currentYear = new Date().getFullYear();
+
+  // ── Map event date → age index in r.ages ────────────────────────────────
+  function dateToAgeIdx(dateStr) {
+    const year = new Date(dateStr).getFullYear();
+    const age  = r.p.currentAge + (year - currentYear);
+    return r.ages.indexOf(age);
+  }
+
+  // ── Pot valuation events: sum by date-bucket (year) ─────────────────────
+  const valByYear = {};  // year → summed amount
+  actualsEvents
+    .filter(e => e.type === 'pot_valuation' && e.date && e.amount != null)
+    .forEach(e => {
+      const yr = new Date(e.date).getFullYear();
+      valByYear[yr] = (valByYear[yr] || 0) + Number(e.amount);
+    });
+
+  const sortedValYears = Object.keys(valByYear).map(Number).sort((a, b) => a - b);
+
+  // ── Summary cards ─────────────────────────────────────────────────────
+  if (sortedValYears.length > 0) {
+    const latestYear = sortedValYears[sortedValYears.length - 1];
+    const latestVal  = valByYear[latestYear];
+    const ageIdx     = r.p.currentAge + (latestYear - currentYear);
+    const forecastIdx = r.ages.indexOf(ageIdx);
+    const forecastVal = forecastIdx >= 0 ? (r.detPotByYear?.[forecastIdx] || 0) : null;
+    const divergence  = forecastVal != null ? latestVal - forecastVal : null;
+
+    document.getElementById('ac-latest-val').textContent  = fmtGBP(latestVal);
+    document.getElementById('ac-latest-date').textContent = `${latestYear} combined valuation`;
+
+    if (forecastVal != null) {
+      document.getElementById('ac-forecast-val').textContent = fmtGBP(forecastVal);
+      const divEl  = document.getElementById('ac-divergence');
+      const subEl  = document.getElementById('ac-divergence-sub');
+      const pct    = forecastVal > 0 ? ((divergence / forecastVal) * 100).toFixed(1) : '—';
+      divEl.textContent = (divergence >= 0 ? '+' : '') + fmtGBP(divergence);
+      divEl.className   = 'card-value ' + (divergence >= 0 ? 'green' : 'red');
+      subEl.textContent = `${divergence >= 0 ? '+' : ''}${pct}% vs forecast`;
+    } else {
+      document.getElementById('ac-forecast-val').textContent = '—';
+      document.getElementById('ac-divergence').textContent   = '—';
+      document.getElementById('ac-divergence-sub').textContent = 'age outside projection range';
+    }
+  }
+
+  // ── Overlay chart ─────────────────────────────────────────────────────
+  if (chartAvailable()) {
+    destroyChart('actuals');
+    const chartEl = document.getElementById('chart-actuals');
+    if (chartEl) {
+      const ctx = chartEl.getContext('2d');
+      const useToday    = isTodayMoney();
+      const baseInfl    = 1 + (r.p?.inflation || 0) / 100;
+      const yrsToRet    = Math.max(0, r.p.retirementAge - r.p.currentAge);
+      const deflator    = i => Math.pow(1 / baseInfl, yrsToRet + i);
+      const detVals     = Array.from(r.detPotByYear || []).map((v, i) => useToday ? v * deflator(i) : v);
+      const spAgeIdx    = r.ages.indexOf(r.p.spAge);
+
+      // Build actuals scatter: one point per year bucket
+      const actualsPoints = sortedValYears.map(yr => {
+        const idx = r.ages.indexOf(r.p.currentAge + (yr - currentYear));
+        if (idx < 0) return null;
+        const v = useToday ? valByYear[yr] * deflator(idx) : valByYear[yr];
+        return { x: idx, y: v };
+      }).filter(Boolean);
+
+      const spLinePlugin = {
+        id: 'spLine',
+        afterDraw(chart) {
+          if (spAgeIdx < 0) return;
+          const { ctx: c, scales: { x, y } } = chart;
+          const xPx = x.getPixelForValue(spAgeIdx);
+          c.save();
+          c.strokeStyle = '#d97706'; c.lineWidth = 1.5;
+          c.setLineDash([6, 4]);
+          c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
+          c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
+          c.textAlign = 'left'; c.fillText('State Pension', xPx + 4, y.top + 14);
+          c.restore();
+        }
+      };
+
+      charts['actuals'] = new Chart(ctx, {
+        type: 'line',
+        plugins: [spLinePlugin],
+        data: {
+          labels: r.ages,
+          datasets: [
+            {
+              label: 'Forecast (deterministic)',
+              data: detVals,
+              borderColor: 'rgba(37,99,235,0.5)',
+              backgroundColor: 'rgba(37,99,235,0.06)',
+              fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5,
+              borderDash: [5, 3],
+            },
+            {
+              label: 'Actual valuations',
+              data: r.ages.map((_, i) => {
+                const pt = actualsPoints.find(p => p.x === i);
+                return pt ? pt.y : null;
+              }),
+              borderColor: '#16a34a',
+              backgroundColor: '#16a34a',
+              type: 'scatter',
+              pointRadius: 7,
+              pointHoverRadius: 9,
+              showLine: actualsPoints.length > 1,
+              tension: 0.2,
+              borderWidth: 2,
+              spanGaps: false,
+            },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { color: textColor(), font: { size: 11 } } } },
+          scales: {
+            x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
+            y: { ticks: { color: textColor(), callback: v => fmtAxisGBP(v) }, grid: { color: gridColor() },
+              title: { display: true, text: useToday ? 'Pot Value (£, today\'s money)' : 'Pot Value (£, nominal)', color: textColor() } }
+          }
+        }
+      });
+    }
+  }
+
+  // ── Income actuals table ──────────────────────────────────────────────
+  const incomeRows = actualsEvents
+    .filter(e => e.type === 'income_actual' && e.date)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const incomeTbody = document.getElementById('actuals-income-tbody');
+  if (incomeTbody) {
+    incomeTbody.innerHTML = incomeRows.length
+      ? incomeRows.map(e => `<tr>
+          <td>${e.date}</td>
+          <td>${e.targetName || '—'}</td>
+          <td style="text-align:right">${fmtGBP(e.amount)}</td>
+          <td style="color:var(--text2)">${e.notes || ''}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:12px">No income actuals logged</td></tr>';
+  }
+
+  // ── Contribution actuals table ─────────────────────────────────────────
+  const contribRows = actualsEvents
+    .filter(e => e.type === 'contrib_actual' && e.date)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const contribTbody = document.getElementById('actuals-contrib-tbody');
+  if (contribTbody) {
+    contribTbody.innerHTML = contribRows.length
+      ? contribRows.map(e => `<tr>
+          <td>${e.date}</td>
+          <td>${e.targetName || '—'}</td>
+          <td style="text-align:right">${fmtGBP(e.amount)}</td>
+          <td style="color:var(--text2)">${e.notes || ''}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:12px">No contribution actuals logged</td></tr>';
+  }
+}
+
 // ── Tab switching ──────────────────────────────────────────────────────────
-const tabDefs = ['pot', 'annualincome', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo', 'historicalreplay'];
+const tabDefs = ['pot', 'annualincome', 'taxbreakdown', 'realincome', 'netmonthly', 'montecarlo', 'historicalreplay', 'actuals'];
 function setActiveTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   tabDefs.forEach(t => {
@@ -3196,6 +3366,7 @@ document.querySelectorAll('.tab').forEach(btn => {
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
       else if (tab === 'montecarlo') { renderMonteCarloChart(lastResults); renderMonteCarloTable(lastResults, +document.getElementById('mc-pctile').value); }
       else if (tab === 'historicalreplay') renderHistoricalReplayTab(lastResults);
+      else if (tab === 'actuals') renderActualsTab(lastResults);
     }
     // Sync active checkbox state to persisted value when tabs change
     setTodayMoney(todayPrices, lastResults);
@@ -3237,6 +3408,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
       else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
       else if (activeTab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
       else if (activeTab === 'historicalreplay') renderHistoricalReplayTab(r);
+      else if (activeTab === 'actuals') renderActualsTab(r);
 
       setActiveTab(activeTab);
     } catch (err) {
