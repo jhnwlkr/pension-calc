@@ -1239,9 +1239,9 @@ function initImportDialog() {
 
 // ── Actuals Journal form ───────────────────────────────────────────────────
 const JOURNAL_TYPE_META = {
-  pot_valuation:  { icon: '📊', label: 'Pot valuation' },
-  cash_valuation: { icon: '💰', label: 'Cash valuation' },
-  income_actual:  { icon: '📥', label: 'Income received' },
+  pot_valuation:  { icon: '📊', label: 'Pension Pot Actual' },
+  cash_valuation: { icon: '💰', label: 'Cash Pot Actual' },
+  income_actual:  { icon: '📥', label: 'Other Income Actual' },
   contrib_actual: { icon: '📤', label: 'Contribution' },
 };
 
