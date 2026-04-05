@@ -2115,13 +2115,18 @@ function renderCards(r) {
   actualEl.textContent = fmtPct(actualRatePct);
   actualEl.className = actualRatePct <= detSwrPct ? 'green' : actualRatePct <= detSwrPct * 1.2 ? 'amber' : 'red';
 
-  document.getElementById('c-monthly').textContent = fmtGBP(r.netMonthly, 0);
+  const aid0 = r.annualIncomeData?.[0];
+  const cardNetMonthly   = aid0 ? aid0.netNom      : r.netMonthly;
+  const cardGrossMonthly = aid0 ? aid0.netGrossNom  : r.grossMonthly;
+  const cardNetAnnual    = aid0 ? aid0.netNom * 12  : r.netAnnual;
+  const cardGrossAnnual  = aid0 ? aid0.netGrossNom * 12 : r.grossAnnual;
+  document.getElementById('c-monthly').textContent = fmtGBP(cardNetMonthly, 0);
   const cMonthlySub = document.getElementById('c-monthly-sub');
   if (cMonthlySub) {
     cMonthlySub.innerHTML = `at retirement (after tax)<br>
-      <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross monthly: <strong style="color:var(--text)">${fmtGBP(r.grossMonthly, 0)}</strong></span>
-      <span style="display:block;font-size:0.72rem;color:var(--text2)">Net annual: <strong style="color:var(--text)">${fmtGBP(r.netAnnual, 0)}</strong></span>
-      <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross annual: <strong style="color:var(--text)">${fmtGBP(r.grossAnnual, 0)}</strong></span>`;
+      <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross monthly: <strong style="color:var(--text)">${fmtGBP(cardGrossMonthly, 0)}</strong></span>
+      <span style="display:block;font-size:0.72rem;color:var(--text2)">Net annual: <strong style="color:var(--text)">${fmtGBP(cardNetAnnual, 0)}</strong></span>
+      <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross annual: <strong style="color:var(--text)">${fmtGBP(cardGrossAnnual, 0)}</strong></span>`;
   }
 
   const lsaAlert = document.getElementById('lsa-alert');
