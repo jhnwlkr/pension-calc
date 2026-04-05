@@ -94,23 +94,22 @@ export function runDeterministicProjection(p, returnPct) {
   // Cash pots pre-retirement
   const allCashPots = [...(p.cashPots || []), ...(p.partner?.cashPots || [])];
   const cashBals = allCashPots.map(cp => {
-    const r2 = 1 + cp.interestPct / 100;
-    const annualContrib = (cp.monthlyContrib || 0) * 12;
-    let contribDelay = 0;
+    const totalMonthsToRet = Math.round(yearsToRetirement * 12);
+    const monthlyRate = cp.interestPct / 100 / 12;
+    let delayMonths = 0;
     if (cp.contribStartMonth) {
       const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
       const now = new Date();
-      contribDelay = Math.max(0, ((cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12);
+      delayMonths = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth()));
     }
-    const startIdx = Math.round(contribDelay);
-    let val = cp.value;
-    for (let y = 0; y < fullYearsToRet; y++) {
-      val = val * r2;
-      if (annualContrib > 0 && y >= startIdx) val += annualContrib;
-    }
-    if (partialYear > 0) {
-      val = val * Math.pow(r2, partialYear);
-      if (annualContrib > 0 && fullYearsToRet >= startIdx) val += (cp.monthlyContrib || 0) * Math.round(partialYear * 12);
+    const contribMonths = Math.max(0, totalMonthsToRet - delayMonths);
+    let val = monthlyRate > 0
+      ? cp.value * Math.pow(1 + monthlyRate, totalMonthsToRet)
+      : cp.value;
+    if ((cp.monthlyContrib || 0) > 0 && contribMonths > 0) {
+      val += monthlyRate > 0
+        ? cp.monthlyContrib * (Math.pow(1 + monthlyRate, contribMonths) - 1) / monthlyRate
+        : cp.monthlyContrib * contribMonths;
     }
     return Math.max(0, val);
   });
@@ -401,23 +400,22 @@ export function runSimulation(p) {
   const numCashPots = allCashPots.length;
   const startCashPotVals = new Float64Array(numCashPots);
   allCashPots.forEach((cp, ci) => {
-    const rate = 1 + cp.interestPct / 100;
-    const annualContrib = (cp.monthlyContrib || 0) * 12;
-    let contribDelay = 0;
+    const totalMonthsToRet = Math.round(yearsToRetirement * 12);
+    const monthlyRate = cp.interestPct / 100 / 12;
+    let delayMonths = 0;
     if (cp.contribStartMonth) {
       const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
       const now = new Date();
-      contribDelay = Math.max(0, ((cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12);
+      delayMonths = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth()));
     }
-    const startIdx = Math.round(contribDelay);
-    let val = cp.value;
-    for (let y = 0; y < fullYearsToRet; y++) {
-      val = val * rate;
-      if (annualContrib > 0 && y >= startIdx) val += annualContrib;
-    }
-    if (partialYear > 0) {
-      val = val * Math.pow(rate, partialYear);
-      if (annualContrib > 0 && fullYearsToRet >= startIdx) val += (cp.monthlyContrib || 0) * Math.round(partialYear * 12);
+    const contribMonths = Math.max(0, totalMonthsToRet - delayMonths);
+    let val = monthlyRate > 0
+      ? cp.value * Math.pow(1 + monthlyRate, totalMonthsToRet)
+      : cp.value;
+    if ((cp.monthlyContrib || 0) > 0 && contribMonths > 0) {
+      val += monthlyRate > 0
+        ? cp.monthlyContrib * (Math.pow(1 + monthlyRate, contribMonths) - 1) / monthlyRate
+        : cp.monthlyContrib * contribMonths;
     }
     startCashPotVals[ci] = Math.max(0, val);
   });
