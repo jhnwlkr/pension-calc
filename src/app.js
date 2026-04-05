@@ -2045,16 +2045,24 @@ function renderCards(r) {
     ? `${isJoint ? 'joint plan' : 'pot'} survives · guardrail in ${r.guardrailPct.toFixed(0)}% of runs`
     : `${isJoint ? 'joint plan' : 'pot'} survives · guardrails off`;
 
-  document.getElementById('c-median').textContent = fmtGBP(r.medianReal);
+  // Use deterministic pot at retirement for all cards except probability of success
+  const baseInflFactor = 1 + (r.p.inflation || 0) / 100;
+  const yearsToRet = Math.max(0, r.p.retirementAge - r.p.currentAge);
+  const realDeflRet = Math.pow(1 / baseInflFactor, yearsToRet);
+  const detRetPot   = (r.detPotByYear?.[0] ?? 0) + (r.detCashBalByYear?.[0] ?? 0);
+  const detRetPotReal = detRetPot * realDeflRet;
+  document.getElementById('c-median').textContent = fmtGBP(detRetPotReal);
 
+  // SWR: keep the MC-derived absolute safe amount (r.swr) but express as % of det pot
+  const detSwrPct = detRetPot > 0 ? (r.swr / detRetPot) * 100 : 0;
   const swrEl = document.getElementById('c-swr');
-  swrEl.textContent = fmtPct(r.swrPct);
-  swrEl.className = 'card-value ' + (r.swrPct >= 4 ? 'green' : r.swrPct >= 3 ? 'amber' : 'red');
+  swrEl.textContent = fmtPct(detSwrPct);
+  swrEl.className = 'card-value ' + (detSwrPct >= 4 ? 'green' : detSwrPct >= 3 ? 'amber' : 'red');
 
-  const actualRatePct = r.startPot > 0 ? (r.p.drawdown / r.startPot) * 100 : 0;
+  const actualRatePct = detRetPot > 0 ? (r.p.drawdown / detRetPot) * 100 : 0;
   const actualEl = document.getElementById('c-actual-rate');
   actualEl.textContent = fmtPct(actualRatePct);
-  actualEl.className = actualRatePct <= r.swrPct ? 'green' : actualRatePct <= r.swrPct * 1.2 ? 'amber' : 'red';
+  actualEl.className = actualRatePct <= detSwrPct ? 'green' : actualRatePct <= detSwrPct * 1.2 ? 'amber' : 'red';
 
   document.getElementById('c-monthly').textContent = fmtGBP(r.netMonthly, 0);
   const cMonthlySub = document.getElementById('c-monthly-sub');
