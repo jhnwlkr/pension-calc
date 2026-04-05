@@ -677,6 +677,16 @@ export function runSimulation(p) {
     if (years > 0) cashContribByYear[years] = 0;
   }
 
+  // Compute det projection first; if drawdown is pct-based, rebase the absolute amount on the
+  // det pot rather than the MC median pot so netMonthly/income charts reflect selected return %
+  const returnPct = p.returnPct ?? 5;
+  let det = runDeterministicProjection(Object.assign({}, p, { taxFreeFrac }), returnPct);
+  if (p.drawdownMode === 'pct' && det) {
+    const detTotalAtRet = (det.detPotByYear[0] ?? 0) + (det.detCashBalByYear[0] ?? 0);
+    p = Object.assign({}, p, { drawdown: detTotalAtRet * (p.drawdownPct || 0) / 100 });
+    det = runDeterministicProjection(Object.assign({}, p, { taxFreeFrac }), returnPct);
+  }
+
   const hasSpAtRetirement = p.retirementAge >= p.spAge;
   const partnerAgeAtRet = p.partner ? p.partner.currentAge + (p.retirementAge - p.currentAge) : null;
   const partnerSpAtRet = (p.partner && partnerAgeAtRet >= p.partner.spAge) ? p.partner.sp : 0;
@@ -701,10 +711,6 @@ export function runSimulation(p) {
     const remainingNet = Math.max(0, netTarget - cashUsed);
     return netTarget > 0 ? remainingNet * (grossNeeded / netTarget) : 0;
   }
-
-  // Compute deterministic projection before realIncomeByAge/netMonthlyByAge so they can use it
-  const returnPct = p.returnPct ?? 5;
-  const det = runDeterministicProjection(Object.assign({}, p, { taxFreeFrac }), returnPct);
 
   const realIncomeByAge = ages.map((age, yi) => {
     const hasStatePension = age >= p.spAge;
