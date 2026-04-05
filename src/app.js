@@ -1601,6 +1601,8 @@ function restoreParams(obj) {
             name: p.name || '',
             value: +p.value || 0,
             interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
+            monthlyContrib: +p.monthlyContrib || 0,
+            contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7),
           });
         });
         renderCashPotsUI();
@@ -1666,6 +1668,8 @@ function restoreParams(obj) {
             name: p.name || '',
             value: +p.value || 0,
             interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
+            monthlyContrib: +p.monthlyContrib || 0,
+            contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7),
           });
         });
         renderPartnerCashPotsUI();
