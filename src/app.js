@@ -2733,7 +2733,7 @@ function renderTaxBreakdown(r) {
     return;
   }
 
-  const prevIdx = Number.parseInt(selectEl.value || '0', 10);
+  const prevIdx = Number.parseInt(localStorage.getItem('taxYearIdx') ?? selectEl.value ?? '0', 10);
   const hasPartner = !!r.p?.partner;
   selectEl.innerHTML = rows.map((d, idx) => {
     const age = hasPartner ? `${d.age}/${d.partnerAge}` : `${d.age}`;
@@ -2742,6 +2742,7 @@ function renderTaxBreakdown(r) {
 
   const selectedIdx = Number.isFinite(prevIdx) ? Math.max(0, Math.min(rows.length - 1, prevIdx)) : 0;
   selectEl.value = String(selectedIdx);
+  localStorage.setItem('taxYearIdx', String(selectedIdx));
 
   const d = rows[selectedIdx];
   const useToday = isTodayMoney();
@@ -3899,6 +3900,7 @@ function initApp() {
   const taxYearSelect = document.getElementById('tax-year-select');
   if (taxYearSelect) {
     taxYearSelect.addEventListener('change', () => {
+      localStorage.setItem('taxYearIdx', taxYearSelect.value);
       if (lastResults) renderTaxBreakdown(lastResults);
     });
   }
