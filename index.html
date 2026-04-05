@@ -533,6 +533,12 @@
 </div>
 
 <div class="main">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+    <div class="ai-note" id="planning-disclaimer" style="margin:0;flex:1">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances, so consider professional advice before making decisions.</div>
+    <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2);padding-top:6px">
+      <input type="checkbox" id="today-money-toggle-global" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
+    </label>
+  </div>
   <div class="cards">
     <div class="card">
       <div class="card-label" id="c-prob-label">Probability of Success</div>
@@ -564,8 +570,6 @@
     ⚠️ <span><strong>Former LTA Warning:</strong> Your projected pot at retirement exceeds the £1,073,100 former Lifetime Allowance. While the LTA was abolished in April 2024, complexity remains around protections and transitional tax-free cash rules. We recommend taking specialist advice.</span>
   </div>
 
-  <div class="ai-note" id="planning-disclaimer">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances, so consider professional advice before making decisions.</div>
-
   <div class="explain-panel" id="explain-panel">
     <div class="explain-title">Why This Outcome?</div>
     <div class="explain-sub" id="explain-narrative">Run simulation to see key drivers and practical levers.</div>
@@ -590,9 +594,6 @@
     <div id="tab-pot">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
         <h2 style="margin:0;font-size:1.14rem" id="pot-chart-title">Pot Balance — Deterministic Projection</h2>
-        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
-          <input type="checkbox" id="today-money-toggle-pot" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
-        </label>
       </div>
       <div class="ai-note" id="pot-chart-note">Projected at the selected nominal return rate. Amber dashed line = State Pension start age. Use the Monte Carlo tab for probability-based projections.</div>
       <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>
@@ -619,9 +620,6 @@
     <div id="tab-montecarlo" class="hidden">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
         <h2 style="margin:0;font-size:1.14rem">Pot Balance — Monte Carlo Fan Chart (Percentiles)</h2>
-        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
-          <input type="checkbox" id="today-money-toggle-montecarlo" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
-        </label>
       </div>
       <div class="ai-note">Historical return bootstrapping (1900–2025 data). Shaded bands = 5th–25th–75th–95th percentiles. Amber dashed line = State Pension start age.</div>
       <div class="chart-wrap"><canvas id="chart-montecarlo"></canvas></div>
@@ -654,9 +652,6 @@
     <div id="tab-taxbreakdown" class="hidden">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
         <h2 style="margin:0;font-size:1.14rem">Tax Breakdown by Retirement Year</h2>
-        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
-          <input type="checkbox" id="today-money-toggle-taxbreakdown" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
-        </label>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
         <label for="tax-year-select" style="font-size:0.82rem;color:var(--text2);white-space:nowrap">Year:</label>
@@ -670,29 +665,20 @@
     <div id="tab-realincome" class="hidden">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
         <h2 style="margin:0;font-size:1.14rem">Real Income by Age (Dual Axis)</h2>
-        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
-          <input type="checkbox" id="today-money-toggle-realincome" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
-        </label>
       </div>
       <div class="chart-wrap"><canvas id="chart-realincome"></canvas></div>
     </div>
     <div id="tab-netmonthly" class="hidden">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
         <h2 style="margin:0;font-size:1.14rem">Net Monthly Income by Age (Stacked, Inflation-Adjusted)</h2>
-        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
-          <input type="checkbox" id="today-money-toggle-netmonthly" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
-        </label>
       </div>
       <div class="chart-wrap"><canvas id="chart-netmonthly"></canvas></div>
     </div>
     <div id="tab-annualincome" class="hidden">
       <div class="section-header" style="padding:0;margin-bottom:8px;align-items:center;">
         <h2 style="margin:0;font-size:1.14rem">Annual Income Breakdown — Year by Year</h2>
-        <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
-          <input type="checkbox" id="today-money-toggle-annualincome" class="today-money-toggle" title="Compare future actual value vs today's purchasing power" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
-        </label>
       </div>
-      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts (greyed = partner's SP). When a partner is added, the Age column shows your age / partner's age. Use the "Today's Prices" toggle above to switch between nominal and today's purchasing power. Income columns show net (headline) with gross and tax sub-lines. Pot values use the selected investment return rate.</div>
+      <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts (greyed = partner's SP). When a partner is added, the Age column shows your age / partner's age. Income columns show net (headline) with gross and tax sub-lines. Pot values use the selected investment return rate.</div>
       <div class="chart-wrap" style="height:220px;margin-bottom:16px"><canvas id="chart-annualincome"></canvas></div>
       <div class="table-scroll" style="max-height:55vh;overflow-y:auto">
       <table class="ann-table">
@@ -784,9 +770,7 @@
             Start retirement in:
             <select id="hist-replay-year" style="font-size:0.86rem;padding:2px 6px;border-radius:4px;border:1px solid var(--border,#d1d5db);background:var(--surface);color:var(--text1)"></select>
           </label>
-          <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
-            <input type="checkbox" id="today-money-toggle-historicalreplay" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent)"> Today's Prices
-          </label>
+
         </div>
       </div>
       <div class="ai-note" id="hist-replay-note">Run the simulation, then select a start year to replay that era's actual market returns through your retirement. Returns are applied sequentially; years beyond 2025 wrap from 1900.</div>
