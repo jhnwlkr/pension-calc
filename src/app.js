@@ -2753,6 +2753,7 @@ function renderTaxBreakdown(r) {
   const todayDeflator = ciFromNow > 0 ? 1 / ciFromNow : 1;
   const scale     = useToday ? todayDeflator : 1;
   const m = v => (v * scale) / 12;   // nominal annual → monthly display
+  const a = v => v * scale;           // nominal annual → annual display
 
   // ── Per-source other income items ──────────────────────────────────────────
   const otherItems = calcOtherIncomesNet(r.p?.incomes || [], ciFromNow).items
@@ -2805,13 +2806,13 @@ function renderTaxBreakdown(r) {
 
   // Each other-income source shown at same level; if multiple, add a parent total row with
   // individual sub-rows indented — that is the one type whose details are indented.
-  const otherRowsHtml = (items, tcOtherTax, totalGross_) => {
+  const otherRowsHtml = (items, tcOtherTax, totalGross_, fmt) => {
     if (items.length === 0) return '';
     if (items.length === 1) {
       const it = items[0];
       const itemNet = it.gross - tcOtherTax;
       return `<tr><td>${it.name || 'Other Income'}</td>` +
-        `<td class="num">${fmtGBP(m(it.gross))}</td><td class="num">${fmtGBP(m(tcOtherTax))}</td><td class="num">${fmtGBP(m(itemNet))}</td></tr>`;
+        `<td class="num">${fmtGBP(fmt(it.gross))}</td><td class="num">${fmtGBP(fmt(tcOtherTax))}</td><td class="num">${fmtGBP(fmt(itemNet))}</td></tr>`;
     }
     // Multiple: summary row at top level + each source indented beneath
     const totalNet = totalGross_ - tcOtherTax;
@@ -2820,10 +2821,10 @@ function renderTaxBreakdown(r) {
       const itemTax = tcOtherTax * frac;
       const itemNet = it.gross - itemTax;
       return `<tr class="tx-sub-row"><td>↳ ${it.name || 'Other Income'}</td>` +
-        `<td class="num">${fmtGBP(m(it.gross))}</td><td class="num">${fmtGBP(m(itemTax))}</td><td class="num">${fmtGBP(m(itemNet))}</td></tr>`;
+        `<td class="num">${fmtGBP(fmt(it.gross))}</td><td class="num">${fmtGBP(fmt(itemTax))}</td><td class="num">${fmtGBP(fmt(itemNet))}</td></tr>`;
     }).join('');
     return `<tr><td>Other Income</td>` +
-      `<td class="num">${fmtGBP(m(totalGross_))}</td><td class="num">${fmtGBP(m(tcOtherTax))}</td><td class="num">${fmtGBP(m(totalNet))}</td></tr>` +
+      `<td class="num">${fmtGBP(fmt(totalGross_))}</td><td class="num">${fmtGBP(fmt(tcOtherTax))}</td><td class="num">${fmtGBP(fmt(totalNet))}</td></tr>` +
       subRows;
   };
 
@@ -2835,32 +2836,62 @@ function renderTaxBreakdown(r) {
     ? `<tr class="tx-sub-row"><td>↳ Cash / ISA Savings<small class="tx-rate">tax-free</small></td>` +
       `<td class="num">${fmtGBP(m(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(m(cashAnn))}</td></tr>`
     : '';
+  const cashRowAnn = cashAnn > 0
+    ? `<tr><td>Cash / ISA Savings<small class="tx-rate">tax-free</small></td>` +
+      `<td class="num">${fmtGBP(a(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(a(cashAnn))}</td></tr>`
+    : '';
+  const cashRowIndentedAnn = cashAnn > 0
+    ? `<tr class="tx-sub-row"><td>↳ Cash / ISA Savings<small class="tx-rate">tax-free</small></td>` +
+      `<td class="num">${fmtGBP(a(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(a(cashAnn))}</td></tr>`
+    : '';
 
   let summaryTbody, totalGross, totalTax, totalNet;
+  let annualSummaryTbody, annualTotalGross, annualTotalTax, annualTotalNet;
 
   if (!hasPartner) {
     summaryTbody =
       incRow('Pension Pots Drawdown', m(primaryDWAnn), m(primTc.pensionTax), m(primTc.pensionNet), false) +
       cashRow +
       (hasStatePension ? incRow('State Pension', m(spGrossAnn), m(primTc.spTax), m(spGrossAnn) - m(primTc.spTax), false) : '') +
-      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross);
+      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross, m);
     totalGross = m(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross);
     totalTax   = m(primTc.pensionTax + primTc.spTax + primTc.otherTax);
     totalNet   = totalGross - totalTax;
+    annualSummaryTbody =
+      incRow('Pension Pots Drawdown', a(primaryDWAnn), a(primTc.pensionTax), a(primTc.pensionNet), false) +
+      cashRowAnn +
+      (hasStatePension ? incRow('State Pension', a(spGrossAnn), a(primTc.spTax), a(spGrossAnn) - a(primTc.spTax), false) : '') +
+      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross, a);
+    annualTotalGross = a(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross);
+    annualTotalTax   = a(primTc.pensionTax + primTc.spTax + primTc.otherTax);
+    annualTotalNet   = annualTotalGross - annualTotalTax;
   } else {
     summaryTbody =
       `<tr class="tx-group-header"><th colspan="4">You</th></tr>` +
       incRow('↳ Pension Pots (your share)', m(primaryDWAnn), m(primTc.pensionTax), m(primTc.pensionNet), true) +
       cashRowIndented +
       (hasStatePension ? incRow('↳ State Pension', m(spGrossAnn), m(primTc.spTax), m(spGrossAnn) - m(primTc.spTax), true) : '') +
-      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross) +
+      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross, m) +
       `<tr class="tx-group-header"><th colspan="4">Partner</th></tr>` +
       incRow('↳ Pension Pots (partner share)', m(partnerDWAnn), m(partnTc.pensionTax), m(partnTc.pensionNet), true) +
       (hasPartnerSP ? incRow('↳ State Pension', m(partnerSpGrossAnn), m(partnTc.spTax), m(partnerSpGrossAnn) - m(partnTc.spTax), true) : '') +
-      otherRowsHtml(partnerOtherItems, partnTc.otherTax, partOtherGross);
+      otherRowsHtml(partnerOtherItems, partnTc.otherTax, partOtherGross, m);
     totalGross = m(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross + partnerDWAnn + partnerSpGrossAnn + partOtherGross);
     totalTax   = m(primTc.pensionTax + primTc.spTax + primTc.otherTax + partnTc.pensionTax + partnTc.spTax + partnTc.otherTax);
     totalNet   = totalGross - totalTax;
+    annualSummaryTbody =
+      `<tr class="tx-group-header"><th colspan="4">You</th></tr>` +
+      incRow('↳ Pension Pots (your share)', a(primaryDWAnn), a(primTc.pensionTax), a(primTc.pensionNet), true) +
+      cashRowIndentedAnn +
+      (hasStatePension ? incRow('↳ State Pension', a(spGrossAnn), a(primTc.spTax), a(spGrossAnn) - a(primTc.spTax), true) : '') +
+      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross, a) +
+      `<tr class="tx-group-header"><th colspan="4">Partner</th></tr>` +
+      incRow('↳ Pension Pots (partner share)', a(partnerDWAnn), a(partnTc.pensionTax), a(partnTc.pensionNet), true) +
+      (hasPartnerSP ? incRow('↳ State Pension', a(partnerSpGrossAnn), a(partnTc.spTax), a(partnerSpGrossAnn) - a(partnTc.spTax), true) : '') +
+      otherRowsHtml(partnerOtherItems, partnTc.otherTax, partOtherGross, a);
+    annualTotalGross = a(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross + partnerDWAnn + partnerSpGrossAnn + partOtherGross);
+    annualTotalTax   = a(primTc.pensionTax + primTc.spTax + primTc.otherTax + partnTc.pensionTax + partnTc.spTax + partnTc.otherTax);
+    annualTotalNet   = annualTotalGross - annualTotalTax;
   }
 
   // ── Per-person tax workings builder ───────────────────────────────────────
@@ -2904,21 +2935,7 @@ function renderTaxBreakdown(r) {
         </table>
       </div>` : '';
 
-    const otherRows_ = items_.map(it => {
-      const frac = otherGross_ > 0 ? it.gross / otherGross_ : 0;
-      const itemTax = otherTaxAnn_ * frac;
-      return `<tr><td>${it.name || 'Income'}</td><td class="num">${fmtGBP(it.gross)}/yr</td><td class="num">${fmtGBP(itemTax)}/yr</td><td class="num">${fmtGBP(it.gross - itemTax)}/yr</td></tr>`;
-    }).join('');
 
-    const otherBlock_ = items_.length > 0 ? `
-      <div class="tw-step">
-        <div class="tw-step-title">Other Income (taxed via UK bands above)</div>
-        <table class="tw-table tw-items">
-          <tr class="tw-nil"><td>Source</td><td class="num">Gross /yr</td><td class="num">Tax /yr</td><td class="num">Net /yr</td></tr>
-          ${otherRows_}
-          ${items_.length > 1 ? `<tr class="tw-total"><td>Total</td><td class="num">${fmtGBP(otherGross_)}/yr</td><td class="num">${fmtGBP(otherTaxAnn_)}/yr</td><td class="num">${fmtGBP(otherGross_ - otherTaxAnn_)}/yr</td></tr>` : ''}
-        </table>
-      </div>` : '';
 
     return `<div class="tw-person-section">
       <div class="tw-person-heading">${label}</div>
@@ -2950,7 +2967,6 @@ function renderTaxBreakdown(r) {
         </table>
       </div>
       ${step4_}
-      ${otherBlock_}
     </div>`;
   }
 
@@ -2967,27 +2983,32 @@ function renderTaxBreakdown(r) {
       ${hasPartner ? personWorkings('Partner', partnerDWAnn, partnerTFrac, partnerSpGrossAnn, hasPartnerSP, partnerOtherItems, cumulPartnerTaxFreeUsed) : ''}
     </div>`;
 
-  contentEl.innerHTML = `
+  const tableSection = (title, cols, tbody, tGross, tTax, tNet) => `
+    <div class="tw-table-title">${title}</div>
     <table class="tax-summary-table">
       <thead>
         <tr>
           <th style="text-align:left">Income Source</th>
-          <th class="num">Gross /mo</th>
-          <th class="num">Tax /mo</th>
-          <th class="num">Net /mo</th>
+          <th class="num">Gross ${cols}</th>
+          <th class="num">Tax ${cols}</th>
+          <th class="num">Net ${cols}</th>
         </tr>
       </thead>
       <tbody>
-        ${summaryTbody}
+        ${tbody}
         <tr class="tax-total-row">
           <td>Total Household</td>
-          <td class="num">${fmtGBP(totalGross)}</td>
-          <td class="num">${fmtGBP(totalTax)}</td>
-          <td class="num">${fmtGBP(totalNet)}</td>
+          <td class="num">${fmtGBP(tGross)}</td>
+          <td class="num">${fmtGBP(tTax)}</td>
+          <td class="num">${fmtGBP(tNet)}</td>
         </tr>
       </tbody>
-    </table>
-    ${workingsHtml}`;
+    </table>`;
+
+  contentEl.innerHTML =
+    tableSection('Annual Breakdown', '/yr', annualSummaryTbody, annualTotalGross, annualTotalTax, annualTotalNet) +
+    tableSection('Monthly Breakdown', '/mo', summaryTbody, totalGross, totalTax, totalNet) +
+    workingsHtml;
 }
 
 function renderRealIncomeChart(r) {
