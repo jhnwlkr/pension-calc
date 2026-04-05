@@ -2085,17 +2085,17 @@ function renderCards(r) {
   const baseInflFactor = 1 + (r.p.inflation || 0) / 100;
   const yearsToRet = Math.max(0, r.p.retirementAge - r.p.currentAge);
   const realDeflRet = Math.pow(1 / baseInflFactor, yearsToRet);
-  const detRetPot   = (r.detPotByYear?.[0] ?? 0) + (r.detCashBalByYear?.[0] ?? 0);
-  const detRetPotReal = detRetPot * realDeflRet;
-  document.getElementById('c-median').textContent = fmtGBP(detRetPot);
+  const detPension  = r.detPotByYear?.[0] ?? 0;
+  const detCash     = r.detCashBalByYear?.[0] ?? 0;
+  const detRetPot   = detPension + detCash;
+  const detRetPotReal = detPension * realDeflRet;
+  document.getElementById('c-median').textContent = fmtGBP(detPension);
   const cMedianSub = document.getElementById('c-median-sub');
   if (cMedianSub) {
-    const detPension = r.detPotByYear?.[0] ?? 0;
-    const detCash    = r.detCashBalByYear?.[0] ?? 0;
-    const cashLine   = detCash > 0
-      ? `<span style="display:block;font-size:0.72rem;color:var(--text2);margin-top:3px">Pension: <strong style="color:var(--text)">${fmtGBP(detPension)}</strong> · Cash/ISA: <strong style="color:var(--text)">${fmtGBP(detCash)}</strong></span>`
+    const cashLine = detCash > 0
+      ? `<span style="display:block;font-size:0.72rem;color:var(--text2);margin-top:3px">Cash/ISA: <strong style="color:var(--text)">${fmtGBP(detCash)}</strong></span>`
       : '';
-    cMedianSub.innerHTML = `${fmtGBP(detRetPotReal)} in today's money · det.${cashLine}`;
+    cMedianSub.innerHTML = `${fmtGBP(detRetPotReal)} in today's money${cashLine}`;
   }
 
   // SWR: keep the MC-derived absolute safe amount (r.swr) but express as % of det pot
