@@ -2051,7 +2051,9 @@ function renderCards(r) {
   const realDeflRet = Math.pow(1 / baseInflFactor, yearsToRet);
   const detRetPot   = (r.detPotByYear?.[0] ?? 0) + (r.detCashBalByYear?.[0] ?? 0);
   const detRetPotReal = detRetPot * realDeflRet;
-  document.getElementById('c-median').textContent = fmtGBP(detRetPotReal);
+  document.getElementById('c-median').textContent = fmtGBP(detRetPot);
+  const cMedianSub = document.getElementById('c-median-sub');
+  if (cMedianSub) cMedianSub.textContent = `${fmtGBP(detRetPotReal)} in today's money · det.`;
 
   // SWR: keep the MC-derived absolute safe amount (r.swr) but express as % of det pot
   const detSwrPct = detRetPot > 0 ? (r.swr / detRetPot) * 100 : 0;
