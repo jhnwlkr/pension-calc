@@ -2089,7 +2089,14 @@ function renderCards(r) {
   const detRetPotReal = detRetPot * realDeflRet;
   document.getElementById('c-median').textContent = fmtGBP(detRetPot);
   const cMedianSub = document.getElementById('c-median-sub');
-  if (cMedianSub) cMedianSub.textContent = `${fmtGBP(detRetPotReal)} in today's money · det.`;
+  if (cMedianSub) {
+    const detPension = r.detPotByYear?.[0] ?? 0;
+    const detCash    = r.detCashBalByYear?.[0] ?? 0;
+    const cashLine   = detCash > 0
+      ? `<span style="display:block;font-size:0.72rem;color:var(--text2);margin-top:3px">Pension: <strong style="color:var(--text)">${fmtGBP(detPension)}</strong> · Cash/ISA: <strong style="color:var(--text)">${fmtGBP(detCash)}</strong></span>`
+      : '';
+    cMedianSub.innerHTML = `${fmtGBP(detRetPotReal)} in today's money · det.${cashLine}`;
+  }
 
   // SWR: keep the MC-derived absolute safe amount (r.swr) but express as % of det pot
   const detSwrPct = detRetPot > 0 ? (r.swr / detRetPot) * 100 : 0;
