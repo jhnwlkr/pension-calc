@@ -18,11 +18,14 @@ export function calcPensionTax(grossDrawdown, statePension, hasStatePension, tax
   const taxFree = grossDrawdown * taxFreeFrac;
   const pensionTaxable = grossDrawdown * (1 - taxFreeFrac);
   const spTaxable = hasStatePension ? statePension : 0;
-  const totalTaxable = pensionTaxable + spTaxable + otherGross;
-  const totalTax = incomeTax(totalTaxable);
-  const pensionTaxShare = totalTaxable > 0 ? totalTax * (pensionTaxable / totalTaxable) : 0;
-  const spTaxShare = totalTaxable > 0 ? totalTax * (spTaxable / totalTaxable) : 0;
-  const otherTaxShare = totalTaxable > 0 ? totalTax * (otherGross / totalTaxable) : 0;
+  // Stack in HMRC order: pension drawdown fills lower bands first, then SP, then other income.
+  // Each source is taxed at the marginal rate of the band it occupies.
+  const taxOnPension   = incomeTax(pensionTaxable);
+  const taxOnPensionSP = incomeTax(pensionTaxable + spTaxable);
+  const totalTax       = incomeTax(pensionTaxable + spTaxable + otherGross);
+  const pensionTaxShare = taxOnPension;
+  const spTaxShare      = taxOnPensionSP - taxOnPension;
+  const otherTaxShare   = totalTax - taxOnPensionSP;
   return {
     taxFree,
     pensionTaxable,

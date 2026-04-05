@@ -2870,12 +2870,12 @@ function renderTaxBreakdown(r) {
     const otherGross_     = items_.reduce((s, it) => s + it.gross, 0);
     const totalTaxable_   = pensionTaxable_ + (hasSP_ ? spAnn : 0) + otherGross_;
     const bands_          = incomeTaxBands(totalTaxable_);
-    const pensionFrac_    = totalTaxable_ > 0 ? pensionTaxable_ / totalTaxable_ : 0;
-    const spFrac_         = totalTaxable_ > 0 ? (hasSP_ ? spAnn : 0) / totalTaxable_ : 0;
-    const otherFrac_      = totalTaxable_ > 0 ? otherGross_ / totalTaxable_ : 0;
-    const pensionTaxAnn_  = bands_.totalTax * pensionFrac_;
-    const spTaxAnn_       = bands_.totalTax * spFrac_;
-    const otherTaxAnn_    = bands_.totalTax * otherFrac_;
+    // Stacking order: pension fills lowest bands, SP next, other income on top
+    const taxOnPensionOnly_ = incomeTax(pensionTaxable_);
+    const taxOnPensionSP_   = incomeTax(pensionTaxable_ + (hasSP_ ? spAnn : 0));
+    const pensionTaxAnn_    = taxOnPensionOnly_;
+    const spTaxAnn_         = taxOnPensionSP_ - taxOnPensionOnly_;
+    const otherTaxAnn_      = bands_.totalTax - taxOnPensionSP_;
 
     const tapered_ = bands_.effectivePA < 12570;
     const paNote_  = tapered_
@@ -2895,11 +2895,11 @@ function renderTaxBreakdown(r) {
     const step4_ = bands_.totalTax > 0 ? `
       <div class="tw-step">
         <div class="tw-step-title">Step 4 — Tax allocated between income sources</div>
-        <p class="tw-step-note">Tax is shared between all taxable income sources in proportion to each source's taxable amount.</p>
+        <p class="tw-step-note">Pension drawdown fills the lowest tax bands first (HMRC ordering). State pension stacks on top, then other income — each taxed at the marginal rate of the band it occupies.</p>
         <table class="tw-table">
-          ${pensionTaxAnn_ > 0 ? `<tr><td>Pension drawdown share (${fmtPct(pensionFrac_ * 100)})</td><td class="num">= ${fmtGBP(pensionTaxAnn_ / 12)}/mo</td></tr>` : ''}
-          ${spTaxAnn_ > 0 ? `<tr><td>State pension share (${fmtPct(spFrac_ * 100)})</td><td class="num">= ${fmtGBP(spTaxAnn_ / 12)}/mo</td></tr>` : ''}
-          ${otherTaxAnn_ > 0 ? `<tr><td>Other income share (${fmtPct(otherFrac_ * 100)})</td><td class="num">= ${fmtGBP(otherTaxAnn_ / 12)}/mo</td></tr>` : ''}
+          ${pensionTaxAnn_ > 0 ? `<tr><td>Pension drawdown</td><td class="num">= ${fmtGBP(pensionTaxAnn_ / 12)}/mo</td></tr>` : ''}
+          ${spTaxAnn_ > 0 ? `<tr><td>State pension (stacked above pension)</td><td class="num">= ${fmtGBP(spTaxAnn_ / 12)}/mo</td></tr>` : ''}
+          ${otherTaxAnn_ > 0 ? `<tr><td>Other income (stacked on top — higher marginal rate)</td><td class="num">= ${fmtGBP(otherTaxAnn_ / 12)}/mo</td></tr>` : ''}
           <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtGBP(bands_.totalTax / 12)}/mo</td></tr>
         </table>
       </div>` : '';
