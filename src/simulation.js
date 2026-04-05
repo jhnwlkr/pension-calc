@@ -44,7 +44,6 @@ export function runDeterministicProjection(p, returnPct) {
   const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
   const fullYearsToRet = Math.floor(yearsToRetirement);
   const partialYear = yearsToRetirement - fullYearsToRet;
-  const ret = 1 + returnPct / 100;
   const baseInflFactor = 1 + p.inflation / 100;
 
   const partnerPots = p.partner?.pots || [];
@@ -56,20 +55,41 @@ export function runDeterministicProjection(p, returnPct) {
     ...partnerPots.map(pot => ({ ...pot, contribStopYear: yearsToPartnerRet })),
   ];
 
-  // --- Pre-retirement: grow pots deterministically ---
-  let pensionPot = 0;
-  for (const pot of allPotsConfig) {
+  // --- Per-pot deterministic returns scaled so blended aggregate == returnPct ---
+  // Use historical means to establish relative equity/bond expected returns, then
+  // scale so the value-weighted blend across all pots equals the user's selected rate.
+  const meanEq = HIST_EQUITY_RETURNS.reduce((s, v) => s + v, 0) / HIST_EQUITY_RETURNS.length;
+  const meanBd = HIST_BONDS_RETURNS.reduce((s, v) => s + v, 0) / HIST_BONDS_RETURNS.length;
+  const potExpected = allPotsConfig.map(pot => {
+    const eq = (pot.equityPct ?? 80) / 100;
+    return eq * meanEq + (1 - eq) * meanBd;
+  });
+  const totalStartVal = allPotsConfig.reduce((s, pot) => s + (pot.value || 0), 0);
+  const blendedMean = totalStartVal > 0
+    ? allPotsConfig.reduce((s, pot, i) => s + (pot.value || 0) / totalStartVal * potExpected[i], 0)
+    : potExpected[0] ?? returnPct;
+  const scaleFactor = blendedMean > 0 ? returnPct / blendedMean : 1;
+  const potRets = allPotsConfig.map((_, i) => 1 + (potExpected[i] * scaleFactor) / 100);
+
+  // --- Pre-retirement: grow each pot at its own equity-adjusted rate ---
+  const potValsAtRet = allPotsConfig.map((pot, i) => {
     let val = pot.value;
+    const potRet = potRets[i];
     for (let y = 0; y < fullYearsToRet; y++) {
-      val = val * ret + (y < pot.contribStopYear ? (pot.annualContrib || 0) : 0);
+      val = val * potRet + (y < pot.contribStopYear ? (pot.annualContrib || 0) : 0);
     }
-    // Partial final year: prorated contribution + fractional compounding
     if (partialYear > 0) {
       const partialContrib = fullYearsToRet < pot.contribStopYear ? (pot.annualContrib || 0) * partialYear : 0;
-      val = val * Math.pow(ret, partialYear) + partialContrib;
+      val = val * Math.pow(potRet, partialYear) + partialContrib;
     }
-    pensionPot += Math.max(0, val);
-  }
+    return Math.max(0, val);
+  });
+  const pensionPot = potValsAtRet.reduce((s, v) => s + v, 0);
+
+  // Blended return for retirement drawdown phase — weighted by pot value at retirement
+  const retBlended = 1 + (pensionPot > 0
+    ? allPotsConfig.reduce((s, _, i) => s + potValsAtRet[i] / pensionPot * (potExpected[i] * scaleFactor) / 100, 0)
+    : returnPct / 100);
 
   // Cash pots pre-retirement
   const allCashPots = [...(p.cashPots || []), ...(p.partner?.cashPots || [])];
@@ -103,8 +123,8 @@ export function runDeterministicProjection(p, returnPct) {
       continue;
     }
 
-    // Pension pot grows
-    const pensionAfterGrowth = detPotByYear[y] * ret;
+    // Pension pot grows at blended equity-adjusted rate
+    const pensionAfterGrowth = detPotByYear[y] * retBlended;
 
     // Compute gross withdrawal needed (same logic as MC)
     const hasSP = age >= p.spAge;
