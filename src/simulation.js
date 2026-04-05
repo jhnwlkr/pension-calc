@@ -110,7 +110,7 @@ export function runDeterministicProjection(p, returnPct) {
     }
     if (partialYear > 0) {
       val = val * Math.pow(r2, partialYear);
-      if (annualContrib > 0 && fullYearsToRet >= startIdx) val += annualContrib * partialYear;
+      if (annualContrib > 0 && fullYearsToRet >= startIdx) val += (cp.monthlyContrib || 0) * Math.round(partialYear * 12);
     }
     return Math.max(0, val);
   });
@@ -417,7 +417,7 @@ export function runSimulation(p) {
     }
     if (partialYear > 0) {
       val = val * Math.pow(rate, partialYear);
-      if (annualContrib > 0 && fullYearsToRet >= startIdx) val += annualContrib * partialYear;
+      if (annualContrib > 0 && fullYearsToRet >= startIdx) val += (cp.monthlyContrib || 0) * Math.round(partialYear * 12);
     }
     startCashPotVals[ci] = Math.max(0, val);
   });
