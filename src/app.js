@@ -2086,20 +2086,22 @@ function renderCards(r) {
     : `${isJoint ? 'joint plan' : 'pot'} survives · guardrails off`;
 
   // Use deterministic pot at retirement for all cards except probability of success
+  const useToday = isTodayMoney();
   const baseInflFactor = 1 + (r.p.inflation || 0) / 100;
   const yearsToRet = Math.max(0, r.p.retirementAge - r.p.currentAge);
   const realDeflRet = Math.pow(1 / baseInflFactor, yearsToRet);
-  const detPension  = r.detPotByYear?.[0] ?? 0;
-  const detCash     = r.detCashBalByYear?.[0] ?? 0;
-  const detRetPot   = detPension + detCash;
-  const detRetPotReal = detPension * realDeflRet;
-  document.getElementById('c-median').textContent = fmtGBP(detPension);
+  const detPension    = r.detPotByYear?.[0] ?? 0;
+  const detCash       = r.detCashBalByYear?.[0] ?? 0;
+  const detRetPot     = detPension + detCash;
+  const detPensionDisp = useToday ? detPension * realDeflRet : detPension;
+  const detCashDisp    = useToday ? detCash * realDeflRet    : detCash;
+  document.getElementById('c-median').textContent = fmtGBP(detPensionDisp);
   const cMedianSub = document.getElementById('c-median-sub');
   if (cMedianSub) {
-    const cashLine = detCash > 0
-      ? `<span style="display:block;font-size:0.72rem;color:var(--text2);margin-top:3px">Cash/ISA: <strong style="color:var(--text)">${fmtGBP(detCash)}</strong></span>`
+    const cashLine = detCashDisp > 0
+      ? `<span style="display:block;font-size:0.72rem;color:var(--text2);margin-top:3px">Cash/ISA: <strong style="color:var(--text)">${fmtGBP(detCashDisp)}</strong></span>`
       : '';
-    cMedianSub.innerHTML = `${fmtGBP(detRetPotReal)} in today's money${cashLine}`;
+    cMedianSub.innerHTML = `${useToday ? "today's money" : 'nominal at retirement'}${cashLine}`;
   }
 
   // SWR: keep the MC-derived absolute safe amount (r.swr) but express as % of det pot
@@ -2116,14 +2118,15 @@ function renderCards(r) {
   actualEl.className = actualRatePct <= detSwrPct ? 'green' : actualRatePct <= detSwrPct * 1.2 ? 'amber' : 'red';
 
   const aid0 = r.annualIncomeData?.[0];
-  const cardNetMonthly   = aid0 ? aid0.netNom      : r.netMonthly;
-  const cardGrossMonthly = aid0 ? aid0.netGrossNom  : r.grossMonthly;
-  const cardNetAnnual    = aid0 ? aid0.netNom * 12  : r.netAnnual;
-  const cardGrossAnnual  = aid0 ? aid0.netGrossNom * 12 : r.grossAnnual;
+  const cardNetMonthly   = aid0 ? (useToday ? aid0.netReal      : aid0.netNom)           : r.netMonthly;
+  const cardGrossMonthly = aid0 ? (useToday ? aid0.netGrossReal  : aid0.netGrossNom)      : r.grossMonthly;
+  const cardNetAnnual    = aid0 ? (useToday ? aid0.netReal * 12  : aid0.netNom * 12)      : r.netAnnual;
+  const cardGrossAnnual  = aid0 ? (useToday ? aid0.netGrossReal * 12 : aid0.netGrossNom * 12) : r.grossAnnual;
+  const cardMoneyLabel   = useToday ? "at retirement (today's money, after tax)" : 'at retirement (after tax)';
   document.getElementById('c-monthly').textContent = fmtGBP(cardNetMonthly, 0);
   const cMonthlySub = document.getElementById('c-monthly-sub');
   if (cMonthlySub) {
-    cMonthlySub.innerHTML = `at retirement (after tax)<br>
+    cMonthlySub.innerHTML = `${cardMoneyLabel}<br>
       <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross monthly: <strong style="color:var(--text)">${fmtGBP(cardGrossMonthly, 0)}</strong></span>
       <span style="display:block;font-size:0.72rem;color:var(--text2)">Net annual: <strong style="color:var(--text)">${fmtGBP(cardNetAnnual, 0)}</strong></span>
       <span style="display:block;font-size:0.72rem;color:var(--text2)">Gross annual: <strong style="color:var(--text)">${fmtGBP(cardGrossAnnual, 0)}</strong></span>`;
