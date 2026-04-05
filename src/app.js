@@ -2803,16 +2803,36 @@ function renderTaxBreakdown(r) {
     `<tr${indent ? ' class="tx-sub-row"' : ''}><td>${label}</td>` +
     `<td class="num">${fmtGBP(gross)}</td><td class="num">${tax === null ? '—' : fmtGBP(tax)}</td><td class="num">${fmtGBP(net)}</td></tr>`;
 
-  const otherRowsHtml = (items, tcOtherTax, totalGross_) => items.map(it => {
-    const frac = totalGross_ > 0 ? it.gross / totalGross_ : 0;
-    const itemTax = tcOtherTax * frac;
-    const itemNet = it.gross - itemTax;
-    return `<tr class="tx-sub-row"><td>↳ ${it.name || 'Other Income'}</td>` +
-      `<td class="num">${fmtGBP(m(it.gross))}</td><td class="num">${fmtGBP(m(itemTax))}</td><td class="num">${fmtGBP(m(itemNet))}</td></tr>`;
-  }).join('');
+  // Each other-income source shown at same level; if multiple, add a parent total row with
+  // individual sub-rows indented — that is the one type whose details are indented.
+  const otherRowsHtml = (items, tcOtherTax, totalGross_) => {
+    if (items.length === 0) return '';
+    if (items.length === 1) {
+      const it = items[0];
+      const itemNet = it.gross - tcOtherTax;
+      return `<tr><td>${it.name || 'Other Income'}</td>` +
+        `<td class="num">${fmtGBP(m(it.gross))}</td><td class="num">${fmtGBP(m(tcOtherTax))}</td><td class="num">${fmtGBP(m(itemNet))}</td></tr>`;
+    }
+    // Multiple: summary row at top level + each source indented beneath
+    const totalNet = totalGross_ - tcOtherTax;
+    const subRows = items.map(it => {
+      const frac = totalGross_ > 0 ? it.gross / totalGross_ : 0;
+      const itemTax = tcOtherTax * frac;
+      const itemNet = it.gross - itemTax;
+      return `<tr class="tx-sub-row"><td>↳ ${it.name || 'Other Income'}</td>` +
+        `<td class="num">${fmtGBP(m(it.gross))}</td><td class="num">${fmtGBP(m(itemTax))}</td><td class="num">${fmtGBP(m(itemNet))}</td></tr>`;
+    }).join('');
+    return `<tr><td>Other Income</td>` +
+      `<td class="num">${fmtGBP(m(totalGross_))}</td><td class="num">${fmtGBP(m(tcOtherTax))}</td><td class="num">${fmtGBP(m(totalNet))}</td></tr>` +
+      subRows;
+  };
 
   const cashRow = cashAnn > 0
-    ? `<tr class="tx-sub-row"><td>↳ Cash Savings / ISA<small class="tx-rate">tax-free</small></td>` +
+    ? `<tr><td>Cash / ISA Savings<small class="tx-rate">tax-free</small></td>` +
+      `<td class="num">${fmtGBP(m(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(m(cashAnn))}</td></tr>`
+    : '';
+  const cashRowIndented = cashAnn > 0
+    ? `<tr class="tx-sub-row"><td>↳ Cash / ISA Savings<small class="tx-rate">tax-free</small></td>` +
       `<td class="num">${fmtGBP(m(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(m(cashAnn))}</td></tr>`
     : '';
 
@@ -2831,7 +2851,7 @@ function renderTaxBreakdown(r) {
     summaryTbody =
       `<tr class="tx-group-header"><th colspan="4">You</th></tr>` +
       incRow('↳ Pension Pots (your share)', m(primaryDWAnn), m(primTc.pensionTax), m(primTc.pensionNet), true) +
-      cashRow +
+      cashRowIndented +
       (hasStatePension ? incRow('↳ State Pension', m(spGrossAnn), m(primTc.spTax), m(spGrossAnn) - m(primTc.spTax), true) : '') +
       otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross) +
       `<tr class="tx-group-header"><th colspan="4">Partner</th></tr>` +
