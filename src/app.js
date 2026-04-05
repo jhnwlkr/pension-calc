@@ -2061,7 +2061,9 @@ function renderCards(r) {
   swrEl.textContent = fmtPct(detSwrPct);
   swrEl.className = 'card-value ' + (detSwrPct >= 4 ? 'green' : detSwrPct >= 3 ? 'amber' : 'red');
 
-  const actualRatePct = detRetPot > 0 ? (r.p.drawdown / detRetPot) * 100 : 0;
+  const actualRatePct = r.p.drawdownMode === 'pct'
+    ? (r.p.drawdownPct ?? 0)
+    : (detRetPot > 0 ? (r.p.drawdown / detRetPot) * 100 : 0);
   const actualEl = document.getElementById('c-actual-rate');
   actualEl.textContent = fmtPct(actualRatePct);
   actualEl.className = actualRatePct <= detSwrPct ? 'green' : actualRatePct <= detSwrPct * 1.2 ? 'amber' : 'red';
