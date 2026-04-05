@@ -95,7 +95,24 @@ export function runDeterministicProjection(p, returnPct) {
   const allCashPots = [...(p.cashPots || []), ...(p.partner?.cashPots || [])];
   const cashBals = allCashPots.map(cp => {
     const r2 = 1 + cp.interestPct / 100;
-    return Math.max(0, cp.value * Math.pow(r2, yearsToRetirement));
+    const annualContrib = (cp.monthlyContrib || 0) * 12;
+    let contribDelay = 0;
+    if (cp.contribStartMonth) {
+      const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
+      const now = new Date();
+      contribDelay = Math.max(0, ((cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12);
+    }
+    const startIdx = Math.round(contribDelay);
+    let val = cp.value;
+    for (let y = 0; y < fullYearsToRet; y++) {
+      val = val * r2;
+      if (annualContrib > 0 && y >= startIdx) val += annualContrib;
+    }
+    if (partialYear > 0) {
+      val = val * Math.pow(r2, partialYear);
+      if (annualContrib > 0 && fullYearsToRet >= startIdx) val += annualContrib * partialYear;
+    }
+    return Math.max(0, val);
   });
 
   // --- Retirement: year-by-year ---
@@ -385,7 +402,24 @@ export function runSimulation(p) {
   const startCashPotVals = new Float64Array(numCashPots);
   allCashPots.forEach((cp, ci) => {
     const rate = 1 + cp.interestPct / 100;
-    startCashPotVals[ci] = Math.max(0, cp.value * Math.pow(rate, yearsToRetirement));
+    const annualContrib = (cp.monthlyContrib || 0) * 12;
+    let contribDelay = 0;
+    if (cp.contribStartMonth) {
+      const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
+      const now = new Date();
+      contribDelay = Math.max(0, ((cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12);
+    }
+    const startIdx = Math.round(contribDelay);
+    let val = cp.value;
+    for (let y = 0; y < fullYearsToRet; y++) {
+      val = val * rate;
+      if (annualContrib > 0 && y >= startIdx) val += annualContrib;
+    }
+    if (partialYear > 0) {
+      val = val * Math.pow(rate, partialYear);
+      if (annualContrib > 0 && fullYearsToRet >= startIdx) val += annualContrib * partialYear;
+    }
+    startCashPotVals[ci] = Math.max(0, val);
   });
 
   const startTotals = new Float64Array(nRuns);

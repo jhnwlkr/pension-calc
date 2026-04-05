@@ -1,0 +1,123 @@
+{
+  "exportedAt": "2026-04-04T22:54:38.816Z",
+  "appVersion": "1.0.0",
+  "actuals": {
+    "potRegistry": [
+      {
+        "id": 1,
+        "uuid": "27eba820-1f84-474e-b901-ad6f5ccf1e4a",
+        "name": "Aviva Workplace",
+        "value": 15000,
+        "annualContrib": 91000,
+        "equityPct": 80,
+        "groupUuid": null,
+        "groupAllocationPct": null,
+        "archived": false,
+        "archivedDate": null,
+        "consolidatedIntoUuid": null
+      },
+      {
+        "id": 2,
+        "uuid": "37d07784-9877-4d16-a183-8ab57d6e0174",
+        "name": "Aviva Pension Core V",
+        "value": 530000,
+        "annualContrib": 0,
+        "equityPct": 80,
+        "groupUuid": "d9f45afb-c5f9-4d89-a9a0-53a947e23f1e",
+        "groupAllocationPct": 68,
+        "archived": false,
+        "archivedDate": null,
+        "consolidatedIntoUuid": null
+      },
+      {
+        "id": 3,
+        "uuid": "c9cdbcba-25b5-4a6a-8015-3215fa862380",
+        "name": "Aviva Pension Core IV",
+        "value": 125000,
+        "annualContrib": 0,
+        "equityPct": 70,
+        "groupUuid": "d9f45afb-c5f9-4d89-a9a0-53a947e23f1e",
+        "groupAllocationPct": 16,
+        "archived": false,
+        "archivedDate": null,
+        "consolidatedIntoUuid": null
+      },
+      {
+        "id": 4,
+        "uuid": "1986e035-c600-4ebf-991c-6197b525e307",
+        "name": "Aviva Pension Core II",
+        "value": 125000,
+        "annualContrib": 0,
+        "equityPct": 60,
+        "groupUuid": "d9f45afb-c5f9-4d89-a9a0-53a947e23f1e",
+        "groupAllocationPct": 16,
+        "archived": false,
+        "archivedDate": null,
+        "consolidatedIntoUuid": null
+      },
+      {
+        "id": 5,
+        "uuid": "4acd021a-c2f1-48a4-badb-a29b20a456b3",
+        "name": "Fidelity USD",
+        "value": 100000,
+        "annualContrib": 0,
+        "equityPct": 100,
+        "groupUuid": null,
+        "groupAllocationPct": null,
+        "archived": false,
+        "archivedDate": null,
+        "consolidatedIntoUuid": null
+      }
+    ],
+    "cashPotRegistry": [
+      {
+        "id": 1,
+        "uuid": "4e7859cb-854a-45ee-8615-ae1dafeef14f",
+        "name": "Monzo Savings",
+        "value": 90000,
+        "interestPct": 3.5
+      }
+    ],
+    "partnerPotRegistry": [],
+    "partnerCashPotRegistry": [],
+    "incomeRegistry": [
+      {
+        "id": 1,
+        "uuid": "712d342b-770e-4713-a511-bb9cef958b9b",
+        "name": "Property income",
+        "amount": 15600,
+        "frequency": "annual",
+        "inflationLinked": false
+      }
+    ],
+    "partnerIncomeRegistry": [],
+    "groups": [
+      {
+        "uuid": "d9f45afb-c5f9-4d89-a9a0-53a947e23f1e",
+        "name": "Aviva"
+      }
+    ],
+    "partnerGroups": [],
+    "events": []
+  },
+  "settings": {
+    "retirement-age": "55",
+    "end-age": "90",
+    "sp-age": "67",
+    "reduction-age": "75",
+    "reduction-pct": "25",
+    "drawdown": "40000",
+    "drawdown-pct": "3.5",
+    "sp": "12540",
+    "inflation": "2.5",
+    "return-pct": "5",
+    "runs": "2000",
+    "guardrails": true,
+    "drawdown-mode": "amount",
+    "drawdown-inflation": true,
+    "partner-enabled": false,
+    "partner-retirement-age": "55",
+    "partner-sp-age": "67",
+    "partner-sp": "12540"
+  }
+}

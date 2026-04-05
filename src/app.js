@@ -460,7 +460,7 @@ function renderIncomesUI() {
 let nextCashPotId = 1;
 let cashPotsData = [];
 
-function addCashPot(value, interestPct, name) {
+function addCashPot(value, interestPct, name, monthlyContrib, contribStartMonth) {
   const id = nextCashPotId++;
   cashPotsData.push({
     id,
@@ -468,6 +468,8 @@ function addCashPot(value, interestPct, name) {
     name: name || '',
     value: (value !== undefined && value !== null) ? +value : 0,
     interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
+    monthlyContrib: (monthlyContrib !== undefined && monthlyContrib !== null) ? +monthlyContrib : 0,
+    contribStartMonth: contribStartMonth || new Date().toISOString().slice(0, 7),
   });
   renderCashPotsUI();
 }
@@ -514,6 +516,20 @@ function renderCashPotsUI() {
             <span class="input-suffix">%</span>
           </div>
         </div>
+      </div>
+      <div class="two-col" style="margin-top:6px">
+        <div>
+          <span class="field-label">Monthly contribution</span>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="50" data-cash-pot-id="${pot.id}" data-field="monthlyContrib" value="${pot.monthlyContrib || 0}">
+            <span class="input-suffix">/mo</span>
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Contributions start</span>
+          <input class="dyn-input" type="month" data-cash-pot-id="${pot.id}" data-field="contribStartMonth" value="${pot.contribStartMonth || new Date().toISOString().slice(0,7)}" style="width:100%;box-sizing:border-box">
+        </div>
       </div>`;
     container.appendChild(div);
   });
@@ -532,6 +548,8 @@ function renderCashPotsUI() {
           pot.name = inp.value;
           const titleEl = document.getElementById('cash-pot-title-' + potId);
           if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (cashPotsData.indexOf(pot) + 1));
+        } else if (field === 'contribStartMonth') {
+          pot.contribStartMonth = inp.value;
         } else {
           pot[field] = +inp.value;
         }
@@ -704,7 +722,7 @@ function renderPartnerPotsUI() {
   validateGroupAllocations(partnerGroupsData, partnerPotsData, 'pp-');
 }
 
-function addPartnerCashPot(value, interestPct, name) {
+function addPartnerCashPot(value, interestPct, name, monthlyContrib, contribStartMonth) {
   const id = nextPartnerCashPotId++;
   partnerCashPotsData.push({
     id,
@@ -712,6 +730,8 @@ function addPartnerCashPot(value, interestPct, name) {
     name: name || '',
     value: (value !== undefined && value !== null) ? +value : 0,
     interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
+    monthlyContrib: (monthlyContrib !== undefined && monthlyContrib !== null) ? +monthlyContrib : 0,
+    contribStartMonth: contribStartMonth || new Date().toISOString().slice(0, 7),
   });
   renderPartnerCashPotsUI();
 }
@@ -758,6 +778,20 @@ function renderPartnerCashPotsUI() {
             <span class="input-suffix">%</span>
           </div>
         </div>
+      </div>
+      <div class="two-col" style="margin-top:6px">
+        <div>
+          <span class="field-label">Monthly contribution</span>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="50" data-ppartner-cash-id="${pot.id}" data-field="monthlyContrib" value="${pot.monthlyContrib || 0}">
+            <span class="input-suffix">/mo</span>
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Contributions start</span>
+          <input class="dyn-input" type="month" data-ppartner-cash-id="${pot.id}" data-field="contribStartMonth" value="${pot.contribStartMonth || new Date().toISOString().slice(0,7)}" style="width:100%;box-sizing:border-box">
+        </div>
       </div>`;
     container.appendChild(div);
   });
@@ -772,6 +806,8 @@ function renderPartnerCashPotsUI() {
           pot.name = inp.value;
           const titleEl = document.getElementById('ppartner-cash-title-' + pot.id);
           if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (partnerCashPotsData.indexOf(pot) + 1));
+        } else if (inp.dataset.field === 'contribStartMonth') {
+          pot.contribStartMonth = inp.value;
         } else {
           pot[inp.dataset.field] = +inp.value;
         }
@@ -1103,7 +1139,7 @@ function importBackup(payload, mode) {
     cashPotsData = [];
     actuals.cashPotRegistry.forEach(p => {
       const id = nextCashPotId++;
-      cashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+      cashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7) });
     });
     renderCashPotsUI();
   }
@@ -1131,7 +1167,7 @@ function importBackup(payload, mode) {
     partnerCashPotsData = [];
     actuals.partnerCashPotRegistry.forEach(p => {
       const id = nextPartnerCashPotId++;
-      partnerCashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5 });
+      partnerCashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7) });
     });
     renderPartnerCashPotsUI();
   }
