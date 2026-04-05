@@ -55,21 +55,18 @@ export function runDeterministicProjection(p, returnPct) {
     ...partnerPots.map(pot => ({ ...pot, contribStopYear: yearsToPartnerRet })),
   ];
 
-  // --- Per-pot deterministic returns scaled so blended aggregate == returnPct ---
-  // Use historical means to establish relative equity/bond expected returns, then
-  // scale so the value-weighted blend across all pots equals the user's selected rate.
+  // --- Per-pot deterministic returns: each pot's rate scales with its equity/bond split.
+  // scaleFactor is anchored to the app's default 80% equity split (not value-weighted),
+  // so returnPct means "what an 80% equity pot earns". Higher equity pots earn
+  // proportionally more; changing one pot's equity never affects other pots' rates.
   const meanEq = HIST_EQUITY_RETURNS.reduce((s, v) => s + v, 0) / HIST_EQUITY_RETURNS.length;
   const meanBd = HIST_BONDS_RETURNS.reduce((s, v) => s + v, 0) / HIST_BONDS_RETURNS.length;
-  const potExpected = allPotsConfig.map(pot => {
+  const baseExpected = 0.8 * meanEq + 0.2 * meanBd; // expected return for 80/20 (app default)
+  const scaleFactor = baseExpected > 0 ? returnPct / baseExpected : 1;
+  const potRets = allPotsConfig.map(pot => {
     const eq = (pot.equityPct ?? 80) / 100;
-    return eq * meanEq + (1 - eq) * meanBd;
+    return 1 + (eq * meanEq + (1 - eq) * meanBd) * scaleFactor / 100;
   });
-  const totalStartVal = allPotsConfig.reduce((s, pot) => s + (pot.value || 0), 0);
-  const blendedMean = totalStartVal > 0
-    ? allPotsConfig.reduce((s, pot, i) => s + (pot.value || 0) / totalStartVal * potExpected[i], 0)
-    : potExpected[0] ?? returnPct;
-  const scaleFactor = blendedMean > 0 ? returnPct / blendedMean : 1;
-  const potRets = allPotsConfig.map((_, i) => 1 + (potExpected[i] * scaleFactor) / 100);
 
   // --- Pre-retirement: grow each pot at its own equity-adjusted rate ---
   const potValsAtRet = allPotsConfig.map((pot, i) => {
@@ -88,7 +85,10 @@ export function runDeterministicProjection(p, returnPct) {
 
   // Blended return for retirement drawdown phase — weighted by pot value at retirement
   const retBlended = 1 + (pensionPot > 0
-    ? allPotsConfig.reduce((s, _, i) => s + potValsAtRet[i] / pensionPot * (potExpected[i] * scaleFactor) / 100, 0)
+    ? allPotsConfig.reduce((s, pot, i) => {
+        const eq = (pot.equityPct ?? 80) / 100;
+        return s + potValsAtRet[i] / pensionPot * (eq * meanEq + (1 - eq) * meanBd) * scaleFactor / 100;
+      }, 0)
     : returnPct / 100);
 
   // Cash pots pre-retirement
