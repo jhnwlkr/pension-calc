@@ -92,7 +92,10 @@ export function runDeterministicProjection(p, returnPct) {
     : returnPct / 100);
 
   // Cash pots pre-retirement
-  const allCashPots = [...(p.cashPots || []), ...(p.partner?.cashPots || [])];
+  const allCashPots = [
+    ...(p.cashPots || []).map(cp => ({ ...cp, _ownerCurrentAge: p.currentAge })),
+    ...(p.partner?.cashPots || []).map(cp => ({ ...cp, _ownerCurrentAge: p.partner.currentAge })),
+  ];
   const cashBals = allCashPots.map(cp => {
     const totalMonthsToRet = Math.round(yearsToRetirement * 12);
     const monthlyRate = cp.interestPct / 100 / 12;
@@ -104,8 +107,8 @@ export function runDeterministicProjection(p, returnPct) {
     }
     const contribMonths = Math.max(0, totalMonthsToRet - delayMonths);
     let val;
-    if (cp.valueFromYear) {
-      const fromDelayMonths = Math.max(0, (cp.valueFromYear - now.getFullYear()) * 12);
+    if (cp.valueFromAge) {
+      const fromDelayMonths = Math.max(0, (cp.valueFromAge - cp._ownerCurrentAge) * 12);
       if (fromDelayMonths >= totalMonthsToRet) {
         val = 0; // arrives at/after retirement — injected post-retirement
       } else {
@@ -140,7 +143,7 @@ export function runDeterministicProjection(p, returnPct) {
 
     // Inject lump sums arriving this retirement year
     for (let ci2 = 0; ci2 < cashBals.length; ci2++) {
-      if (allCashPots[ci2].valueFromYear && allCashPots[ci2].valueFromYear === retCalYear + y) {
+      if (allCashPots[ci2].valueFromAge && (allCashPots[ci2]._ownerCurrentAge + (age - p.currentAge)) === allCashPots[ci2].valueFromAge) {
         cashBals[ci2] += allCashPots[ci2].value;
       }
     }
@@ -240,7 +243,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const partnerSpInflated = hasPartnerSP ? p.partner.sp * ci : 0;
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
-      if ((p.cashPots[ci2].valueFromYear) && p.cashPots[ci2].valueFromYear === currentYear + (age - p.currentAge)) {
+      if (p.cashPots[ci2].valueFromAge && p.cashPots[ci2].valueFromAge === age) {
         cashBals[ci2] += p.cashPots[ci2].value;
       }
     }
@@ -421,7 +424,10 @@ export function runSimulation(p) {
   }
 
   // Combined cash pots (primary + partner)
-  const allCashPots = [...(p.cashPots || []), ...(p.partner?.cashPots || [])];
+  const allCashPots = [
+    ...(p.cashPots || []).map(cp => ({ ...cp, _ownerCurrentAge: p.currentAge })),
+    ...(p.partner?.cashPots || []).map(cp => ({ ...cp, _ownerCurrentAge: p.partner.currentAge })),
+  ];
   const numCashPots = allCashPots.length;
   const startCashPotVals = new Float64Array(numCashPots);
   allCashPots.forEach((cp, ci) => {
@@ -435,8 +441,8 @@ export function runSimulation(p) {
     }
     const contribMonths = Math.max(0, totalMonthsToRet - delayMonths);
     let val;
-    if (cp.valueFromYear) {
-      const fromDelayMonths = Math.max(0, (cp.valueFromYear - now.getFullYear()) * 12);
+    if (cp.valueFromAge) {
+      const fromDelayMonths = Math.max(0, (cp.valueFromAge - cp._ownerCurrentAge) * 12);
       if (fromDelayMonths >= totalMonthsToRet) {
         val = 0; // arrives at/after retirement — injected post-retirement
       } else {
@@ -546,7 +552,7 @@ export function runSimulation(p) {
 
       // Inject lump sums arriving this retirement year
       for (let ci = 0; ci < numCashPots; ci++) {
-        if (allCashPots[ci].valueFromYear && allCashPots[ci].valueFromYear === retCalYear + y) {
+        if (allCashPots[ci].valueFromAge && (allCashPots[ci]._ownerCurrentAge + (age - p.currentAge)) === allCashPots[ci].valueFromAge) {
           runCashPots[ci] += allCashPots[ci].value;
         }
       }

@@ -664,6 +664,8 @@ function renderCashPotsUI() {
       }
       persistParams();
     });
+  });
+
   container.querySelectorAll('.arrives-cb[data-cash-pot-id]').forEach(cb => {
     cb.addEventListener('change', () => {
       const pot = cashPotsData.find(p => p.id === +cb.dataset.cashPotId);
@@ -939,7 +941,6 @@ function renderPartnerCashPotsUI() {
           <span id="parrives-val-${pot.id}" style="font-size:0.82rem;min-width:24px;text-align:right">${arrivesAge}</span>
         </div>
       </div>`;
-      </div>`;
     container.appendChild(div);
   });
   container.querySelectorAll('.remove-btn[data-ppartner-cash-id]').forEach(btn => {
@@ -967,6 +968,8 @@ function renderPartnerCashPotsUI() {
       }
       persistParams();
     });
+  });
+
   container.querySelectorAll('.parrives-cb[data-ppartner-cash-id]').forEach(cb => {
     cb.addEventListener('change', () => {
       const pot = partnerCashPotsData.find(p => p.id === +cb.dataset.ppartnerCashId);
