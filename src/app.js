@@ -3927,19 +3927,19 @@ function renderTaxBreakdown(r) {
   };
 
   const cashRow = cashAnn > 0
-    ? `<tr><td>Cash / ISA Savings<small class="tx-rate">tax-free</small></td>` +
+    ? `<tr><td>Cash / ISA Withdrawals<small class="tx-rate">return of capital</small></td>` +
       `<td class="num">${fmtGBP(m(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(m(cashAnn))}</td></tr>`
     : '';
   const cashRowIndented = cashAnn > 0
-    ? `<tr class="tx-sub-row"><td>↳ Cash / ISA Savings<small class="tx-rate">tax-free</small></td>` +
+    ? `<tr class="tx-sub-row"><td>↳ Cash / ISA Withdrawals<small class="tx-rate">return of capital</small></td>` +
       `<td class="num">${fmtGBP(m(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(m(cashAnn))}</td></tr>`
     : '';
   const cashRowAnn = cashAnn > 0
-    ? `<tr><td>Cash / ISA Savings<small class="tx-rate">tax-free</small></td>` +
+    ? `<tr><td>Cash / ISA Withdrawals<small class="tx-rate">return of capital</small></td>` +
       `<td class="num">${fmtGBP(a(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(a(cashAnn))}</td></tr>`
     : '';
   const cashRowIndentedAnn = cashAnn > 0
-    ? `<tr class="tx-sub-row"><td>↳ Cash / ISA Savings<small class="tx-rate">tax-free</small></td>` +
+    ? `<tr class="tx-sub-row"><td>↳ Cash / ISA Withdrawals<small class="tx-rate">return of capital</small></td>` +
       `<td class="num">${fmtGBP(a(cashAnn))}</td><td class="num">—</td><td class="num">${fmtGBP(a(cashAnn))}</td></tr>`
     : '';
 

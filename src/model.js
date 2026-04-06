@@ -63,12 +63,15 @@ function calcStackedTax(income, lowerTiersBase, effectivePA, brRate, hrRate, arR
  * UK stacking order (ITA 2007 s23) and the right rate schedule for each income type.
  *
  * From 6 Apr 2026: dividends taxed at 10.75/35.75/39.35% (already live)
- * From 6 Apr 2027: property and savings taxed at 22/42/47%; they become a separate tier
+ * From 6 Apr 2027: property and savings taxed at 22/42/47%; PA no longer flows to these tiers
+ *                  (new ordering rules — Finance Bill 2025-26); PSA still applies (£1,000/£500/£0)
+ *
+ * Personal Savings Allowance (all years): £1,000 basic-rate, £500 higher-rate, £0 additional-rate
  *
  * Stacking order:
  *   Tier 1 (non-savings): pension drawdown + state pension + employment income
  *   Tier 2 (property):    property / rental income (standard rates until 2027, then 22/42/47%)
- *   Tier 3 (savings):     savings / interest income (same schedule as property)
+ *   Tier 3 (savings):     savings / interest income (same schedule as property; PSA applies)
  *   Tier 4 (dividends):   dividend income (10.75/35.75/39.35% from 2026, 8.75/33.75% before)
  *
  * @param {number} grossDrawdown
@@ -108,22 +111,36 @@ export function calcPensionTax(grossDrawdown, statePension, hasStatePension, tax
   const spTax         = incomeTaxGivenPA(pensionTaxable + spTaxable, effectivePA) - pensionTax;
   const employmentTax = t1Tax - pensionTax - spTax;
 
+  // ── Personal Savings Allowance (all years — Finance (No.2) Act 2015 s.12) ─
+  // Band determined from tier-1 income vs effectivePA (simplified — ignores savings/dividends pushing
+  // a person into a higher band, acceptable given typical retirement income profiles)
+  const t1AbovePA = Math.max(0, t1 - effectivePA);
+  const psaAmount = t1AbovePA <= BR_LIMIT ? 1000 : t1AbovePA <= (HR_LIMIT - PA) ? 500 : 0;
+
   // ── Tier 2: property ──────────────────────────────────────────────────────
   const propBR = calYear >= PROP_SAV_RATE_CHANGE_YEAR ? PROP_SAV_BR_RATE : BR_RATE;
   const propHR = calYear >= PROP_SAV_RATE_CHANGE_YEAR ? PROP_SAV_HR_RATE : HR_RATE;
   const propAR = calYear >= PROP_SAV_RATE_CHANGE_YEAR ? PROP_SAV_AR_RATE : AR_RATE;
-  const propertyTax = calcStackedTax(property, t1, effectivePA, propBR, propHR, propAR);
+  // From Apr 2027: PA no longer flows to property/savings/dividends tiers (Finance Bill 2025-26)
+  const propBase = calYear >= PROP_SAV_RATE_CHANGE_YEAR ? Math.max(effectivePA, t1) : t1;
+  const propertyTax = calcStackedTax(property, propBase, effectivePA, propBR, propHR, propAR);
 
   // ── Tier 3: savings ───────────────────────────────────────────────────────
   const savBR = calYear >= PROP_SAV_RATE_CHANGE_YEAR ? PROP_SAV_BR_RATE : BR_RATE;
   const savHR = calYear >= PROP_SAV_RATE_CHANGE_YEAR ? PROP_SAV_HR_RATE : HR_RATE;
   const savAR = calYear >= PROP_SAV_RATE_CHANGE_YEAR ? PROP_SAV_AR_RATE : AR_RATE;
-  const savingsTax = calcStackedTax(savings, t1 + property, effectivePA, savBR, savHR, savAR);
+  const savBase = calYear >= PROP_SAV_RATE_CHANGE_YEAR ? Math.max(effectivePA, t1 + property) : t1 + property;
+  // PSA-exempt portion occupies band space but is taxed at 0%; subtract before rate calculation
+  const savingsTax = calcStackedTax(Math.max(0, savings - psaAmount), savBase, effectivePA, savBR, savHR, savAR);
 
   // ── Tier 4: dividends ─────────────────────────────────────────────────────
+  // Dividend base uses FULL savings (PSA-exempt savings still occupy the rate band)
+  const divBase = calYear >= PROP_SAV_RATE_CHANGE_YEAR
+    ? Math.max(effectivePA, t1 + property + savings)
+    : t1 + property + savings;
   const divBR = calYear >= DIV_RATE_CHANGE_YEAR ? DIV_BR_RATE : DIV_BR_RATE_OLD;
   const divHR = calYear >= DIV_RATE_CHANGE_YEAR ? DIV_HR_RATE : DIV_HR_RATE_OLD;
-  const dividendTax = calcStackedTax(dividends, t1 + property + savings, effectivePA, divBR, divHR, DIV_AR_RATE);
+  const dividendTax = calcStackedTax(dividends, divBase, effectivePA, divBR, divHR, DIV_AR_RATE);
 
   const otherTax = employmentTax + propertyTax + savingsTax + dividendTax;
   const otherGross = employment + property + savings + dividends;
