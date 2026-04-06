@@ -1315,6 +1315,11 @@ function buildExportPayload() {
   settings['drawdown-mode']       = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
   settings['drawdown-inflation']  = document.getElementById('drawdown-inflation')?.checked;
   settings['partner-enabled']     = getPartnerEnabled();
+  settings['current-dob']         = document.getElementById('current-dob')?.value || '';
+  settings['partner-dob']         = document.getElementById('partner-dob')?.value || '';
+  settings['today-money']         = isTodayMoney() ? '1' : '0';
+  settings['actuals-enabled']     = isActualsEnabled() ? '1' : '0';
+  settings['recalibrate-toggle']  = document.getElementById('recalibrate-toggle')?.checked ? '1' : '0';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) settings[id] = el.value; });
 
   // Actuals = all pot registries, income registries, groups, events
@@ -1709,6 +1714,7 @@ function persistParams() {
   obj['partner-cashPots'] = JSON.stringify(partnerCashPotsData);
   obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
   obj['actuals-enabled'] = isActualsEnabled() ? '1' : '0';
+  obj['recalibrate-toggle'] = document.getElementById('recalibrate-toggle')?.checked ? '1' : '0';
   obj['active-tab'] = document.querySelector('.tab.active')?.dataset.tab || 'pot';
   obj['mc-pctile'] = document.getElementById('mc-pctile').value;
   const taxYearEl = document.getElementById('tax-year-select');
@@ -1959,6 +1965,10 @@ function restoreParams(obj) {
     const cb = document.getElementById('actuals-enabled');
     if (cb) cb.checked = enabled;
     applyActualsEnabled(enabled);
+  }
+  if (obj['recalibrate-toggle'] !== undefined) {
+    const cb = document.getElementById('recalibrate-toggle');
+    if (cb) cb.checked = obj['recalibrate-toggle'] !== '0';
   }
   // Restore UI view state
   if (obj['active-tab']) setActiveTab(obj['active-tab']);
