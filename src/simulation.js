@@ -266,7 +266,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       : baseTarget;
     const neededFromPots = Math.max(0, targetNominal - spInflated - partnerSpInflated);
 
-    const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.grossTotal);
+    const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
     let cashContrib = 0;
     for (let ci2 = 0; ci2 < cashBals.length && cashContrib < netTargetAnn; ci2++) {
@@ -293,7 +293,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const taxFreeFracYear = potWithdrawNominal > 0
       ? (actualPriDraw * primaryTFracYear + actualParDraw * partnerTFracYear) / potWithdrawNominal
       : 0.25;
-    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, taxFreeFracYear, otherNet.grossTotal);
+    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, taxFreeFracYear, otherNet.byType, currentYear + (age - p.currentAge));
     cumulPrimaryTaxFree = Math.min(LSA, cumulPrimaryTaxFree + actualPriDraw * primaryTFracYear);
     if (p.partner) cumulPartnerTaxFree = Math.min(LSA, cumulPartnerTaxFree + actualParDraw * partnerTFracYear);
     const totalNetNominal = cashContrib + tc.pensionNet + (hasStatePension ? tc.spNet : 0) + partnerSpInflated + tc.otherNet + partnerOtherAID.netTotal;
@@ -803,7 +803,7 @@ export function runSimulation(p) {
   const partnerOtherAtRet = (partnerRetiredAtRet && p.partner.incomes?.length)
     ? calcOtherIncomesNet(p.partner.incomes, Math.pow(baseInflFactor, yearsToRetirement), { currentAge: partnerAgeAtRet, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor })
     : { netTotal: 0, grossTotal: 0 };
-  taxCalc = calcPensionTax(potWAtRetirement, hasSpAtRetirement ? p.sp : 0, hasSpAtRetirement, taxFreeFrac, otherAtRetirement.grossTotal);
+  taxCalc = calcPensionTax(potWAtRetirement, hasSpAtRetirement ? p.sp : 0, hasSpAtRetirement, taxFreeFrac, otherAtRetirement.byType, new Date().getFullYear() + Math.round(yearsToRetirement));
   netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + partnerSpAtRet + taxCalc.otherNet + partnerOtherAtRet.netTotal) / 12;
   const grossMonthly = (cashAtRetirement + potWAtRetirement + (hasSpAtRetirement ? p.sp : 0) + partnerSpAtRet + otherAtRetirement.grossTotal + partnerOtherAtRet.grossTotal) / 12;
   const netAnnual = netMonthly * 12;
@@ -828,7 +828,7 @@ export function runSimulation(p) {
     const pensionDepleted = det.detPotByYear[yi] <= 0;
     const grossNeeded = potWithdrawal(age, p, ci);
     const potW = pensionDepleted ? 0 : pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
-    const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac, otherNet.grossTotal);
+    const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac, otherNet.byType, new Date().getFullYear() + (age - p.currentAge));
     const realF = Math.pow(1 / baseInflFactor, yi);
     const partnerAgeRI = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
     const partnerSpInflRI = (p.partner && partnerAgeRI >= p.partner.spAge) ? p.partner.sp * ci : 0;
@@ -852,7 +852,7 @@ export function runSimulation(p) {
     const pensionDepleted = det.detPotByYear[yi] <= 0;
     const grossNeeded = potWithdrawal(age, p, ci);
     const potW = pensionDepleted ? 0 : pensionGrossAfterCash(grossNeeded, cashC, hasStatePension, spInfl);
-    const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac, otherNet.grossTotal);
+    const tc = calcPensionTax(potW, spInfl, hasStatePension, taxFreeFrac, otherNet.byType, new Date().getFullYear() + (age - p.currentAge));
     const realF = Math.pow(1 / baseInflFactor, yi);
     const partnerAgeNM = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
     const partnerSpInflNM = (p.partner && partnerAgeNM >= p.partner.spAge) ? p.partner.sp * ci : 0;

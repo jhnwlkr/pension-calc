@@ -399,7 +399,7 @@ function buildGroupRowHTML(pot, groups, potAttr, idPfx) {
 let nextIncomeId = 1;
 let incomesData = [];
 
-function addIncome(name, amount, frequency, inflationLinked = false, incomePeriod = false, startAge = undefined, endAge = undefined, inflationBase = 'real') {
+function addIncome(name, amount, frequency, inflationLinked = false, incomePeriod = false, startAge = undefined, endAge = undefined, inflationBase = 'real', incomeType = 'employment') {
   const id = nextIncomeId++;
   incomesData.push({
     id,
@@ -412,6 +412,7 @@ function addIncome(name, amount, frequency, inflationLinked = false, incomePerio
     startAge,
     endAge,
     inflationBase,
+    incomeType,
   });
   renderIncomesUI();
 }
@@ -460,6 +461,15 @@ function renderIncomesUI() {
             <option value="monthly" ${inc.frequency === 'monthly' ? 'selected' : ''}>Monthly</option>
           </select>
         </div>
+      </div>
+      <div class="inc-row">
+        <label class="field-label" style="min-width:60px">Type</label>
+        <select class="dyn-select" data-inc-id="${inc.id}" data-field="incomeType">
+          <option value="employment" ${(inc.incomeType || 'employment') === 'employment' ? 'selected' : ''}>Employment / Trading</option>
+          <option value="property"   ${inc.incomeType === 'property'   ? 'selected' : ''}>Property / Rental</option>
+          <option value="savings"    ${inc.incomeType === 'savings'    ? 'selected' : ''}>Savings / Interest</option>
+          <option value="dividends"  ${inc.incomeType === 'dividends'  ? 'selected' : ''}>Dividends</option>
+        </select>
       </div>
       <div class="inc-row">
         <label><input type="checkbox" data-inc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}> Period</label>
@@ -997,7 +1007,7 @@ function renderPartnerCashPotsUI() {
   });
 }
 
-function addPartnerIncome(name, amount, frequency, inflationLinked, incomePeriod = false, startAge = undefined, endAge = undefined, inflationBase = 'real') {
+function addPartnerIncome(name, amount, frequency, inflationLinked, incomePeriod = false, startAge = undefined, endAge = undefined, inflationBase = 'real', incomeType = 'employment') {
   const id = nextPartnerIncomeId++;
   partnerIncomesData.push({
     id,
@@ -1010,6 +1020,7 @@ function addPartnerIncome(name, amount, frequency, inflationLinked, incomePeriod
     startAge,
     endAge,
     inflationBase,
+    incomeType,
   });
   renderPartnerIncomesUI();
 }
@@ -1060,6 +1071,15 @@ function renderPartnerIncomesUI() {
         </div>
       </div>
       <div class="inc-row">
+        <label class="field-label" style="min-width:60px">Type</label>
+        <select class="dyn-select" data-pinc-id="${inc.id}" data-field="incomeType">
+          <option value="employment" ${(inc.incomeType || 'employment') === 'employment' ? 'selected' : ''}>Employment / Trading</option>
+          <option value="property"   ${inc.incomeType === 'property'   ? 'selected' : ''}>Property / Rental</option>
+          <option value="savings"    ${inc.incomeType === 'savings'    ? 'selected' : ''}>Savings / Interest</option>
+          <option value="dividends"  ${inc.incomeType === 'dividends'  ? 'selected' : ''}>Dividends</option>
+        </select>
+      </div>
+      <div class="inc-row">
         <label><input type="checkbox" data-pinc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}> Period</label>
         <div class="inc-age-inputs">
           <label>From age <input type="number" class="inc-age-input" min="${partnerCurAge}" max="999" maxlength="3" data-pinc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${partnerRetAge}"></label>
@@ -1102,7 +1122,7 @@ function renderPartnerIncomesUI() {
       }
       if (field === 'inflationBase') {
         inc.inflationBase = el.value;
-      } else if (field === 'name' || field === 'frequency') {
+      } else if (field === 'name' || field === 'frequency' || field === 'incomeType') {
         inc[field] = el.value;
       } else if (field === 'startAge' || field === 'endAge') {
         if (el.value.length > 3) { el.value = el.value.slice(0, 3); }
@@ -1427,7 +1447,7 @@ function importBackup(payload, mode) {
     incomesData = [];
     actuals.incomeRegistry.forEach(inc => {
       const id = nextIncomeId++;
-      incomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true, incomePeriod: inc.incomePeriod === true, startAge: inc.startAge || undefined, endAge: inc.endAge || undefined, inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real' });
+      incomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true, incomePeriod: inc.incomePeriod === true, startAge: inc.startAge || undefined, endAge: inc.endAge || undefined, inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real', incomeType: inc.incomeType || 'employment' });
     });
     renderIncomesUI();
   }
@@ -1435,7 +1455,7 @@ function importBackup(payload, mode) {
     partnerIncomesData = [];
     actuals.partnerIncomeRegistry.forEach(inc => {
       const id = nextPartnerIncomeId++;
-      partnerIncomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true, incomePeriod: inc.incomePeriod === true, startAge: inc.startAge || undefined, endAge: inc.endAge || undefined, inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real' });
+      partnerIncomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true, incomePeriod: inc.incomePeriod === true, startAge: inc.startAge || undefined, endAge: inc.endAge || undefined, inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real', incomeType: inc.incomeType || 'employment' });
     });
     renderPartnerIncomesUI();
   }
@@ -1839,6 +1859,7 @@ function restoreParams(obj) {
             startAge: inc.startAge || undefined,
             endAge: inc.endAge || undefined,
             inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real',
+            incomeType: inc.incomeType || 'employment',
           });
         });
         renderIncomesUI();
@@ -1954,6 +1975,7 @@ function restoreParams(obj) {
             startAge: inc.startAge || undefined,
             endAge: inc.endAge || undefined,
             inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real',
+            incomeType: inc.incomeType || 'employment',
           });
         });
         renderPartnerIncomesUI();
@@ -2104,7 +2126,7 @@ function buildAnnualIncomeData(r) {
       : baseTarget;
     const neededFromPots = Math.max(0, targetNominal - spInflated - partnerSpInflated);
 
-    const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.grossTotal);
+    const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
     let cashContrib = 0;
     for (let ci2 = 0; ci2 < cashBals.length && cashContrib < netTargetAnn; ci2++) {
@@ -2131,7 +2153,7 @@ function buildAnnualIncomeData(r) {
     const taxFreeFracYear = potWithdrawNominal > 0
       ? (actualPriDraw * primaryTFracYear + actualParDraw * partnerTFracYear) / potWithdrawNominal
       : 0.25;
-    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, taxFreeFracYear, otherNet.grossTotal);
+    const tc = calcPensionTax(potWithdrawNominal, spInflated, hasStatePension, taxFreeFracYear, otherNet.byType, currentYear + (age - p.currentAge));
     cumulPrimaryTaxFree = Math.min(LSA, cumulPrimaryTaxFree + actualPriDraw * primaryTFracYear);
     if (partner) cumulPartnerTaxFree = Math.min(LSA, cumulPartnerTaxFree + actualParDraw * partnerTFracYear);
 
@@ -3175,9 +3197,13 @@ function renderTaxBreakdown(r) {
   // ── Per-person tax — each gets their own £12,570 personal allowance ─────────
   const yourOtherGross = otherItems.reduce((s, it) => s + it.gross, 0);
   const partOtherGross = partnerOtherItems.reduce((s, it) => s + it.gross, 0);
-  const primTc  = calcPensionTax(primaryDWAnn, spGrossAnn, hasStatePension, primaryTFrac, yourOtherGross);
+  const yourByType = { employment: 0, property: 0, savings: 0, dividends: 0 };
+  otherItems.forEach(it => { const t = it.type || 'employment'; if (t in yourByType) yourByType[t] += it.gross; else yourByType.employment += it.gross; });
+  const partByType = { employment: 0, property: 0, savings: 0, dividends: 0 };
+  partnerOtherItems.forEach(it => { const t = it.type || 'employment'; if (t in partByType) partByType[t] += it.gross; else partByType.employment += it.gross; });
+  const primTc  = calcPensionTax(primaryDWAnn, spGrossAnn, hasStatePension, primaryTFrac, yourByType, d.calYear);
   const partnTc = hasPartner
-    ? calcPensionTax(partnerDWAnn, partnerSpGrossAnn, hasPartnerSP, partnerTFrac, partOtherGross)
+    ? calcPensionTax(partnerDWAnn, partnerSpGrossAnn, hasPartnerSP, partnerTFrac, partByType, d.calYear)
     : null;
 
   // ── Summary table row helpers ──────────────────────────────────────────────
@@ -3185,28 +3211,41 @@ function renderTaxBreakdown(r) {
     `<tr${indent ? ' class="tx-sub-row"' : ''}><td>${label}</td>` +
     `<td class="num">${fmtGBP(gross)}</td><td class="num">${tax === null ? '—' : fmtGBP(tax)}</td><td class="num">${fmtGBP(net)}</td></tr>`;
 
-  // Each other-income source shown at same level; if multiple, add a parent total row with
-  // individual sub-rows indented — that is the one type whose details are indented.
-  const otherRowsHtml = (items, tcOtherTax, totalGross_, fmt) => {
+  // Per-type other income rows with correct rate badges
+  const otherRowsHtml = (items, tc, fmt, calYr, indent = false) => {
     if (items.length === 0) return '';
-    if (items.length === 1) {
-      const it = items[0];
-      const itemNet = it.gross - tcOtherTax;
-      return `<tr><td>${it.name || 'Other Income'}</td>` +
-        `<td class="num">${fmtGBP(fmt(it.gross))}</td><td class="num">${fmtGBP(fmt(tcOtherTax))}</td><td class="num">${fmtGBP(fmt(itemNet))}</td></tr>`;
+    const prefix   = indent ? '↳ ' : '';
+    const rowClass = indent ? ' class="tx-sub-row"' : '';
+    const typeConfigs = [
+      { key: 'employment', label: 'Employment / Trading', rate: '20/40/45%',               taxField: 'employmentTax' },
+      { key: 'property',   label: 'Property / Rental',   rate: calYr >= 2027 ? '22/42/47%' : '20/40/45%', taxField: 'propertyTax' },
+      { key: 'savings',    label: 'Savings / Interest',  rate: calYr >= 2027 ? '22/42/47%' : '20/40/45%', taxField: 'savingsTax' },
+      { key: 'dividends',  label: 'Dividends',           rate: calYr >= 2026 ? '10.75/35.75/39.35%' : '8.75/33.75/39.35%', taxField: 'dividendTax' },
+    ];
+    let html = '';
+    for (const cfg of typeConfigs) {
+      const typeItems = items.filter(it => (it.type || 'employment') === cfg.key);
+      if (typeItems.length === 0) continue;
+      const typeGross = typeItems.reduce((s, it) => s + it.gross, 0);
+      const typeTax = tc[cfg.taxField] || 0;
+      const typeNet = typeGross - typeTax;
+      const rateTag = `<small class="tx-rate">${cfg.rate}</small>`;
+      if (typeItems.length === 1) {
+        html += `<tr${rowClass}><td>${prefix}${typeItems[0].name || cfg.label}${rateTag}</td>` +
+          `<td class="num">${fmtGBP(fmt(typeGross))}</td><td class="num">${fmtGBP(fmt(typeTax))}</td><td class="num">${fmtGBP(fmt(typeNet))}</td></tr>`;
+      } else {
+        html += `<tr${rowClass}><td>${prefix}${cfg.label}${rateTag}</td>` +
+          `<td class="num">${fmtGBP(fmt(typeGross))}</td><td class="num">${fmtGBP(fmt(typeTax))}</td><td class="num">${fmtGBP(fmt(typeNet))}</td></tr>`;
+        typeItems.forEach(it => {
+          const frac = typeGross > 0 ? it.gross / typeGross : 0;
+          const itemTax = typeTax * frac;
+          const itemNet = it.gross - itemTax;
+          html += `<tr class="tx-sub-row"><td>↳ ${it.name || cfg.label}</td>` +
+            `<td class="num">${fmtGBP(fmt(it.gross))}</td><td class="num">${fmtGBP(fmt(itemTax))}</td><td class="num">${fmtGBP(fmt(itemNet))}</td></tr>`;
+        });
+      }
     }
-    // Multiple: summary row at top level + each source indented beneath
-    const totalNet = totalGross_ - tcOtherTax;
-    const subRows = items.map(it => {
-      const frac = totalGross_ > 0 ? it.gross / totalGross_ : 0;
-      const itemTax = tcOtherTax * frac;
-      const itemNet = it.gross - itemTax;
-      return `<tr class="tx-sub-row"><td>↳ ${it.name || 'Other Income'}</td>` +
-        `<td class="num">${fmtGBP(fmt(it.gross))}</td><td class="num">${fmtGBP(fmt(itemTax))}</td><td class="num">${fmtGBP(fmt(itemNet))}</td></tr>`;
-    }).join('');
-    return `<tr><td>Other Income</td>` +
-      `<td class="num">${fmtGBP(fmt(totalGross_))}</td><td class="num">${fmtGBP(fmt(tcOtherTax))}</td><td class="num">${fmtGBP(fmt(totalNet))}</td></tr>` +
-      subRows;
+    return html;
   };
 
   const cashRow = cashAnn > 0
@@ -3234,7 +3273,7 @@ function renderTaxBreakdown(r) {
       incRow('Pension Pots Drawdown', m(primaryDWAnn), m(primTc.pensionTax), m(primTc.pensionNet), false) +
       cashRow +
       (hasStatePension ? incRow('State Pension', m(spGrossAnn), m(primTc.spTax), m(spGrossAnn) - m(primTc.spTax), false) : '') +
-      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross, m);
+      otherRowsHtml(otherItems, primTc, m, d.calYear);
     totalGross = m(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross);
     totalTax   = m(primTc.pensionTax + primTc.spTax + primTc.otherTax);
     totalNet   = totalGross - totalTax;
@@ -3242,7 +3281,7 @@ function renderTaxBreakdown(r) {
       incRow('Pension Pots Drawdown', a(primaryDWAnn), a(primTc.pensionTax), a(primTc.pensionNet), false) +
       cashRowAnn +
       (hasStatePension ? incRow('State Pension', a(spGrossAnn), a(primTc.spTax), a(spGrossAnn) - a(primTc.spTax), false) : '') +
-      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross, a);
+      otherRowsHtml(otherItems, primTc, a, d.calYear);
     annualTotalGross = a(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross);
     annualTotalTax   = a(primTc.pensionTax + primTc.spTax + primTc.otherTax);
     annualTotalNet   = annualTotalGross - annualTotalTax;
@@ -3252,11 +3291,11 @@ function renderTaxBreakdown(r) {
       incRow('↳ Pension Pots (your share)', m(primaryDWAnn), m(primTc.pensionTax), m(primTc.pensionNet), true) +
       cashRowIndented +
       (hasStatePension ? incRow('↳ State Pension', m(spGrossAnn), m(primTc.spTax), m(spGrossAnn) - m(primTc.spTax), true) : '') +
-      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross, m) +
+      otherRowsHtml(otherItems, primTc, m, d.calYear, true) +
       `<tr class="tx-group-header"><th colspan="4">Partner</th></tr>` +
       incRow('↳ Pension Pots (partner share)', m(partnerDWAnn), m(partnTc.pensionTax), m(partnTc.pensionNet), true) +
       (hasPartnerSP ? incRow('↳ State Pension', m(partnerSpGrossAnn), m(partnTc.spTax), m(partnerSpGrossAnn) - m(partnTc.spTax), true) : '') +
-      otherRowsHtml(partnerOtherItems, partnTc.otherTax, partOtherGross, m);
+      otherRowsHtml(partnerOtherItems, partnTc, m, d.calYear, true);
     totalGross = m(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross + partnerDWAnn + partnerSpGrossAnn + partOtherGross);
     totalTax   = m(primTc.pensionTax + primTc.spTax + primTc.otherTax + partnTc.pensionTax + partnTc.spTax + partnTc.otherTax);
     totalNet   = totalGross - totalTax;
@@ -3265,33 +3304,31 @@ function renderTaxBreakdown(r) {
       incRow('↳ Pension Pots (your share)', a(primaryDWAnn), a(primTc.pensionTax), a(primTc.pensionNet), true) +
       cashRowIndentedAnn +
       (hasStatePension ? incRow('↳ State Pension', a(spGrossAnn), a(primTc.spTax), a(spGrossAnn) - a(primTc.spTax), true) : '') +
-      otherRowsHtml(otherItems, primTc.otherTax, yourOtherGross, a) +
+      otherRowsHtml(otherItems, primTc, a, d.calYear, true) +
       `<tr class="tx-group-header"><th colspan="4">Partner</th></tr>` +
       incRow('↳ Pension Pots (partner share)', a(partnerDWAnn), a(partnTc.pensionTax), a(partnTc.pensionNet), true) +
       (hasPartnerSP ? incRow('↳ State Pension', a(partnerSpGrossAnn), a(partnTc.spTax), a(partnerSpGrossAnn) - a(partnTc.spTax), true) : '') +
-      otherRowsHtml(partnerOtherItems, partnTc.otherTax, partOtherGross, a);
+      otherRowsHtml(partnerOtherItems, partnTc, a, d.calYear, true);
     annualTotalGross = a(primaryDWAnn + cashAnn + spGrossAnn + yourOtherGross + partnerDWAnn + partnerSpGrossAnn + partOtherGross);
     annualTotalTax   = a(primTc.pensionTax + primTc.spTax + primTc.otherTax + partnTc.pensionTax + partnTc.spTax + partnTc.otherTax);
     annualTotalNet   = annualTotalGross - annualTotalTax;
   }
 
   // ── Per-person tax workings builder ───────────────────────────────────────
-  function personWorkings(label, dwAnn, tfFrac, spAnn, hasSP_, items_, cumulTaxFreeUsed = 0) {
+  function personWorkings(label, dwAnn, tfFrac, spAnn, hasSP_, items_, cumulTaxFreeUsed = 0, tc_ = null, calYr = 2026) {
     const taxFreeAnn_     = dwAnn * tfFrac;
     const pensionTaxable_ = dwAnn - taxFreeAnn_;
     const otherGross_     = items_.reduce((s, it) => s + it.gross, 0);
     const totalTaxable_   = pensionTaxable_ + (hasSP_ ? spAnn : 0) + otherGross_;
     const bands_          = incomeTaxBands(totalTaxable_);
-    // Stacking order: pension fills lowest bands, SP next, other income on top
-    const taxOnPensionOnly_ = incomeTax(pensionTaxable_);
-    const taxOnPensionSP_   = incomeTax(pensionTaxable_ + (hasSP_ ? spAnn : 0));
-    const pensionTaxAnn_    = taxOnPensionOnly_;
-    const spTaxAnn_         = taxOnPensionSP_ - taxOnPensionOnly_;
-    const otherTaxAnn_      = bands_.totalTax - taxOnPensionSP_;
+    // Use tc_ values for attribution if provided; else fall back to old diff-stacking
+    const pensionTaxAnn_ = tc_ ? tc_.pensionTax : incomeTax(pensionTaxable_);
+    const spTaxAnn_      = tc_ ? tc_.spTax : (incomeTax(pensionTaxable_ + (hasSP_ ? spAnn : 0)) - incomeTax(pensionTaxable_));
+    const totalTax_      = tc_ ? (tc_.pensionTax + tc_.spTax + tc_.otherTax) : bands_.totalTax;
 
     const tapered_ = bands_.effectivePA < 12570;
     const paNote_  = tapered_
-      ? `£${bands_.effectivePA.toLocaleString()} (tapered — income exceeds £100,000)`
+      ? `£${Math.round(bands_.effectivePA).toLocaleString()} (tapered — income exceeds £100,000)`
       : `£${bands_.effectivePA.toLocaleString()} (standard)`;
 
     const brRow_ = bands_.brAmount > 0
@@ -3303,20 +3340,29 @@ function renderTaxBreakdown(r) {
     const arRow_ = bands_.arAmount > 0
       ? `<tr><td>${fmtGBP(bands_.arAmount)}/yr × 45% additional rate</td><td class="num">= ${fmtGBP(bands_.arTax)}/yr</td></tr>`
       : '';
+    const hasTypedIncome = items_.some(it => (it.type || 'employment') !== 'employment');
+    const typedNote_ = hasTypedIncome
+      ? `<tr class="tw-note-row"><td colspan="2"><small>* Property, savings and dividend income have their own rate schedules — see Step 4</small></td></tr>`
+      : '';
 
-    const step4_ = bands_.totalTax > 0 ? `
+    const step4_ = totalTax_ > 0 ? (() => {
+      const typeRows_ = [];
+      if (pensionTaxAnn_ > 0) typeRows_.push(`<tr><td>Pension drawdown <small class="tx-rate">20/40/45%</small></td><td class="num">= ${fmtGBP(pensionTaxAnn_ / 12)}/mo</td></tr>`);
+      if (spTaxAnn_ > 0) typeRows_.push(`<tr><td>State pension <small class="tx-rate">20/40/45%</small></td><td class="num">= ${fmtGBP(spTaxAnn_ / 12)}/mo</td></tr>`);
+      if (tc_?.employmentTax > 0) typeRows_.push(`<tr><td>Employment / Trading income <small class="tx-rate">20/40/45%</small></td><td class="num">= ${fmtGBP(tc_.employmentTax / 12)}/mo</td></tr>`);
+      if (tc_?.propertyTax > 0) typeRows_.push(`<tr><td>Property / Rental income <small class="tx-rate">${calYr >= 2027 ? '22/42/47%' : '20/40/45%'}</small></td><td class="num">= ${fmtGBP(tc_.propertyTax / 12)}/mo</td></tr>`);
+      if (tc_?.savingsTax > 0) typeRows_.push(`<tr><td>Savings / Interest income <small class="tx-rate">${calYr >= 2027 ? '22/42/47%' : '20/40/45%'}</small></td><td class="num">= ${fmtGBP(tc_.savingsTax / 12)}/mo</td></tr>`);
+      if (tc_?.dividendTax > 0) typeRows_.push(`<tr><td>Dividends <small class="tx-rate">${calYr >= 2026 ? '10.75/35.75/39.35%' : '8.75/33.75/39.35%'}</small></td><td class="num">= ${fmtGBP(tc_.dividendTax / 12)}/mo</td></tr>`);
+      return `
       <div class="tw-step">
         <div class="tw-step-title">Step 4 — Tax allocated between income sources</div>
-        <p class="tw-step-note">Pension drawdown fills the lowest tax bands first (HMRC ordering). State pension stacks on top, then other income — each taxed at the marginal rate of the band it occupies.</p>
+        <p class="tw-step-note">UK income stacking order (ITA 2007 s23): pension &amp; employment fill the lowest bands first, then property, then savings, then dividends — each at their applicable rate schedule.</p>
         <table class="tw-table">
-          ${pensionTaxAnn_ > 0 ? `<tr><td>Pension drawdown</td><td class="num">= ${fmtGBP(pensionTaxAnn_ / 12)}/mo</td></tr>` : ''}
-          ${spTaxAnn_ > 0 ? `<tr><td>State pension (stacked above pension)</td><td class="num">= ${fmtGBP(spTaxAnn_ / 12)}/mo</td></tr>` : ''}
-          ${otherTaxAnn_ > 0 ? `<tr><td>Other income (stacked on top — higher marginal rate)</td><td class="num">= ${fmtGBP(otherTaxAnn_ / 12)}/mo</td></tr>` : ''}
-          <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtGBP(bands_.totalTax / 12)}/mo</td></tr>
+          ${typeRows_.join('')}
+          <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtGBP(totalTax_ / 12)}/mo</td></tr>
         </table>
-      </div>` : '';
-
-
+      </div>`;
+    })() : '';
 
     return `<div class="tw-person-section">
       <div class="tw-person-heading">${label}</div>
@@ -3328,7 +3374,7 @@ function renderTaxBreakdown(r) {
           <tr class="tw-sub tw-sub2"><td>&nbsp;&nbsp;↳ ${fmtGBP(cumulTaxFreeUsed + taxFreeAnn_)} used · ${fmtGBP(Math.max(0, LSA - cumulTaxFreeUsed - taxFreeAnn_))} remaining of ${fmtGBP(LSA)}</td><td class="num"></td></tr>
           <tr class="tw-sub tw-subtotal"><td>↳ Taxable pension drawdown</td><td class="num">${fmtN(pensionTaxable_)}</td></tr>` : ''}
           ${hasSP_ ? `<tr><td>State pension</td><td class="num">${fmtN(spAnn)}</td></tr>` : ''}
-          ${items_.map(it => `<tr><td>${it.name || 'Other income'}</td><td class="num">${fmtN(it.gross)}</td></tr>`).join('')}
+          ${items_.map(it => `<tr><td>${it.name || 'Other income'}${it.gross > 0 && it.type && it.type !== 'employment' ? ` <small class="tx-rate">${it.type}</small>` : ''}</td><td class="num">${fmtN(it.gross)}</td></tr>`).join('')}
           <tr class="tw-total"><td>Total taxable income</td><td class="num">${fmtN(totalTaxable_)}</td></tr>
         </table>
       </div>
@@ -3343,8 +3389,8 @@ function renderTaxBreakdown(r) {
       <div class="tw-step">
         <div class="tw-step-title">Step 3 — Tax band calculation</div>
         <table class="tw-table">
-          ${brRow_}${hrRow_}${arRow_}
-          <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtA(bands_.totalTax)}</td></tr>
+          ${brRow_}${hrRow_}${arRow_}${typedNote_}
+          <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtA(totalTax_)}</td></tr>
         </table>
       </div>
       ${step4_}
@@ -3360,8 +3406,8 @@ function renderTaxBreakdown(r) {
       <div class="tw-heading">How Your Tax Was Calculated</div>
       <p class="tw-note">Figures below are in nominal (actual) money — the amounts HMRC would assess. Tax bands are set by current UK law.</p>
       ${partnerNote}
-      ${personWorkings('You', primaryDWAnn, primaryTFrac, spGrossAnn, hasStatePension, otherItems, cumulPrimaryTaxFreeUsed)}
-      ${hasPartner ? personWorkings('Partner', partnerDWAnn, partnerTFrac, partnerSpGrossAnn, hasPartnerSP, partnerOtherItems, cumulPartnerTaxFreeUsed) : ''}
+      ${personWorkings('You', primaryDWAnn, primaryTFrac, spGrossAnn, hasStatePension, otherItems, cumulPrimaryTaxFreeUsed, primTc, d.calYear)}
+      ${hasPartner ? personWorkings('Partner', partnerDWAnn, partnerTFrac, partnerSpGrossAnn, hasPartnerSP, partnerOtherItems, cumulPartnerTaxFreeUsed, partnTc, d.calYear) : ''}
     </div>`;
 
   const tableSection = (title, cols, tbody, tGross, tTax, tNet) => `

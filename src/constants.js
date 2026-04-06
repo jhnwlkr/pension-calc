@@ -38,3 +38,19 @@ export const HR_RATE = 0.40;
 export const AR_RATE = 0.45;
 export const LSA = 268275;
 export const FORMER_LTA = 1073100;
+
+// Dividend rates — changed from 6 Apr 2026 (Finance (No.2) Act 2024)
+export const DIV_BR_RATE     = 0.1075;  // basic rate (from 2026)
+export const DIV_HR_RATE     = 0.3575;  // higher rate (from 2026)
+export const DIV_AR_RATE     = 0.3935;  // additional rate (unchanged)
+export const DIV_BR_RATE_OLD = 0.0875;  // basic rate (before 2026)
+export const DIV_HR_RATE_OLD = 0.3375;  // higher rate (before 2026)
+
+// Property & savings rates — change from 6 Apr 2027 (Finance Bill 2025-26)
+export const PROP_SAV_BR_RATE = 0.22;
+export const PROP_SAV_HR_RATE = 0.42;
+export const PROP_SAV_AR_RATE = 0.47;
+
+// Calendar year thresholds for rate changes
+export const DIV_RATE_CHANGE_YEAR      = 2026;
+export const PROP_SAV_RATE_CHANGE_YEAR = 2027;
