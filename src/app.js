@@ -551,7 +551,7 @@ function renderIncomesUI() {
 let nextCashPotId = 1;
 let cashPotsData = [];
 
-function addCashPot(value, interestPct, name, monthlyContrib, contribStartMonth) {
+function addCashPot(value, interestPct, name, monthlyContrib, contribStartMonth, valueFromYear) {
   const id = nextCashPotId++;
   cashPotsData.push({
     id,
@@ -561,6 +561,7 @@ function addCashPot(value, interestPct, name, monthlyContrib, contribStartMonth)
     interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
     monthlyContrib: (monthlyContrib !== undefined && monthlyContrib !== null) ? +monthlyContrib : 0,
     contribStartMonth: contribStartMonth || new Date().toISOString().slice(0, 7),
+    valueFromYear: valueFromYear ? +valueFromYear : undefined,
   });
   renderCashPotsUI();
 }
@@ -621,6 +622,15 @@ function renderCashPotsUI() {
           <span class="field-label">Contributions start</span>
           <input class="dyn-input" type="month" data-cash-pot-id="${pot.id}" data-field="contribStartMonth" value="${pot.contribStartMonth || new Date().toISOString().slice(0,7)}" style="width:100%;box-sizing:border-box">
         </div>
+      </div>
+      <div class="two-col" style="margin-top:6px">
+        <div>
+          <span class="field-label">Arrives (year, optional)</span>
+          <input class="dyn-input" type="number" min="${new Date().getFullYear()}" max="${new Date().getFullYear() + 60}" step="1"
+            data-cash-pot-id="${pot.id}" data-field="valueFromYear"
+            value="${pot.valueFromYear || ''}" placeholder="now">
+        </div>
+        <div></div>
       </div>`;
     container.appendChild(div);
   });
@@ -641,6 +651,8 @@ function renderCashPotsUI() {
           if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (cashPotsData.indexOf(pot) + 1));
         } else if (field === 'contribStartMonth') {
           pot.contribStartMonth = inp.value;
+        } else if (field === 'valueFromYear') {
+          pot.valueFromYear = inp.value ? +inp.value : undefined;
         } else {
           pot[field] = +inp.value;
         }
@@ -816,7 +828,7 @@ function renderPartnerPotsUI() {
   validateGroupAllocations(partnerGroupsData, partnerPotsData, 'pp-');
 }
 
-function addPartnerCashPot(value, interestPct, name, monthlyContrib, contribStartMonth) {
+function addPartnerCashPot(value, interestPct, name, monthlyContrib, contribStartMonth, valueFromYear) {
   const id = nextPartnerCashPotId++;
   partnerCashPotsData.push({
     id,
@@ -826,6 +838,7 @@ function addPartnerCashPot(value, interestPct, name, monthlyContrib, contribStar
     interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
     monthlyContrib: (monthlyContrib !== undefined && monthlyContrib !== null) ? +monthlyContrib : 0,
     contribStartMonth: contribStartMonth || new Date().toISOString().slice(0, 7),
+    valueFromYear: valueFromYear ? +valueFromYear : undefined,
   });
   renderPartnerCashPotsUI();
 }
@@ -886,6 +899,15 @@ function renderPartnerCashPotsUI() {
           <span class="field-label">Contributions start</span>
           <input class="dyn-input" type="month" data-ppartner-cash-id="${pot.id}" data-field="contribStartMonth" value="${pot.contribStartMonth || new Date().toISOString().slice(0,7)}" style="width:100%;box-sizing:border-box">
         </div>
+      </div>
+      <div class="two-col" style="margin-top:6px">
+        <div>
+          <span class="field-label">Arrives (year, optional)</span>
+          <input class="dyn-input" type="number" min="${new Date().getFullYear()}" max="${new Date().getFullYear() + 60}" step="1"
+            data-ppartner-cash-id="${pot.id}" data-field="valueFromYear"
+            value="${pot.valueFromYear || ''}" placeholder="now">
+        </div>
+        <div></div>
       </div>`;
     container.appendChild(div);
   });
@@ -902,6 +924,8 @@ function renderPartnerCashPotsUI() {
           if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (partnerCashPotsData.indexOf(pot) + 1));
         } else if (inp.dataset.field === 'contribStartMonth') {
           pot.contribStartMonth = inp.value;
+        } else if (inp.dataset.field === 'valueFromYear') {
+          pot.valueFromYear = inp.value ? +inp.value : undefined;
         } else {
           pot[inp.dataset.field] = +inp.value;
         }
@@ -1300,7 +1324,7 @@ function importBackup(payload, mode) {
     cashPotsData = [];
     actuals.cashPotRegistry.forEach(p => {
       const id = nextCashPotId++;
-      cashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7) });
+      cashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7), valueFromYear: p.valueFromYear ? +p.valueFromYear : undefined });
     });
     renderCashPotsUI();
   }
@@ -1328,7 +1352,7 @@ function importBackup(payload, mode) {
     partnerCashPotsData = [];
     actuals.partnerCashPotRegistry.forEach(p => {
       const id = nextPartnerCashPotId++;
-      partnerCashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7) });
+      partnerCashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7), valueFromYear: p.valueFromYear ? +p.valueFromYear : undefined });
     });
     renderPartnerCashPotsUI();
   }
@@ -1769,6 +1793,7 @@ function restoreParams(obj) {
             interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
             monthlyContrib: +p.monthlyContrib || 0,
             contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7),
+            valueFromYear: p.valueFromYear ? +p.valueFromYear : undefined,
           });
         });
         renderCashPotsUI();
@@ -1836,6 +1861,7 @@ function restoreParams(obj) {
             interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
             monthlyContrib: +p.monthlyContrib || 0,
             contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7),
+            valueFromYear: p.valueFromYear ? +p.valueFromYear : undefined,
           });
         });
         renderPartnerCashPotsUI();
