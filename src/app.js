@@ -2819,7 +2819,7 @@ function renderAnnualIncomeTable(r) {
     tbody._fiscalTipWired = true;
     tbody.addEventListener('mouseover', e => {
       const el = e.target.closest('.ann-tax');
-      if (!el) return;
+      if (!el || !isTodayMoney()) return;
       tip.innerHTML = TIP_TEXT;
       tip.classList.add('visible');
     });
