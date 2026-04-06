@@ -514,6 +514,13 @@ function renderIncomesUI() {
         inc[field] = el.value;
       } else if (field === 'startAge' || field === 'endAge') {
         inc[field] = el.value !== '' ? +el.value : undefined;
+        if (field === 'endAge' && inc.endAge !== undefined && inc.startAge !== undefined && inc.endAge <= inc.startAge) {
+          inc.endAge = inc.startAge + 1;
+          el.value = inc.endAge;
+        }
+        if (field === 'startAge' && inc.startAge !== undefined && inc.endAge !== undefined && inc.startAge >= inc.endAge) {
+          inc.endAge = inc.startAge + 1;
+        }
       } else {
         inc[field] = +el.value;
       }
@@ -998,6 +1005,13 @@ function renderPartnerIncomesUI() {
         inc[field] = el.value;
       } else if (field === 'startAge' || field === 'endAge') {
         inc[field] = el.value !== '' ? +el.value : undefined;
+        if (field === 'endAge' && inc.endAge !== undefined && inc.startAge !== undefined && inc.endAge <= inc.startAge) {
+          inc.endAge = inc.startAge + 1;
+          el.value = inc.endAge;
+        }
+        if (field === 'startAge' && inc.startAge !== undefined && inc.endAge !== undefined && inc.startAge >= inc.endAge) {
+          inc.endAge = inc.startAge + 1;
+        }
       } else {
         inc[field] = +el.value;
       }
