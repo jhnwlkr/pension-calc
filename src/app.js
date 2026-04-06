@@ -561,7 +561,7 @@ function addCashPot(value, interestPct, name, monthlyContrib, contribStartMonth,
     interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
     monthlyContrib: (monthlyContrib !== undefined && monthlyContrib !== null) ? +monthlyContrib : 0,
     contribStartMonth: contribStartMonth || new Date().toISOString().slice(0, 7),
-    valueFromYear: valueFromYear ? +valueFromYear : undefined,
+    valueFromAge: valueFromYear ? +valueFromYear : undefined,
   });
   renderCashPotsUI();
 }
@@ -582,6 +582,9 @@ function renderCashPotsUI() {
   cashPotsData.forEach((pot, idx) => {
     const div = document.createElement('div');
     div.className = 'pot-card';
+    const curAge = dobToAge(document.getElementById('current-dob').value) || 18;
+    const endAge = +document.getElementById('end-age').value || 100;
+    const arrivesAge = pot.valueFromAge ?? curAge;
     div.innerHTML = `
       <div class="pot-card-header">
         <span class="pot-card-title" id="cash-pot-title-${pot.id}">${pot.name || ('Cash Pot ' + (idx + 1))}</span>
@@ -609,7 +612,7 @@ function renderCashPotsUI() {
           </div>
         </div>
       </div>
-      <div class="two-col" style="margin-top:6px">
+      <div class="two-col" id="contrib-row-${pot.id}" style="margin-top:6px;${pot.valueFromAge ? 'display:none' : ''}">
         <div>
           <span class="field-label">Monthly contribution</span>
           <div class="input-group">
@@ -623,14 +626,12 @@ function renderCashPotsUI() {
           <input class="dyn-input" type="month" data-cash-pot-id="${pot.id}" data-field="contribStartMonth" value="${pot.contribStartMonth || new Date().toISOString().slice(0,7)}" style="width:100%;box-sizing:border-box">
         </div>
       </div>
-      <div class="two-col" style="margin-top:6px">
-        <div>
-          <span class="field-label">Arrives (year, optional)</span>
-          <input class="dyn-input" type="number" min="${new Date().getFullYear()}" max="${new Date().getFullYear() + 60}" step="1"
-            data-cash-pot-id="${pot.id}" data-field="valueFromYear"
-            value="${pot.valueFromYear || ''}" placeholder="now">
+      <div class="inc-row" style="margin-top:6px">
+        <label><input type="checkbox" class="arrives-cb" data-cash-pot-id="${pot.id}" ${pot.valueFromAge ? 'checked' : ''}> Arrives at age</label>
+        <div id="arrives-slider-${pot.id}" style="display:${pot.valueFromAge ? 'flex' : 'none'};align-items:center;gap:6px;margin-left:auto">
+          <input type="range" class="dyn-input" min="${curAge}" max="${endAge}" step="1" value="${arrivesAge}" data-cash-pot-id="${pot.id}" data-field="valueFromAge" style="width:90px">
+          <span id="arrives-val-${pot.id}" style="font-size:0.82rem;min-width:24px;text-align:right">${arrivesAge}</span>
         </div>
-        <div></div>
       </div>`;
     container.appendChild(div);
   });
@@ -651,11 +652,39 @@ function renderCashPotsUI() {
           if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (cashPotsData.indexOf(pot) + 1));
         } else if (field === 'contribStartMonth') {
           pot.contribStartMonth = inp.value;
+        } else if (field === 'valueFromAge') {
+          pot.valueFromAge = +inp.value;
+          const valSpan = document.getElementById('arrives-val-' + potId);
+          if (valSpan) valSpan.textContent = inp.value;
         } else if (field === 'valueFromYear') {
           pot.valueFromYear = inp.value ? +inp.value : undefined;
         } else {
           pot[field] = +inp.value;
         }
+      }
+      persistParams();
+    });
+  container.querySelectorAll('.arrives-cb[data-cash-pot-id]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const pot = cashPotsData.find(p => p.id === +cb.dataset.cashPotId);
+      if (!pot) return;
+      const row = document.getElementById('arrives-slider-' + pot.id);
+      const contribRow = document.getElementById('contrib-row-' + pot.id);
+      if (cb.checked) {
+        const defAge = +document.getElementById('retirement-age').value || 65;
+        pot.valueFromAge = defAge;
+        if (row) {
+          row.style.display = 'flex';
+          const slider = row.querySelector('input[type="range"]');
+          const span = document.getElementById('arrives-val-' + pot.id);
+          if (slider) slider.value = defAge;
+          if (span) span.textContent = defAge;
+        }
+        if (contribRow) contribRow.style.display = 'none';
+      } else {
+        pot.valueFromAge = undefined;
+        if (row) row.style.display = 'none';
+        if (contribRow) contribRow.style.display = '';
       }
       persistParams();
     });
@@ -838,7 +867,7 @@ function addPartnerCashPot(value, interestPct, name, monthlyContrib, contribStar
     interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
     monthlyContrib: (monthlyContrib !== undefined && monthlyContrib !== null) ? +monthlyContrib : 0,
     contribStartMonth: contribStartMonth || new Date().toISOString().slice(0, 7),
-    valueFromYear: valueFromYear ? +valueFromYear : undefined,
+    valueFromAge: valueFromYear ? +valueFromYear : undefined,
   });
   renderPartnerCashPotsUI();
 }
@@ -860,6 +889,9 @@ function renderPartnerCashPotsUI() {
   partnerCashPotsData.forEach((pot, idx) => {
     const div = document.createElement('div');
     div.className = 'pot-card';
+    const partnerCurAge = dobToAge(document.getElementById('partner-dob')?.value) || 18;
+    const endAge = +document.getElementById('end-age').value || 100;
+    const arrivesAge = pot.valueFromAge ?? partnerCurAge;
     div.innerHTML = `
       <div class="pot-card-header">
         <span class="pot-card-title" id="ppartner-cash-title-${pot.id}">${pot.name || ('Cash Pot ' + (idx + 1))}</span>
@@ -886,7 +918,7 @@ function renderPartnerCashPotsUI() {
           </div>
         </div>
       </div>
-      <div class="two-col" style="margin-top:6px">
+      <div class="two-col" id="pcontrib-row-${pot.id}" style="margin-top:6px;${pot.valueFromAge ? 'display:none' : ''}">
         <div>
           <span class="field-label">Monthly contribution</span>
           <div class="input-group">
@@ -900,14 +932,13 @@ function renderPartnerCashPotsUI() {
           <input class="dyn-input" type="month" data-ppartner-cash-id="${pot.id}" data-field="contribStartMonth" value="${pot.contribStartMonth || new Date().toISOString().slice(0,7)}" style="width:100%;box-sizing:border-box">
         </div>
       </div>
-      <div class="two-col" style="margin-top:6px">
-        <div>
-          <span class="field-label">Arrives (year, optional)</span>
-          <input class="dyn-input" type="number" min="${new Date().getFullYear()}" max="${new Date().getFullYear() + 60}" step="1"
-            data-ppartner-cash-id="${pot.id}" data-field="valueFromYear"
-            value="${pot.valueFromYear || ''}" placeholder="now">
+      <div class="inc-row" style="margin-top:6px">
+        <label><input type="checkbox" class="parrives-cb" data-ppartner-cash-id="${pot.id}" ${pot.valueFromAge ? 'checked' : ''}> Arrives at age</label>
+        <div id="parrives-slider-${pot.id}" style="display:${pot.valueFromAge ? 'flex' : 'none'};align-items:center;gap:6px;margin-left:auto">
+          <input type="range" class="dyn-input" min="${partnerCurAge}" max="${endAge}" step="1" value="${arrivesAge}" data-ppartner-cash-id="${pot.id}" data-field="valueFromAge" style="width:90px">
+          <span id="parrives-val-${pot.id}" style="font-size:0.82rem;min-width:24px;text-align:right">${arrivesAge}</span>
         </div>
-        <div></div>
+      </div>`;
       </div>`;
     container.appendChild(div);
   });
@@ -924,11 +955,39 @@ function renderPartnerCashPotsUI() {
           if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (partnerCashPotsData.indexOf(pot) + 1));
         } else if (inp.dataset.field === 'contribStartMonth') {
           pot.contribStartMonth = inp.value;
+        } else if (inp.dataset.field === 'valueFromAge') {
+          pot.valueFromAge = +inp.value;
+          const valSpan = document.getElementById('parrives-val-' + pot.id);
+          if (valSpan) valSpan.textContent = inp.value;
         } else if (inp.dataset.field === 'valueFromYear') {
           pot.valueFromYear = inp.value ? +inp.value : undefined;
         } else {
           pot[inp.dataset.field] = +inp.value;
         }
+      }
+      persistParams();
+    });
+  container.querySelectorAll('.parrives-cb[data-ppartner-cash-id]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const pot = partnerCashPotsData.find(p => p.id === +cb.dataset.ppartnerCashId);
+      if (!pot) return;
+      const row = document.getElementById('parrives-slider-' + pot.id);
+      const pcontribRow = document.getElementById('pcontrib-row-' + pot.id);
+      if (cb.checked) {
+        const defAge = +document.getElementById('partner-retirement-age')?.value || 65;
+        pot.valueFromAge = defAge;
+        if (row) {
+          row.style.display = 'flex';
+          const slider = row.querySelector('input[type="range"]');
+          const span = document.getElementById('parrives-val-' + pot.id);
+          if (slider) slider.value = defAge;
+          if (span) span.textContent = defAge;
+        }
+        if (pcontribRow) pcontribRow.style.display = 'none';
+      } else {
+        pot.valueFromAge = undefined;
+        if (row) row.style.display = 'none';
+        if (pcontribRow) pcontribRow.style.display = '';
       }
       persistParams();
     });
@@ -1324,7 +1383,7 @@ function importBackup(payload, mode) {
     cashPotsData = [];
     actuals.cashPotRegistry.forEach(p => {
       const id = nextCashPotId++;
-      cashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7), valueFromYear: p.valueFromYear ? +p.valueFromYear : undefined });
+      cashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7), valueFromAge: p.valueFromAge ? +p.valueFromAge : undefined });
     });
     renderCashPotsUI();
   }
@@ -1352,7 +1411,7 @@ function importBackup(payload, mode) {
     partnerCashPotsData = [];
     actuals.partnerCashPotRegistry.forEach(p => {
       const id = nextPartnerCashPotId++;
-      partnerCashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7), valueFromYear: p.valueFromYear ? +p.valueFromYear : undefined });
+      partnerCashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7), valueFromAge: p.valueFromAge ? +p.valueFromAge : undefined });
     });
     renderPartnerCashPotsUI();
   }
@@ -1793,7 +1852,7 @@ function restoreParams(obj) {
             interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
             monthlyContrib: +p.monthlyContrib || 0,
             contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7),
-            valueFromYear: p.valueFromYear ? +p.valueFromYear : undefined,
+            valueFromAge: p.valueFromAge ? +p.valueFromAge : undefined,
           });
         });
         renderCashPotsUI();
@@ -1861,7 +1920,7 @@ function restoreParams(obj) {
             interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
             monthlyContrib: +p.monthlyContrib || 0,
             contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7),
-            valueFromYear: p.valueFromYear ? +p.valueFromYear : undefined,
+            valueFromAge: p.valueFromAge ? +p.valueFromAge : undefined,
           });
         });
         renderPartnerCashPotsUI();
