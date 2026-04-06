@@ -972,6 +972,7 @@ function setTodayMoney(checked, r) {
   todayPrices = checked;
   document.querySelectorAll('.today-money-toggle').forEach(cb => { cb.checked = checked; });
   if (r) {
+    renderCards(r);
     // re-render current active view immediately
     const tab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
     if (tab === 'pot') { renderPotChart(r); renderIncomeTable(r); }

@@ -533,12 +533,6 @@
 </div>
 
 <div class="main">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap">
-    <div class="ai-note" id="planning-disclaimer" style="margin:0;flex:1">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances, so consider professional advice before making decisions.</div>
-    <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2);padding-top:6px">
-      <input type="checkbox" id="today-money-toggle-global" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
-    </label>
-  </div>
   <div class="cards">
     <div class="card">
       <div class="card-label" id="c-prob-label">Probability of Success</div>
@@ -564,6 +558,11 @@
       <div class="card-value" id="c-monthly">—</div>
       <div class="card-sub" id="c-monthly-sub">at retirement (after tax)</div>
     </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
+      <input type="checkbox" id="today-money-toggle-global" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent);"> Today's Prices
+    </label>
   </div>
 
   <div class="lsa-alert hidden" id="lsa-alert">
@@ -803,6 +802,7 @@
     </div>
   </div>
 </div>
+<div class="ai-note" id="planning-disclaimer" style="margin:16px 0 0;font-size:0.78rem;opacity:0.8">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances, so consider professional advice before making decisions.</div>
 </div>
 
 <script type="module" src="./src/app.js"></script>
