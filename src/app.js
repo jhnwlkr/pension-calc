@@ -3893,13 +3893,13 @@ function initApp() {
   const sidebar = document.getElementById('sidebar');
   toggleBtn.addEventListener('click', () => {
     const isOpen = sidebar.classList.toggle('open');
-    toggleBtn.textContent = isOpen ? '✕ Close' : '⚙ Settings';
+    toggleBtn.textContent = isOpen ? '✕' : '⚙';
     toggleBtn.setAttribute('aria-expanded', isOpen);
   });
   document.getElementById('run-btn').addEventListener('click', () => {
     if (window.innerWidth <= 768) {
       sidebar.classList.remove('open');
-      toggleBtn.textContent = '⚙ Settings';
+      toggleBtn.textContent = '⚙';
       toggleBtn.setAttribute('aria-expanded', false);
     }
   }, true);
