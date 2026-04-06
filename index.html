@@ -247,6 +247,8 @@
   .journal-entry-meta  { color:var(--text2); margin-top:1px; }
   .journal-entry-del   { background:none; border:none; cursor:pointer; color:var(--text2); font-size:0.9rem; padding:0 2px; flex-shrink:0; line-height:1; }
   .journal-entry-del:hover { color:var(--red); }
+  #income-table.reduction-col-hidden th:nth-child(4),
+  #income-table.reduction-col-hidden td:nth-child(4) { display: none; }
 </style>
 </head>
 <body>
@@ -329,6 +331,13 @@
       <div class="slider-label"><span class="slider-name">Target end age</span><span class="slider-val" id="v-end-age">90</span></div>
       <input type="range" id="end-age" min="75" max="100" value="90">
     </div>
+    <div class="slider-row" style="align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;font-weight:500">
+        <input type="checkbox" id="income-reduction-enabled" checked>
+        Income Reduction
+      </label>
+    </div>
+    <div id="income-reduction-sliders">
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Income reduction from age</span><span class="slider-val" id="v-reduction-age">75</span></div>
       <input type="range" id="reduction-age" min="60" max="95" value="75">
@@ -336,6 +345,7 @@
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Income reduction at that age</span><span class="slider-val" id="v-reduction-pct">25%</span></div>
       <input type="range" id="reduction-pct" min="0" max="75" step="5" value="25">
+    </div>
     </div>
   </div>
 

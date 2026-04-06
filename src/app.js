@@ -1510,8 +1510,9 @@ function getParams() {
     retirementAge: +document.getElementById('retirement-age').value,
     endAge: +document.getElementById('end-age').value,
     spAge: +document.getElementById('sp-age').value,
-    reductionAge: +document.getElementById('reduction-age').value,
-    reductionPct: +document.getElementById('reduction-pct').value,
+    reductionEnabled: document.getElementById('income-reduction-enabled')?.checked !== false,
+    reductionAge: document.getElementById('income-reduction-enabled')?.checked !== false ? +document.getElementById('reduction-age').value : 9999,
+    reductionPct: document.getElementById('income-reduction-enabled')?.checked !== false ? +document.getElementById('reduction-pct').value : 0,
     drawdown: +document.getElementById('drawdown').value,
     sp: +document.getElementById('sp').value,
     inflation: +document.getElementById('inflation').value,
@@ -2079,6 +2080,7 @@ function persistParams() {
   obj['partner-db-pensions'] = JSON.stringify(partnerDbPensionsData);
   obj['actuals-enabled'] = isActualsEnabled() ? '1' : '0';
   obj['recalibrate-toggle'] = document.getElementById('recalibrate-toggle')?.checked ? '1' : '0';
+  obj['income-reduction-enabled'] = document.getElementById('income-reduction-enabled')?.checked ? '1' : '0';
   obj['pcls-enabled'] = document.getElementById('pcls-enabled')?.checked ? '1' : '0';
   obj['pcls-pct'] = document.getElementById('pcls-pct')?.value || '25';
   obj['partner-pcls-enabled'] = document.getElementById('partner-pcls-enabled')?.checked ? '1' : '0';
@@ -2151,6 +2153,15 @@ function restoreParams(obj) {
   }
   if (obj['drawdown-inflation'] !== undefined) {
     document.getElementById('drawdown-inflation').checked = obj['drawdown-inflation'] !== '0';
+  }
+  if (obj['income-reduction-enabled'] !== undefined) {
+    const reductionEnabled = obj['income-reduction-enabled'] !== '0';
+    const reductionCb = document.getElementById('income-reduction-enabled');
+    if (reductionCb) {
+      reductionCb.checked = reductionEnabled;
+      const slidersDiv = document.getElementById('income-reduction-sliders');
+      if (slidersDiv) slidersDiv.style.display = reductionEnabled ? '' : 'none';
+    }
   }
   if (obj['today-money'] !== undefined) {
     const checked = obj['today-money'] !== '0';
@@ -3012,6 +3023,12 @@ function renderIncomeTable(r) {
   const baseInfl = 1 + p.inflation / 100;
   const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
   const isToday = isTodayMoney();
+
+  // Toggle "At Reduction" column visibility
+  const incomeTable = document.getElementById('income-table');
+  if (incomeTable) {
+    incomeTable.classList.toggle('reduction-col-hidden', !p.reductionEnabled);
+  }
 
   // The three snapshot year-indices (years from retirement)
   const spYears = Math.max(0, p.spAge - p.retirementAge);
@@ -4755,6 +4772,13 @@ function initApp() {
   });
   document.getElementById('guardrails').addEventListener('change', persistParams);
   document.getElementById('drawdown-inflation').addEventListener('change', persistParams);
+  document.getElementById('income-reduction-enabled')?.addEventListener('change', () => {
+    const enabled = document.getElementById('income-reduction-enabled').checked;
+    const slidersDiv = document.getElementById('income-reduction-sliders');
+    if (slidersDiv) slidersDiv.style.display = enabled ? '' : 'none';
+    persistParams();
+    recalcAndRender();
+  });
 
   // Tax-free cash mode (primary + partner)
   document.getElementById('pcls-enabled')?.addEventListener('change', () => { updateTfMode('primary'); recalcAndRender(); persistParams(); });
