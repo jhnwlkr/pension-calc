@@ -2582,12 +2582,17 @@ function buildAnnualIncomeData(r) {
 
     const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
-    // alwaysTaxFree: reduce cash draw so pension draws first when LSA room exists
+    // alwaysTaxFree: draw enough pension to use remaining Personal Allowance.
+    // Under UFPLS (25% tax-free): drawing PA / 0.75 = £16,760 means 25% is tax-free and
+    // 75% is taxable but fully covered by the PA — zero income tax on the whole draw.
+    const _atfTfFracEst = (p.taxFreeMode !== 'none' && p.taxFreeMode !== 'pcls' && cumulPrimaryTaxFree < LSA) ? 0.25 : 0;
+    const _atfRemainingPA = _atfTfFracEst > 0 ? Math.max(0, PA - spInflated - (otherNet.byType.employment || 0)) : 0;
+    const _atfMinPensionGross = (_atfRemainingPA > 0 && neededFromPots > 0)
+      ? Math.min(pensionAtPctile, neededFromPots, _atfRemainingPA / (1 - _atfTfFracEst))
+      : 0;
     const _atfCashTarget = (
-      p.alwaysTaxFree && !guardrailActive && !potDepleted &&
-      p.taxFreeMode !== 'none' && p.taxFreeMode !== 'pcls' &&
-      neededFromPots > 0 && netTargetAnn > 0 && cumulPrimaryTaxFree < LSA
-    ) ? Math.max(0, netTargetAnn - Math.min(pensionAtPctile, neededFromPots) * (netTargetAnn / neededFromPots))
+      p.alwaysTaxFree && !guardrailActive && !potDepleted && _atfMinPensionGross > 0 && netTargetAnn > 0
+    ) ? Math.max(0, netTargetAnn - _atfMinPensionGross * (netTargetAnn / neededFromPots))
       : netTargetAnn;
     let cashContrib = 0;
     for (const _ci2 of _aidCashDrawOrder) {

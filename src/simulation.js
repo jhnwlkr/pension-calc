@@ -1,4 +1,4 @@
-import { HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS, LSA, FORMER_LTA } from './constants.js';
+import { HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS, LSA, FORMER_LTA, PA } from './constants.js';
 import { incomeTax, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js';
 import { randn } from './utils.js';
 
@@ -409,12 +409,17 @@ export function buildAnnualIncomeData(r, pctileIdx) {
 
     const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
-    // alwaysTaxFree: reduce cash draw so pension draws first when LSA room exists
+    // alwaysTaxFree: draw enough pension to use remaining Personal Allowance.
+    // Under UFPLS (25% tax-free): drawing PA / 0.75 = £16,760 means 25% is tax-free and
+    // 75% is taxable but fully covered by the PA — zero income tax on the whole draw.
+    const _atfTfFracEst = (p.taxFreeMode !== 'none' && p.taxFreeMode !== 'pcls' && cumulPrimaryTaxFree < LSA) ? 0.25 : 0;
+    const _atfRemainingPA = _atfTfFracEst > 0 ? Math.max(0, PA - spInflated - (otherNet.byType.employment || 0)) : 0;
+    const _atfMinPensionGross = (_atfRemainingPA > 0 && neededFromPots > 0)
+      ? Math.min(pensionAtPctile, neededFromPots, _atfRemainingPA / (1 - _atfTfFracEst))
+      : 0;
     const _atfCashTarget = (
-      p.alwaysTaxFree && !guardrailActive && !potDepleted &&
-      p.taxFreeMode !== 'none' && p.taxFreeMode !== 'pcls' &&
-      neededFromPots > 0 && netTargetAnn > 0 && cumulPrimaryTaxFree < LSA
-    ) ? Math.max(0, netTargetAnn - Math.min(pensionAtPctile, neededFromPots) * (netTargetAnn / neededFromPots))
+      p.alwaysTaxFree && !guardrailActive && !potDepleted && _atfMinPensionGross > 0 && netTargetAnn > 0
+    ) ? Math.max(0, netTargetAnn - _atfMinPensionGross * (netTargetAnn / neededFromPots))
       : netTargetAnn;
     let cashContrib = 0;
     for (const _ci2 of _baidCashDrawOrder) {
@@ -859,12 +864,16 @@ export function runSimulation(p) {
 
       const notionalTc = calcPensionTax(grossWithdrawal, spNomMC, hasSPthisYear, taxFreeFrac);
       const netTarget = notionalTc.pensionNet;
-      // alwaysTaxFree: reduce cash draw so pension draws first (MC loop)
+      // alwaysTaxFree: draw enough pension to use remaining Personal Allowance (MC loop).
+      // SP + DB income consume PA first; remaining PA / 0.75 = minimum pension draw (UFPLS 25%).
+      const _atfTfFracMC = (p.taxFreeMode !== 'none' && p.taxFreeMode !== 'pcls') ? 0.25 : 0;
+      const _atfRemainingPAmc = _atfTfFracMC > 0 ? Math.max(0, PA - spNomMC - dbGrossMC) : 0;
+      const _atfMinPensionMC = (_atfRemainingPAmc > 0 && grossWithdrawal > 0)
+        ? Math.min(pensionTotalAfterGrowth, grossWithdrawal, _atfRemainingPAmc / (1 - _atfTfFracMC))
+        : 0;
       const _atfCashBudgetMC = (
-        p.alwaysTaxFree && !guardrailActive &&
-        p.taxFreeMode !== 'none' && p.taxFreeMode !== 'pcls' &&
-        grossWithdrawal > 0 && netTarget > 0 && pensionTotalAfterGrowth > 0
-      ) ? Math.max(0, netTarget - Math.min(pensionTotalAfterGrowth, grossWithdrawal) * (netTarget / grossWithdrawal))
+        p.alwaysTaxFree && !guardrailActive && _atfMinPensionMC > 0 && netTarget > 0
+      ) ? Math.max(0, netTarget - _atfMinPensionMC * (netTarget / grossWithdrawal))
         : netTarget;
       // Draw from cash pots in priority order: cash/cash_isa → ss_isa → lisa (age 60+ only)
       let cashRemaining = _atfCashBudgetMC;
