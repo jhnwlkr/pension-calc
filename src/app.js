@@ -2539,6 +2539,14 @@ function buildAnnualIncomeData(r) {
         cashBals[ci2] += p.cashPots[ci2].value;
       }
     }
+    // Compute taxable cash savings interest BEFORE growth is applied (plain cash pots only)
+    let cashInterestNom = 0;
+    for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
+      const _cpType = p.cashPots[ci2].type || 'cash';
+      if (_cpType !== 'ss_isa' && _cpType !== 'lisa') {
+        cashInterestNom += cashBals[ci2] * (p.cashPots[ci2].interestPct || 0) / 100;
+      }
+    }
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
       const _cpType = p.cashPots[ci2].type || 'cash';
       cashBals[ci2] *= _cpType === 'ss_isa' || _cpType === 'lisa'
@@ -2560,6 +2568,11 @@ function buildAnnualIncomeData(r) {
       ? Math.max(0, (baseTarget + totalOtherGross) * (1 - p.reductionPct / 100) - totalOtherGross)
       : baseTarget;
     const neededFromPots = Math.max(0, targetNominal - spInflated - partnerSpInflated);
+
+    // Add taxable cash savings interest to savings income tier for correct tax stacking.
+    // Done after targetNominal to avoid cash interest affecting drawdown target.
+    otherNet.byType.savings = (otherNet.byType.savings || 0) + cashInterestNom;
+    otherNet.grossTotal += cashInterestNom;
 
     const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
@@ -2691,6 +2704,7 @@ function buildAnnualIncomeData(r) {
       partnerOtherGrossReal: (partnerOtherAID.grossTotal * todayDeflator) / 12,
       partnerOtherTaxNom: partnerOtherAID.taxTotal / 12,
       partnerOtherTaxReal: (partnerOtherAID.taxTotal * todayDeflator) / 12,
+      cashInterestAnn: cashInterestNom,
       guardrailActive,
       isSpStart: age === p.spAge,
       isPartnerSpStart: !!(partner && partnerAge === partner.spAge),
@@ -3815,6 +3829,11 @@ function renderTaxBreakdown(r) {
     ...calcOtherIncomesNet(r.p?.incomes || [], ciFromNow, ageCtxTax).items,
     ...calcDbIncome(r.p?.dbPensions, r.p?.spAge ?? 999, d.age, ciFromNow).items,
   ].filter(it => it.gross > 0);
+  // Add taxable cash savings interest as a synthetic savings income item
+  const _cashInterestAnn = d.cashInterestAnn || 0;
+  if (_cashInterestAnn > 0) {
+    otherItems.push({ name: 'Cash savings interest', type: 'savings', gross: _cashInterestAnn });
+  }
   const _partnerRetired = !!(hasPartner && d.partnerAge !== null && d.partnerAge >= r.p.partner.retirementAge);
   const partnerOtherItems = [
     ...(_partnerRetired && r.p.partner?.incomes?.length

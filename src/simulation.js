@@ -366,6 +366,14 @@ export function buildAnnualIncomeData(r, pctileIdx) {
         cashBals[ci2] += p.cashPots[ci2].value;
       }
     }
+    // Compute taxable cash savings interest BEFORE growth is applied (plain cash pots only)
+    let cashInterestNom = 0;
+    for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
+      const _cpType = p.cashPots[ci2].type || 'cash';
+      if (_cpType !== 'ss_isa' && _cpType !== 'lisa') {
+        cashInterestNom += cashBals[ci2] * (p.cashPots[ci2].interestPct || 0) / 100;
+      }
+    }
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
       const _cpType = p.cashPots[ci2].type || 'cash';
       cashBals[ci2] *= _cpType === 'ss_isa' || _cpType === 'lisa'
@@ -393,6 +401,11 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       ? Math.max(0, (baseTarget + totalOtherGross) * (1 - p.reductionPct / 100) - totalOtherGross)
       : baseTarget;
     const neededFromPots = Math.max(0, targetNominal - spInflated - partnerSpInflated);
+
+    // Add taxable cash savings interest to savings income tier for correct tax stacking.
+    // Done after targetNominal to avoid cash interest affecting drawdown target.
+    otherNet.byType.savings = (otherNet.byType.savings || 0) + cashInterestNom;
+    otherNet.grossTotal += cashInterestNom;
 
     const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
@@ -510,6 +523,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       partnerAge,
       primaryTaxFreeFracAnn: primaryTFracYear,
       partnerTaxFreeFracAnn: partnerTFracYear,
+      cashInterestAnn: cashInterestNom,
       guardrailActive,
       isSpStart: age === p.spAge,
       isPartnerSpStart: !!(p.partner && partnerAge === p.partner.spAge),
