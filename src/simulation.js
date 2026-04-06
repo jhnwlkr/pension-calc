@@ -283,7 +283,7 @@ export function runDeterministicProjection(p, returnPct) {
     const otherGrossDet = calcOtherIncomesNet(p.incomes || [], ciFromNowDet, ageCtxDet).grossTotal;
     const dbGrossDet = calcDbIncome(p.dbPensions, p.spAge, age, ciFromNowDet).grossTotal;
     const partnerOtherGrossDet = (p.partner?.incomes?.length && partnerRetiredDet)
-      ? calcOtherIncomesNet(p.partner.incomes, ciFromNowDet, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor }).grossTotal : 0;
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNowDet, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge)), baseInflFactor }).grossTotal : 0;
     const partnerDbGrossDet = p.partner ? calcDbIncome(p.partner.dbPensions, p.partner.spAge, partnerAge, ciFromNowDet).grossTotal : 0;
     const totalOtherGrossDet = otherGrossDet + partnerOtherGrossDet + dbGrossDet + partnerDbGrossDet;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
@@ -324,7 +324,7 @@ export function runDeterministicProjection(p, returnPct) {
 export function buildAnnualIncomeData(r, pctileIdx) {
   const p = r.p;
   const baseInflFactor = 1 + p.inflation / 100;
-  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
   const currentYear = new Date().getFullYear();
   const startPensionPot = r.startPensionPot || r.startPot;
 
@@ -377,7 +377,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow, ageCtxAID);
     const partnerRetiredAID = !!(p.partner && partnerAge >= p.partner.retirementAge);
     const partnerOtherAID = (p.partner?.incomes?.length && partnerRetiredAID)
-      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor }) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge)), baseInflFactor }) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
     // Add DB pension income to other net totals (employment type, inflated from today)
     const dbIncAID = calcDbIncome(p.dbPensions, p.spAge, age, ciFromNow);
     otherNet.grossTotal += dbIncAID.grossTotal;
@@ -826,7 +826,7 @@ export function runSimulation(p) {
       const otherGrossMC = calcOtherIncomesNet(p.incomes || [], ciMCFromNow, ageCtxMC).grossTotal;
       const dbGrossMC = calcDbIncome(p.dbPensions, p.spAge, age, ciMCFromNow).grossTotal;
       const partnerOtherGrossMC = (p.partner?.incomes?.length && partnerRetiredMC)
-        ? calcOtherIncomesNet(p.partner.incomes, ciMCFromNow, { currentAge: partnerAgeMC, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor: baseInflMC }).grossTotal : 0;
+        ? calcOtherIncomesNet(p.partner.incomes, ciMCFromNow, { currentAge: partnerAgeMC, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge)), baseInflFactor: baseInflMC }).grossTotal : 0;
       const partnerDbGrossMC = p.partner ? calcDbIncome(p.partner.dbPensions, p.partner.spAge, partnerAgeMC, ciMCFromNow).grossTotal : 0;
       const totalOtherGrossMC = otherGrossMC + partnerOtherGrossMC + dbGrossMC + partnerDbGrossMC;
       const inflFactor = p.drawdownInflation ? cumulInfl : 1.0;
@@ -1015,7 +1015,7 @@ export function runSimulation(p) {
       const otherGrossCash = calcOtherIncomesNet(p.incomes || [], ciCashFromNow, ageCtxCash).grossTotal;
       const dbGrossCash = calcDbIncome(p.dbPensions, p.spAge, age, ciCashFromNow).grossTotal;
       const partnerOtherGrossCash = (p.partner?.incomes?.length && partnerRetiredCash)
-        ? calcOtherIncomesNet(p.partner.incomes, ciCashFromNow, { currentAge: partnerAgeDet, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor: inflF }).grossTotal : 0;
+        ? calcOtherIncomesNet(p.partner.incomes, ciCashFromNow, { currentAge: partnerAgeDet, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge)), baseInflFactor: inflF }).grossTotal : 0;
       const partnerDbGrossCash = p.partner ? calcDbIncome(p.partner.dbPensions, p.partner.spAge, partnerAgeDet, ciCashFromNow).grossTotal : 0;
       const baseTargetCash = p.drawdown * inflFactor;
       const totalOtherGrossCash = otherGrossCash + partnerOtherGrossCash + dbGrossCash + partnerDbGrossCash;
@@ -1048,7 +1048,7 @@ export function runSimulation(p) {
   }
 
   const hasSpAtRetirement = p.retirementAge >= p.spAge;
-  const partnerAgeAtRet = p.partner ? p.partner.currentAge + (p.retirementAge - p.currentAge) : null;
+  const partnerAgeAtRet = p.partner ? (p.partner.currentAgeFrac ?? p.partner.currentAge) + (p.retirementAge - (p.currentAgeFrac ?? p.currentAge)) : null;
   const partnerSpAtRet = (p.partner && partnerAgeAtRet >= p.partner.spAge) ? p.partner.sp : 0;
   const partnerRetiredAtRet = !!(p.partner && partnerAgeAtRet >= p.partner.retirementAge);
   const cashAtRetirement = cashContribByYear[0] || 0;
@@ -1059,7 +1059,7 @@ export function runSimulation(p) {
   otherAtRetirement.grossTotal += dbAtRet.grossTotal;
   otherAtRetirement.byType.employment = (otherAtRetirement.byType.employment || 0) + dbAtRet.byType.employment;
   const partnerOtherAtRet = (partnerRetiredAtRet && p.partner.incomes?.length)
-    ? calcOtherIncomesNet(p.partner.incomes, Math.pow(baseInflFactor, yearsToRetirement), { currentAge: partnerAgeAtRet, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor })
+    ? calcOtherIncomesNet(p.partner.incomes, Math.pow(baseInflFactor, yearsToRetirement), { currentAge: partnerAgeAtRet, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge)), baseInflFactor })
     : { netTotal: 0, grossTotal: 0 };
   if (p.partner && partnerAgeAtRet !== null) {
     const partnerDbAtRet = calcDbIncome(p.partner.dbPensions, p.partner.spAge, partnerAgeAtRet, Math.pow(baseInflFactor, yearsToRetirement));
@@ -1099,7 +1099,7 @@ export function runSimulation(p) {
     const partnerAgeRI = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
     const partnerSpInflRI = (p.partner && partnerAgeRI >= p.partner.spAge) ? p.partner.sp * ci : 0;
     const partnerOtherRI = (p.partner?.incomes?.length && partnerAgeRI >= p.partner.retirementAge)
-      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAgeRI, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor }) : { grossTotal: 0, netTotal: 0 };
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAgeRI, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge)), baseInflFactor }) : { grossTotal: 0, netTotal: 0 };
     if (p.partner && partnerAgeRI !== null) {
       const partnerDbRI = calcDbIncome(p.partner.dbPensions, p.partner.spAge, partnerAgeRI, ciFromNow);
       partnerOtherRI.grossTotal = (partnerOtherRI.grossTotal || 0) + partnerDbRI.grossTotal;
@@ -1131,7 +1131,7 @@ export function runSimulation(p) {
     const partnerAgeNM = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
     const partnerSpInflNM = (p.partner && partnerAgeNM >= p.partner.spAge) ? p.partner.sp * ci : 0;
     const partnerOtherNM = (p.partner?.incomes?.length && partnerAgeNM >= p.partner.retirementAge)
-      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAgeNM, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor }) : { netTotal: 0 };
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAgeNM, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge)), baseInflFactor }) : { netTotal: 0 };
     if (p.partner && partnerAgeNM !== null) {
       const partnerDbNM = calcDbIncome(p.partner.dbPensions, p.partner.spAge, partnerAgeNM, ciFromNow);
       partnerOtherNM.netTotal = (partnerOtherNM.netTotal || 0) + partnerDbNM.grossTotal;

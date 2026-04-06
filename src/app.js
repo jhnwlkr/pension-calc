@@ -2493,7 +2493,7 @@ const HIST_YEAR_EVENTS = {
 function buildAnnualIncomeData(r) {
   const p = r.p;
   const baseInflFactor = 1 + p.inflation / 100;
-  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
   const currentYear = new Date().getFullYear();
   const startPensionPot = r.startPensionPot || r.startPot;
   const partnerPotBalance = 0;
@@ -2550,7 +2550,7 @@ function buildAnnualIncomeData(r) {
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow, ageCtxAID);
     const partnerRetiredAID = !!(partner && partnerAge >= partner.retirementAge);
     const partnerOtherAID = (partner?.incomes?.length && partnerRetiredAID)
-      ? calcOtherIncomesNet(partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: partner.retirementAge, yearsToRetirement: Math.max(0, partner.retirementAge - partner.currentAge), baseInflFactor }) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
+      ? calcOtherIncomesNet(partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: partner.retirementAge, yearsToRetirement: Math.max(0, partner.retirementAge - (partner.currentAgeFrac ?? partner.currentAge)), baseInflFactor }) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
     // Reduction applies to total gross income (drawdown target + other incomes combined).
     // Only the drawdown target can be cut; other incomes are fixed. Floor at 0.
     const inflFactor = p.drawdownInflation ? ci : 1.0;
@@ -2877,7 +2877,7 @@ function renderCards(r) {
   // Use deterministic pot at retirement for all cards except probability of success
   const useToday = isTodayMoney();
   const baseInflFactor = 1 + (r.p.inflation || 0) / 100;
-  const yearsToRet = Math.max(0, r.p.retirementAge - r.p.currentAge);
+  const yearsToRet = Math.max(0, r.p.retirementAge - (r.p.currentAgeFrac ?? r.p.currentAge));
   const realDeflRet = Math.pow(1 / baseInflFactor, yearsToRet);
   const detPension    = r.detPotByYear?.[0] ?? 0;
   const detCash       = r.detCashBalByYear?.[0] ?? 0;
@@ -3021,7 +3021,7 @@ function buildExplainability(baseParams, baseline) {
 function renderIncomeTable(r) {
   const p = r.p;
   const baseInfl = 1 + p.inflation / 100;
-  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
   const isToday = isTodayMoney();
 
   // Toggle "At Reduction" column visibility
@@ -3452,7 +3452,7 @@ function renderPotChart(r) {
   const useToday = isTodayMoney();
   const p = r.p;
   const baseInflFactor = 1 + (p?.inflation || 0) / 100;
-  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
   // Deflator indexed from today (year 0 = currentAge)
   const deflatorFromToday = y => Math.pow(1 / baseInflFactor, y);
   const returnPct = r.returnPct ?? 5;
@@ -3597,7 +3597,7 @@ function renderMonteCarloChart(r) {
   const p = r.p;
   const useToday = isTodayMoney();
   const baseInflFactor = 1 + (p?.inflation || 0) / 100;
-  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
   const deflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
 
   const { chartAges, potActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
@@ -3678,7 +3678,7 @@ function renderMonteCarloTable(r, pctileIdx = 3) {
   const aid = r.annualIncomeData || [];
   const useToday = isTodayMoney();
   const baseInflFactor = 1 + (r.p?.inflation || 0) / 100;
-  const yearsToRetirement = Math.max(0, r.p.retirementAge - r.p.currentAge);
+  const yearsToRetirement = Math.max(0, r.p.retirementAge - (r.p.currentAgeFrac ?? r.p.currentAge));
   const deflator = yi => Math.pow(1 / baseInflFactor, yearsToRetirement + yi);
 
   tbody.innerHTML = r.ages.map((age, yi) => {
@@ -3784,7 +3784,7 @@ function renderTaxBreakdown(r) {
 
   // ── Inflation factors ──────────────────────────────────────────────────────
   const _infl     = 1 + (r.p?.inflation || 0) / 100;
-  const _ytr      = Math.max(0, (r.p?.retirementAge || 0) - (r.p?.currentAge || 0));
+  const _ytr      = Math.max(0, (r.p?.retirementAge || 0) - ((r.p?.currentAgeFrac ?? r.p?.currentAge) || 0));
   const ciFromNow = Math.pow(_infl, _ytr + selectedIdx);
   const todayDeflator = ciFromNow > 0 ? 1 / ciFromNow : 1;
   const scale     = useToday ? todayDeflator : 1;
@@ -3800,7 +3800,7 @@ function renderTaxBreakdown(r) {
   const _partnerRetired = !!(hasPartner && d.partnerAge !== null && d.partnerAge >= r.p.partner.retirementAge);
   const partnerOtherItems = [
     ...(_partnerRetired && r.p.partner?.incomes?.length
-      ? calcOtherIncomesNet(r.p.partner.incomes, ciFromNow, { currentAge: d.partnerAge, retirementAge: r.p.partner.retirementAge, yearsToRetirement: Math.max(0, r.p.partner.retirementAge - r.p.partner.currentAge), baseInflFactor: _infl }).items
+      ? calcOtherIncomesNet(r.p.partner.incomes, ciFromNow, { currentAge: d.partnerAge, retirementAge: r.p.partner.retirementAge, yearsToRetirement: Math.max(0, r.p.partner.retirementAge - (r.p.partner.currentAgeFrac ?? r.p.partner.currentAge)), baseInflFactor: _infl }).items
       : []),
     ...(hasPartner && d.partnerAge !== null
       ? calcDbIncome(r.p.partner?.dbPensions, r.p.partner?.spAge ?? 999, d.partnerAge, ciFromNow).items
@@ -4275,7 +4275,7 @@ function runHistoricalReplayProjection(r, startYear) {
 
   const startIdx = startYear - 1900;
   const histLen = HIST_EQUITY_RETURNS.length;
-  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
   const baseInflFactor = 1 + p.inflation / 100;
 
   // Weighted equity fraction: each pot's contribution is proportional to its current value
@@ -4335,7 +4335,7 @@ function runHistoricalReplayProjection(r, startYear) {
     const ageCtxHR = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor };
     const otherGross = calcOtherIncomesNet(p.incomes || [], ciFromNow, ageCtxHR).grossTotal;
     const partnerOtherGross = (p.partner?.incomes?.length && partnerRetired)
-      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor }).grossTotal : 0;
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge)), baseInflFactor }).grossTotal : 0;
     const totalOtherGross = otherGross + partnerOtherGross;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const baseTarget = p.drawdown * inflFactor;
@@ -4372,7 +4372,7 @@ function renderHistoricalReplayChart(hrResult) {
   const ctx = chartEl.getContext('2d');
   const useToday = isTodayMoney();
   const baseInflFactor = 1 + (hrResult.p?.inflation || 0) / 100;
-  const yearsToRetirement = Math.max(0, hrResult.p.retirementAge - hrResult.p.currentAge);
+  const yearsToRetirement = Math.max(0, hrResult.p.retirementAge - (hrResult.p.currentAgeFrac ?? hrResult.p.currentAge));
   const deflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
 
   const potData = Array.from(hrResult.detPotByYear).map((v, i) => useToday ? v * deflator(i) : v);
