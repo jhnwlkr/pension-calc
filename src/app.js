@@ -1,5 +1,9 @@
 import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js';
-import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS } from './constants.js';
+import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS,
+  PA, BR_LIMIT, HR_LIMIT, BR_RATE, HR_RATE, AR_RATE,
+  PROP_SAV_BR_RATE, PROP_SAV_HR_RATE, PROP_SAV_AR_RATE, PROP_SAV_RATE_CHANGE_YEAR,
+  DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD, DIV_RATE_CHANGE_YEAR,
+} from './constants.js';
 import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet } from './model.js';
 import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js';
 
@@ -3331,19 +3335,60 @@ function renderTaxBreakdown(r) {
       ? `£${Math.round(bands_.effectivePA).toLocaleString()} (tapered — income exceeds £100,000)`
       : `£${bands_.effectivePA.toLocaleString()} (standard)`;
 
-    const brRow_ = bands_.brAmount > 0
-      ? `<tr><td>${fmtGBP(bands_.brAmount)}/yr × 20% basic rate</td><td class="num">= ${fmtGBP(bands_.brTax)}/yr</td></tr>`
-      : `<tr class="tw-nil"><td>Basic rate band</td><td class="num">—</td></tr>`;
-    const hrRow_ = bands_.hrAmount > 0
-      ? `<tr><td>${fmtGBP(bands_.hrAmount)}/yr × 40% higher rate</td><td class="num">= ${fmtGBP(bands_.hrTax)}/yr</td></tr>`
-      : `<tr class="tw-nil"><td>Higher rate band</td><td class="num">—</td></tr>`;
-    const arRow_ = bands_.arAmount > 0
-      ? `<tr><td>${fmtGBP(bands_.arAmount)}/yr × 45% additional rate</td><td class="num">= ${fmtGBP(bands_.arTax)}/yr</td></tr>`
-      : '';
-    const hasTypedIncome = items_.some(it => (it.type || 'employment') !== 'employment');
-    const typedNote_ = hasTypedIncome
-      ? `<tr class="tw-note-row"><td colspan="2"><small>* Property, savings and dividend income have their own rate schedules — see Step 4</small></td></tr>`
-      : '';
+    // ── Per-source band breakdown for Step 3 ──────────────────────────────
+    const ePA_    = bands_.effectivePA;
+    const propBR_ = calYr >= PROP_SAV_RATE_CHANGE_YEAR ? PROP_SAV_BR_RATE : BR_RATE;
+    const propHR_ = calYr >= PROP_SAV_RATE_CHANGE_YEAR ? PROP_SAV_HR_RATE : HR_RATE;
+    const propAR_ = calYr >= PROP_SAV_RATE_CHANGE_YEAR ? PROP_SAV_AR_RATE : AR_RATE;
+    const divBR_  = calYr >= DIV_RATE_CHANGE_YEAR ? DIV_BR_RATE : DIV_BR_RATE_OLD;
+    const divHR_  = calYr >= DIV_RATE_CHANGE_YEAR ? DIV_HR_RATE : DIV_HR_RATE_OLD;
+    // Returns band-slice amounts for `inc` stacked on top of `base` lower-tier income.
+    function bSplit_(inc, base, brR, hrR, arR) {
+      if (inc <= 0) return null;
+      const paLeft  = Math.max(0, ePA_ - base);
+      const taxable = Math.max(0, inc - paLeft);
+      if (taxable <= 0) return null;
+      const bbUsed = Math.max(0, base - ePA_);
+      const bbLeft = Math.max(0, BR_LIMIT - bbUsed);
+      const br     = Math.min(taxable, bbLeft);
+      const hbLeft = Math.max(0, (HR_LIMIT - PA - BR_LIMIT) - Math.max(0, bbUsed - BR_LIMIT));
+      const hr     = Math.min(Math.max(0, taxable - bbLeft), hbLeft);
+      const ar     = Math.max(0, taxable - bbLeft - hbLeft);
+      return { br, hr, ar };
+    }
+    function rStr_(r) { const v = r * 100; return v % 1 === 0 ? v + '%' : v.toFixed(2) + '%'; }
+    function srcRows_(lbl, inc, base, brR, hrR, arR) {
+      const s = bSplit_(inc, base, brR, hrR, arR);
+      if (!s) return { html: '', newBase: base + inc };
+      const rows = [];
+      if (s.br > 0) rows.push(`<tr><td>${lbl}: ${fmtGBP(s.br)}/yr &times; ${rStr_(brR)}</td><td class="num">= ${fmtGBP(s.br * brR)}/yr</td></tr>`);
+      if (s.hr > 0) rows.push(`<tr><td>${lbl}: ${fmtGBP(s.hr)}/yr &times; ${rStr_(hrR)}</td><td class="num">= ${fmtGBP(s.hr * hrR)}/yr</td></tr>`);
+      if (s.ar > 0) rows.push(`<tr><td>${lbl}: ${fmtGBP(s.ar)}/yr &times; ${rStr_(arR)}</td><td class="num">= ${fmtGBP(s.ar * arR)}/yr</td></tr>`);
+      return { html: rows.join(''), newBase: base + inc };
+    }
+    let step3Rows_ = '';
+    let s3b_ = 0;
+    if (pensionTaxable_ > 0) {
+      const r = srcRows_('Pension drawdown', pensionTaxable_, s3b_, BR_RATE, HR_RATE, AR_RATE);
+      step3Rows_ += r.html; s3b_ = r.newBase;
+    }
+    if (hasSP_ && spAnn > 0) {
+      const r = srcRows_('State pension', spAnn, s3b_, BR_RATE, HR_RATE, AR_RATE);
+      step3Rows_ += r.html; s3b_ = r.newBase;
+    }
+    items_.filter(it => (it.type || 'employment') === 'employment').forEach(it => {
+      if (it.gross > 0) { const r = srcRows_(it.name || 'Employment income', it.gross, s3b_, BR_RATE, HR_RATE, AR_RATE); step3Rows_ += r.html; s3b_ = r.newBase; }
+    });
+    items_.filter(it => it.type === 'property').forEach(it => {
+      if (it.gross > 0) { const r = srcRows_(it.name || 'Property income', it.gross, s3b_, propBR_, propHR_, propAR_); step3Rows_ += r.html; s3b_ = r.newBase; }
+    });
+    items_.filter(it => it.type === 'savings').forEach(it => {
+      if (it.gross > 0) { const r = srcRows_(it.name || 'Savings income', it.gross, s3b_, propBR_, propHR_, propAR_); step3Rows_ += r.html; s3b_ = r.newBase; }
+    });
+    items_.filter(it => it.type === 'dividends').forEach(it => {
+      if (it.gross > 0) { const r = srcRows_(it.name || 'Dividends', it.gross, s3b_, divBR_, divHR_, DIV_AR_RATE); step3Rows_ += r.html; s3b_ = r.newBase; }
+    });
+    if (!step3Rows_) step3Rows_ = `<tr class="tw-nil"><td colspan="2">All income within personal allowance — no tax due</td></tr>`;
 
     const step4_ = totalTax_ > 0 ? (() => {
       const typeRows_ = [];
@@ -3387,9 +3432,9 @@ function renderTaxBreakdown(r) {
         </table>
       </div>
       <div class="tw-step">
-        <div class="tw-step-title">Step 3 — Tax band calculation</div>
+        <div class="tw-step-title">Step 3 — Tax by income source (stacking order)</div>
         <table class="tw-table">
-          ${brRow_}${hrRow_}${arRow_}${typedNote_}
+          ${step3Rows_}
           <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtA(totalTax_)}</td></tr>
         </table>
       </div>
