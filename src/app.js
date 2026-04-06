@@ -860,21 +860,6 @@ function renderCashPotsUI() {
     });
   });
 }
-        <div>
-          <span class="field-label">Value</span>
-          <div class="input-group">
-            <span class="input-prefix">£</span>
-            <input class="dyn-input" type="number" min="0" step="1000" data-cash-pot-id="${pot.id}" data-field="value" value="${pot.value}">
-          </div>
-        </div>
-        <div>
-          <span class="field-label">Interest rate</span>
-          <div class="input-group">
-            <input class="dyn-input" type="number" min="0" max="20" step="0.1" data-cash-pot-id="${pot.id}" data-field="interestPct" value="${pot.interestPct}" style="text-align:right">
-            <span class="input-suffix">%</span>
-          </div>
-        </div>
-// add-cash-pot button wiring is initialized in initApp().
 
 // ── Partner dynamic data ──────────────────────────────────────────────────
 let nextPartnerPotId = 1;
