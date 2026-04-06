@@ -2113,8 +2113,27 @@ function applyActualsEnabled(enabled) {
       setActiveTab('pot');
     }
   }
-  renderPotsUI();
-  renderPartnerPotsUI();
+  // Update pot buttons in-place (avoids full DOM rebuild / scroll reset on mobile)
+  document.querySelectorAll('.remove-btn[data-pot-id]').forEach(btn => {
+    btn.textContent = enabled ? '⋯' : '✕';
+    btn.title = enabled ? 'Archive / consolidate / delete' : 'Close pot';
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    newBtn.addEventListener('click', () => {
+      if (isActualsEnabled()) openPotModal(+newBtn.dataset.potId, 'user');
+      else quickClosePot(+newBtn.dataset.potId, 'user');
+    });
+  });
+  document.querySelectorAll('.remove-btn[data-ppartner-pot-id]').forEach(btn => {
+    btn.textContent = enabled ? '⋯' : '✕';
+    btn.title = enabled ? 'Archive / consolidate / delete' : 'Close pot';
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    newBtn.addEventListener('click', () => {
+      if (isActualsEnabled()) openPotModal(+newBtn.dataset.ppartnerPotId, 'partner');
+      else quickClosePot(+newBtn.dataset.ppartnerPotId, 'partner');
+    });
+  });
 }
 
 function runSimulation() {
@@ -3979,7 +3998,9 @@ function initApp() {
   document.getElementById('actuals-enabled')?.addEventListener('change', (e) => {
     applyActualsEnabled(e.target.checked);
     persistParams();
-    if (lastResults) {
+    // On mobile with sidebar open, skip re-render — user can't see results anyway
+    const sidebarOpen = window.innerWidth <= 768 && document.getElementById('sidebar')?.classList.contains('open');
+    if (lastResults && !sidebarOpen) {
       const r = runSimulation();
       if (r) {
         r.annualIncomeData = buildAnnualIncomeData(r);
