@@ -2811,6 +2811,33 @@ function renderAnnualIncomeTable(r) {
       ${cell(d.potBalNom, d.potBalReal)}
     </tr>`;
   }).join('');
+
+  // ── Fiscal-drag tooltip on tax sub-lines ──────────────────────────────
+  const tip = document.getElementById('fiscal-drag-tip');
+  const TIP_TEXT = 'Tax rises gradually in today\u2019s prices over time \u2014 <em>fiscal drag</em> (bracket creep): UK tax thresholds are frozen in nominal terms, so inflation erodes the real value of the personal allowance and rate bands, pushing more real income into higher brackets each year.';
+  if (tip && !tbody._fiscalTipWired) {
+    tbody._fiscalTipWired = true;
+    tbody.addEventListener('mouseover', e => {
+      const el = e.target.closest('.ann-tax');
+      if (!el) return;
+      tip.innerHTML = TIP_TEXT;
+      tip.classList.add('visible');
+    });
+    tbody.addEventListener('mousemove', e => {
+      if (!tip.classList.contains('visible')) return;
+      const pad = 14;
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      let x = e.clientX + pad, y = e.clientY + pad;
+      if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - pad;
+      if (y + th > window.innerHeight - 8) y = e.clientY - th - pad;
+      tip.style.left = x + 'px';
+      tip.style.top  = y + 'px';
+    });
+    tbody.addEventListener('mouseout', e => {
+      if (!e.target.closest('.ann-tax')) return;
+      tip.classList.remove('visible');
+    });
+  }
 }
 
 // ── Chart helpers ──────────────────────────────────────────────────────────

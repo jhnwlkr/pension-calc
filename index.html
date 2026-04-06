@@ -135,7 +135,9 @@
   .ann-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
   .guardrail-row td:first-child { background: var(--surface); box-shadow: inset 3px 0 0 rgba(220,38,38,0.15); }
   .ann-sub { font-size: 0.65rem; color: var(--text2); display: block; margin-top: 1px; line-height: 1.2; }
-  .ann-tax { color: var(--red); }
+  .ann-tax { color: var(--red); cursor: help; }
+  #fiscal-drag-tip { position: fixed; z-index: 9999; max-width: 320px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,0.18); padding: 10px 13px; font-size: 0.78rem; line-height: 1.5; color: var(--text1); pointer-events: none; opacity: 0; transition: opacity 0.12s; }
+  #fiscal-drag-tip.visible { opacity: 1; }
   .guardrail-row td:first-child::after { content: ' ⚡'; color: var(--red); font-size: 0.75rem; }
   .guardrail-row { background: rgba(220,38,38,0.04); }
   .sp-start-row td:first-child::after { content: ' 🏛'; font-size: 0.75rem; }
@@ -722,7 +724,7 @@
         <h2 style="margin:0;font-size:1.14rem">Annual Income Breakdown — Year by Year</h2>
       </div>
       <div class="ai-note">⚡ = Guyton-Klinger guardrail active (10% income cut). 🏛 = State Pension starts (greyed = partner's SP). When a partner is added, the Age column shows your age / partner's age. Income columns show net (headline) with gross and tax sub-lines. Pot values use the selected investment return rate.</div>
-      <div class="ai-note" style="margin-top:6px">Tax on pension and other income rises gradually in today's prices over time — this is <em>fiscal drag</em> (bracket creep): UK tax thresholds are currently frozen in nominal terms, so inflation steadily erodes the real value of the personal allowance and rate bands, pushing more real income into higher brackets each year. State pension tax appears constant because it already sits entirely within the basic-rate band regardless of inflation.</div>
+
       <div class="chart-wrap" style="height:220px;margin-bottom:16px"><canvas id="chart-annualincome"></canvas></div>
       <div class="table-scroll" style="max-height:55vh;overflow-y:auto">
       <table class="ann-table">
@@ -852,7 +854,8 @@
 
 <div id="planning-disclaimer">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances, so consider professional advice before making decisions.</div>
 
-<script type="module" src="./src/app.js?v=22"></script>
+<div id="fiscal-drag-tip"></div>
+<script type="module" src="./src/app.js?v=23"></script>
 
 </body>
 </html>
