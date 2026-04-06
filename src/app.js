@@ -1179,6 +1179,7 @@ function getPartnerEnabled() {
 
 function getPartnerParams() {
   if (!getPartnerEnabled()) return null;
+  const partnerTfMode = document.querySelector('input[name="partner-tf-mode"]:checked')?.value || 'ufpls';
   return {
     currentAge: dobToAge(document.getElementById('partner-dob').value),
     currentAgeFrac: dobToAgeExact(document.getElementById('partner-dob').value),
@@ -1188,6 +1189,8 @@ function getPartnerParams() {
     pots: partnerPotsData.map(p => Object.assign({}, p)),
     cashPots: partnerCashPotsData.map(p => Object.assign({}, p)),
     incomes: partnerIncomesData.map(i => Object.assign({}, i)),
+    taxFreeMode: partnerTfMode,
+    pclsAmount: partnerTfMode === 'pcls' ? (+document.getElementById('partner-pcls-amount').value || 0) : 0,
   };
 }
 
@@ -1213,6 +1216,9 @@ function getParams() {
     incomes: incomesData.map(i => Object.assign({}, i)),
     cashPots: cashPotsData.map(p => Object.assign({}, p)),
     partner: getPartnerParams(),
+    taxFreeMode: document.querySelector('input[name="tf-mode"]:checked')?.value || 'ufpls',
+    pclsAmount: (document.querySelector('input[name="tf-mode"]:checked')?.value === 'pcls')
+      ? (+document.getElementById('pcls-amount').value || 0) : 0,
   };
 }
 
@@ -1345,6 +1351,10 @@ function buildExportPayload() {
   settings['today-money']         = isTodayMoney() ? '1' : '0';
   settings['actuals-enabled']     = isActualsEnabled() ? '1' : '0';
   settings['recalibrate-toggle']  = document.getElementById('recalibrate-toggle')?.checked ? '1' : '0';
+  settings['tf-mode']             = document.querySelector('input[name="tf-mode"]:checked')?.value || 'ufpls';
+  settings['pcls-amount']         = document.getElementById('pcls-amount')?.value || '0';
+  settings['partner-tf-mode']     = document.querySelector('input[name="partner-tf-mode"]:checked')?.value || 'ufpls';
+  settings['partner-pcls-amount'] = document.getElementById('partner-pcls-amount')?.value || '0';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) settings[id] = el.value; });
 
   // Actuals = all pot registries, income registries, groups, events
@@ -1740,6 +1750,10 @@ function persistParams() {
   obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
   obj['actuals-enabled'] = isActualsEnabled() ? '1' : '0';
   obj['recalibrate-toggle'] = document.getElementById('recalibrate-toggle')?.checked ? '1' : '0';
+  obj['tf-mode'] = document.querySelector('input[name="tf-mode"]:checked')?.value || 'ufpls';
+  obj['pcls-amount'] = document.getElementById('pcls-amount')?.value || '0';
+  obj['partner-tf-mode'] = document.querySelector('input[name="partner-tf-mode"]:checked')?.value || 'ufpls';
+  obj['partner-pcls-amount'] = document.getElementById('partner-pcls-amount')?.value || '0';
   obj['active-tab'] = document.querySelector('.tab.active')?.dataset.tab || 'pot';
   obj['mc-pctile'] = document.getElementById('mc-pctile').value;
   const taxYearEl = document.getElementById('tax-year-select');
@@ -1997,6 +2011,22 @@ function restoreParams(obj) {
     const cb = document.getElementById('recalibrate-toggle');
     if (cb) cb.checked = obj['recalibrate-toggle'] !== '0';
   }
+  if (obj['tf-mode']) {
+    const el = document.getElementById('tf-' + obj['tf-mode']);
+    if (el) { el.checked = true; updateTfMode('primary'); }
+  }
+  if (obj['pcls-amount'] !== undefined) {
+    const el = document.getElementById('pcls-amount');
+    if (el) el.value = obj['pcls-amount'];
+  }
+  if (obj['partner-tf-mode']) {
+    const el = document.getElementById('partner-tf-' + obj['partner-tf-mode']);
+    if (el) { el.checked = true; updateTfMode('partner'); }
+  }
+  if (obj['partner-pcls-amount'] !== undefined) {
+    const el = document.getElementById('partner-pcls-amount');
+    if (el) el.value = obj['partner-pcls-amount'];
+  }
   // Restore UI view state
   if (obj['active-tab']) setActiveTab(obj['active-tab']);
   if (obj['mc-pctile'] !== undefined) {
@@ -2049,6 +2079,14 @@ function restoreParams(obj) {
 function updateDrawdownMode(mode) {
   document.getElementById('drawdown-amount-row').classList.toggle('hidden', mode !== 'amount');
   document.getElementById('drawdown-pct-row').classList.toggle('hidden', mode !== 'pct');
+}
+
+function updateTfMode(person) {
+  const isPrimary = person !== 'partner';
+  const prefix = isPrimary ? '' : 'partner-';
+  const mode = document.querySelector(`input[name="${prefix}tf-mode"]:checked`)?.value || 'ufpls';
+  const pclsRow = document.getElementById(`${prefix}pcls-amount-row`);
+  if (pclsRow) pclsRow.classList.toggle('hidden', mode !== 'pcls');
 }
 
 const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
@@ -2146,15 +2184,33 @@ function buildAnnualIncomeData(r) {
       : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
-    // Per-year tax-free fracs: 25% until each person's LSA (£268,275) is exhausted, then 0%
+    // Per-year tax-free fracs — respects taxFreeMode (ufpls / pcls / none) per person
     const actualPriDraw = potWithdrawNominal * primaryPotFrac_;
     const actualParDraw = potWithdrawNominal * (1 - primaryPotFrac_);
-    const primaryTFracYear = actualPriDraw > 0
-      ? Math.min(0.25, Math.max(0, LSA - cumulPrimaryTaxFree) / actualPriDraw)
-      : (cumulPrimaryTaxFree < LSA ? 0.25 : 0);
-    const partnerTFracYear = (partner && actualParDraw > 0)
-      ? Math.min(0.25, Math.max(0, LSA - cumulPartnerTaxFree) / actualParDraw)
-      : 0.25;
+    const priMode = p.taxFreeMode || 'ufpls';
+    const parMode = p.partner?.taxFreeMode || 'ufpls';
+    let primaryTFracYear;
+    if (priMode === 'none') {
+      primaryTFracYear = 0;
+    } else if (priMode === 'pcls') {
+      const pclsAmt = Math.min(p.pclsAmount || 0, LSA, actualPriDraw * 0.25);
+      primaryTFracYear = (yi === 0 && actualPriDraw > 0) ? pclsAmt / actualPriDraw : 0;
+    } else {
+      primaryTFracYear = actualPriDraw > 0
+        ? Math.min(0.25, Math.max(0, LSA - cumulPrimaryTaxFree) / actualPriDraw)
+        : (cumulPrimaryTaxFree < LSA ? 0.25 : 0);
+    }
+    let partnerTFracYear;
+    if (parMode === 'none') {
+      partnerTFracYear = 0;
+    } else if (parMode === 'pcls') {
+      const pclsAmt = Math.min(p.partner?.pclsAmount || 0, LSA, actualParDraw * 0.25);
+      partnerTFracYear = (yi === 0 && actualParDraw > 0) ? pclsAmt / actualParDraw : 0;
+    } else {
+      partnerTFracYear = (partner && actualParDraw > 0)
+        ? Math.min(0.25, Math.max(0, LSA - cumulPartnerTaxFree) / actualParDraw)
+        : 0.25;
+    }
     const taxFreeFracYear = potWithdrawNominal > 0
       ? (actualPriDraw * primaryTFracYear + actualParDraw * partnerTFracYear) / potWithdrawNominal
       : 0.25;
@@ -3347,7 +3403,7 @@ function renderTaxBreakdown(r) {
   }
 
   // ── Per-person tax workings builder ───────────────────────────────────────
-  function personWorkings(label, dwAnn, tfFrac, spAnn, hasSP_, items_, cumulTaxFreeUsed = 0, tc_ = null, calYr = 2026) {
+  function personWorkings(label, dwAnn, tfFrac, spAnn, hasSP_, items_, cumulTaxFreeUsed = 0, tc_ = null, calYr = 2026, mode = 'ufpls') {
     const taxFreeAnn_     = dwAnn * tfFrac;
     const pensionTaxable_ = dwAnn - taxFreeAnn_;
     const otherGross_     = items_.reduce((s, it) => s + it.gross, 0);
@@ -3426,7 +3482,7 @@ function renderTaxBreakdown(r) {
         <div class="tw-step-title">Step 1 — Gross income &amp; tax-free cash</div>
         <table class="tw-table">
           ${dwAnn > 0 ? `<tr><td>Pension pot drawdown (gross)</td><td class="num">${fmtN(dwAnn)}</td></tr>
-          <tr class="tw-sub"><td>↳ Tax-free portion (${fmtPct(tfFrac * 100)} UFPLS / PCLS)</td><td class="num">− ${fmtN(taxFreeAnn_)}</td></tr>
+          <tr class="tw-sub"><td>↳ Tax-free portion (${fmtPct(tfFrac * 100)}${mode === 'pcls' ? ' — PCLS lump sum' : mode === 'none' ? ' — no tax-free cash' : ' — UFPLS'})</td><td class="num">− ${fmtN(taxFreeAnn_)}</td></tr>
           <tr class="tw-sub tw-sub2"><td>&nbsp;&nbsp;↳ ${fmtGBP(cumulTaxFreeUsed + taxFreeAnn_)} used · ${fmtGBP(Math.max(0, LSA - cumulTaxFreeUsed - taxFreeAnn_))} remaining of ${fmtGBP(LSA)}</td><td class="num"></td></tr>
           <tr class="tw-sub tw-subtotal"><td>↳ Taxable pension drawdown</td><td class="num">${fmtN(pensionTaxable_)}</td></tr>` : ''}
           ${hasSP_ ? `<tr><td>State pension</td><td class="num">${fmtN(spAnn)}</td></tr>` : ''}
@@ -3462,8 +3518,8 @@ function renderTaxBreakdown(r) {
       <div class="tw-heading">How Your Tax Was Calculated</div>
       <p class="tw-note">Figures below are in nominal (actual) money — the amounts HMRC would assess. Tax bands are set by current UK law.</p>
       ${partnerNote}
-      ${personWorkings('You', primaryDWAnn, primaryTFrac, spGrossAnn, hasStatePension, otherItems, cumulPrimaryTaxFreeUsed, primTc, d.calYear)}
-      ${hasPartner ? personWorkings('Partner', partnerDWAnn, partnerTFrac, partnerSpGrossAnn, hasPartnerSP, partnerOtherItems, cumulPartnerTaxFreeUsed, partnTc, d.calYear) : ''}
+      ${personWorkings('You', primaryDWAnn, primaryTFrac, spGrossAnn, hasStatePension, otherItems, cumulPrimaryTaxFreeUsed, primTc, d.calYear, r.p?.taxFreeMode || 'ufpls')}
+      ${hasPartner ? personWorkings('Partner', partnerDWAnn, partnerTFrac, partnerSpGrossAnn, hasPartnerSP, partnerOtherItems, cumulPartnerTaxFreeUsed, partnTc, d.calYear, r.p?.partner?.taxFreeMode || 'ufpls') : ''}
     </div>`;
 
   const tableSection = (title, cols, tbody, tGross, tTax, tNet) => `
@@ -4303,6 +4359,16 @@ function initApp() {
   });
   document.getElementById('guardrails').addEventListener('change', persistParams);
   document.getElementById('drawdown-inflation').addEventListener('change', persistParams);
+
+  // Tax-free cash mode (primary + partner)
+  document.querySelectorAll('input[name="tf-mode"]').forEach(radio => {
+    radio.addEventListener('change', () => { updateTfMode('primary'); persistParams(); });
+  });
+  document.getElementById('pcls-amount')?.addEventListener('input', persistParams);
+  document.querySelectorAll('input[name="partner-tf-mode"]').forEach(radio => {
+    radio.addEventListener('change', () => { updateTfMode('partner'); persistParams(); });
+  });
+  document.getElementById('partner-pcls-amount')?.addEventListener('input', persistParams);
 
   // Preset buttons for return rate (and any future preset buttons)
   document.querySelectorAll('.preset-btn[data-target]').forEach(btn => {

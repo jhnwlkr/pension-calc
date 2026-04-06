@@ -281,15 +281,35 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
-    // Per-year tax-free fracs: 25% until each person's LSA (£268,275) is exhausted, then 0%
+    // Per-year tax-free fracs — respects taxFreeMode (ufpls / pcls / none) per person
     const actualPriDraw = potWithdrawNominal * primaryPotFrac_;
     const actualParDraw = potWithdrawNominal * (1 - primaryPotFrac_);
-    const primaryTFracYear = actualPriDraw > 0
-      ? Math.min(0.25, Math.max(0, LSA - cumulPrimaryTaxFree) / actualPriDraw)
-      : (cumulPrimaryTaxFree < LSA ? 0.25 : 0);
-    const partnerTFracYear = (p.partner && actualParDraw > 0)
-      ? Math.min(0.25, Math.max(0, LSA - cumulPartnerTaxFree) / actualParDraw)
-      : 0.25;
+    const priMode = p.taxFreeMode || 'ufpls';
+    const parMode = p.partner?.taxFreeMode || 'ufpls';
+    let primaryTFracYear;
+    if (priMode === 'none') {
+      primaryTFracYear = 0;
+    } else if (priMode === 'pcls') {
+      // PCLS: tax-free only in year 0, up to pclsAmount (capped at LSA and 25% of withdrawal)
+      const pclsAmt = Math.min(p.pclsAmount || 0, LSA, actualPriDraw * 0.25);
+      primaryTFracYear = (yi === 0 && actualPriDraw > 0) ? pclsAmt / actualPriDraw : 0;
+    } else {
+      // UFPLS: 25% each year until LSA exhausted
+      primaryTFracYear = actualPriDraw > 0
+        ? Math.min(0.25, Math.max(0, LSA - cumulPrimaryTaxFree) / actualPriDraw)
+        : (cumulPrimaryTaxFree < LSA ? 0.25 : 0);
+    }
+    let partnerTFracYear;
+    if (parMode === 'none') {
+      partnerTFracYear = 0;
+    } else if (parMode === 'pcls') {
+      const pclsAmt = Math.min(p.partner?.pclsAmount || 0, LSA, actualParDraw * 0.25);
+      partnerTFracYear = (yi === 0 && actualParDraw > 0) ? pclsAmt / actualParDraw : 0;
+    } else {
+      partnerTFracYear = (p.partner && actualParDraw > 0)
+        ? Math.min(0.25, Math.max(0, LSA - cumulPartnerTaxFree) / actualParDraw)
+        : 0.25;
+    }
     const taxFreeFracYear = potWithdrawNominal > 0
       ? (actualPriDraw * primaryTFracYear + actualParDraw * partnerTFracYear) / potWithdrawNominal
       : 0.25;
@@ -497,14 +517,27 @@ export function runSimulation(p) {
   });
 
   // Each person's pot gets its own LSA (£268,275) — compute weighted combined tax-free fraction
+  // Respects taxFreeMode: 'ufpls' (25%/yr), 'pcls' (one-off lump sum), 'none' (0%)
   const primaryPotMedian = Float64Array.from(primaryStartTotals).sort()[Math.floor(nRuns / 2)];
   const partnerPotMedian = Float64Array.from(partnerStartTotals).sort()[Math.floor(nRuns / 2)];
-  const primaryTaxFreeAmt = primaryPotMedian > 0 ? primaryPotMedian * Math.min(0.25, LSA / primaryPotMedian) : 0;
-  const partnerTaxFreeAmt = partnerPotMedian > 0 ? partnerPotMedian * Math.min(0.25, LSA / partnerPotMedian) : 0;
+  const priMode_ = p.taxFreeMode || 'ufpls';
+  const parMode_ = p.partner?.taxFreeMode || 'ufpls';
+  const primaryTaxFreeAmt = priMode_ === 'none' ? 0
+    : priMode_ === 'pcls' ? Math.min(p.pclsAmount || 0, LSA, primaryPotMedian * 0.25)
+    : (primaryPotMedian > 0 ? primaryPotMedian * Math.min(0.25, LSA / primaryPotMedian) : 0);
+  const partnerTaxFreeAmt = !p.partner ? 0
+    : parMode_ === 'none' ? 0
+    : parMode_ === 'pcls' ? Math.min(p.partner?.pclsAmount || 0, LSA, partnerPotMedian * 0.25)
+    : (partnerPotMedian > 0 ? partnerPotMedian * Math.min(0.25, LSA / partnerPotMedian) : 0);
   const taxFreeFrac = startPensionPot > 0 ? (primaryTaxFreeAmt + partnerTaxFreeAmt) / startPensionPot : 0.25;
   // Per-person fractions exported so Tax Breakdown can tax each person independently
-  const primaryTaxFreeFrac = primaryPotMedian > 0 ? Math.min(0.25, LSA / primaryPotMedian) : 0.25;
-  const partnerTaxFreeFrac = partnerPotMedian > 0 ? Math.min(0.25, LSA / partnerPotMedian) : 0.25;
+  const primaryTaxFreeFrac = priMode_ === 'none' ? 0
+    : priMode_ === 'pcls' ? (primaryPotMedian > 0 ? Math.min(p.pclsAmount || 0, LSA, primaryPotMedian * 0.25) / primaryPotMedian : 0)
+    : (primaryPotMedian > 0 ? Math.min(0.25, LSA / primaryPotMedian) : 0.25);
+  const partnerTaxFreeFrac = !p.partner ? 0
+    : parMode_ === 'none' ? 0
+    : parMode_ === 'pcls' ? (partnerPotMedian > 0 ? Math.min(p.partner?.pclsAmount || 0, LSA, partnerPotMedian * 0.25) / partnerPotMedian : 0)
+    : (partnerPotMedian > 0 ? Math.min(0.25, LSA / partnerPotMedian) : 0.25);
   const primaryPotFrac = (primaryPotMedian + partnerPotMedian) > 0
     ? primaryPotMedian / (primaryPotMedian + partnerPotMedian)
     : 1.0;
