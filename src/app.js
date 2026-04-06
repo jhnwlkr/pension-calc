@@ -1519,6 +1519,7 @@ function getParams() {
     returnPct: +document.getElementById('return-pct').value,
     runs: +document.getElementById('runs').value,
     guardrails: document.getElementById('guardrails').checked,
+    alwaysTaxFree: document.getElementById('always-taxfree').checked,
     drawdownMode: document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount',
     drawdownPct: +document.getElementById('drawdown-pct').value,
     drawdownInflation: document.getElementById('drawdown-inflation').checked,
@@ -1653,6 +1654,7 @@ function buildExportPayload() {
   const settings = {};
   SLIDER_IDS.forEach(id => { settings[id] = document.getElementById(id)?.value; });
   settings['guardrails']          = document.getElementById('guardrails')?.checked;
+  settings['always-taxfree']       = document.getElementById('always-taxfree')?.checked;
   settings['drawdown-mode']       = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
   settings['drawdown-inflation']  = document.getElementById('drawdown-inflation')?.checked;
   settings['partner-enabled']     = getPartnerEnabled();
@@ -2063,6 +2065,7 @@ function persistParams() {
   const _cdob = document.getElementById('current-dob'); if (_cdob) obj['current-dob'] = _cdob.value;
   const _pdob = document.getElementById('partner-dob'); if (_pdob) obj['partner-dob'] = _pdob.value;
   obj['guardrails'] = document.getElementById('guardrails').checked ? '1' : '0';
+  obj['always-taxfree'] = document.getElementById('always-taxfree').checked ? '1' : '0';
   obj['today-money'] = isTodayMoney() ? '1' : '0';
   obj['drawdown-mode'] = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
   obj['drawdown-inflation'] = document.getElementById('drawdown-inflation').checked ? '1' : '0';
@@ -2146,6 +2149,9 @@ function restoreParams(obj) {
   });
   if (obj['guardrails'] !== undefined) {
     document.getElementById('guardrails').checked = obj['guardrails'] !== '0';
+  }
+  if (obj['always-taxfree'] !== undefined) {
+    document.getElementById('always-taxfree').checked = obj['always-taxfree'] !== '0';
   }
   if (obj['drawdown-mode']) {
     const modeEl = document.getElementById('dm-' + obj['drawdown-mode']);
@@ -2576,11 +2582,18 @@ function buildAnnualIncomeData(r) {
 
     const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
+    // alwaysTaxFree: reduce cash draw so pension draws first when LSA room exists
+    const _atfCashTarget = (
+      p.alwaysTaxFree && !guardrailActive && !potDepleted &&
+      p.taxFreeMode !== 'none' && p.taxFreeMode !== 'pcls' &&
+      neededFromPots > 0 && netTargetAnn > 0 && cumulPrimaryTaxFree < LSA
+    ) ? Math.max(0, netTargetAnn - Math.min(pensionAtPctile, neededFromPots) * (netTargetAnn / neededFromPots))
+      : netTargetAnn;
     let cashContrib = 0;
     for (const _ci2 of _aidCashDrawOrder) {
-      if (cashContrib >= netTargetAnn) break;
+      if (cashContrib >= _atfCashTarget) break;
       if ((_aidAllCashPots[_ci2]?.type || 'cash') === 'lisa' && age < 60) continue;
-      const take = Math.min(cashBals[_ci2], netTargetAnn - cashContrib);
+      const take = Math.min(cashBals[_ci2], _atfCashTarget - cashContrib);
       cashBals[_ci2] -= take;
       cashContrib += take;
     }
@@ -4949,6 +4962,7 @@ function initApp() {
     radio.addEventListener('change', () => { updateDrawdownMode(radio.value); persistParams(); });
   });
   document.getElementById('guardrails').addEventListener('change', persistParams);
+  document.getElementById('always-taxfree').addEventListener('change', persistParams);
   document.getElementById('drawdown-inflation').addEventListener('change', persistParams);
   document.getElementById('income-reduction-enabled')?.addEventListener('change', () => {
     const enabled = document.getElementById('income-reduction-enabled').checked;

@@ -409,11 +409,18 @@ export function buildAnnualIncomeData(r, pctileIdx) {
 
     const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
+    // alwaysTaxFree: reduce cash draw so pension draws first when LSA room exists
+    const _atfCashTarget = (
+      p.alwaysTaxFree && !guardrailActive && !potDepleted &&
+      p.taxFreeMode !== 'none' && p.taxFreeMode !== 'pcls' &&
+      neededFromPots > 0 && netTargetAnn > 0 && cumulPrimaryTaxFree < LSA
+    ) ? Math.max(0, netTargetAnn - Math.min(pensionAtPctile, neededFromPots) * (netTargetAnn / neededFromPots))
+      : netTargetAnn;
     let cashContrib = 0;
     for (const _ci2 of _baidCashDrawOrder) {
-      if (cashContrib >= netTargetAnn) break;
+      if (cashContrib >= _atfCashTarget) break;
       if ((_baidAllCashPots[_ci2]?.type || 'cash') === 'lisa' && age < 60) continue;
-      const take = Math.min(cashBals[_ci2], netTargetAnn - cashContrib);
+      const take = Math.min(cashBals[_ci2], _atfCashTarget - cashContrib);
       cashBals[_ci2] -= take;
       cashContrib += take;
     }
@@ -852,8 +859,15 @@ export function runSimulation(p) {
 
       const notionalTc = calcPensionTax(grossWithdrawal, spNomMC, hasSPthisYear, taxFreeFrac);
       const netTarget = notionalTc.pensionNet;
+      // alwaysTaxFree: reduce cash draw so pension draws first (MC loop)
+      const _atfCashBudgetMC = (
+        p.alwaysTaxFree && !guardrailActive &&
+        p.taxFreeMode !== 'none' && p.taxFreeMode !== 'pcls' &&
+        grossWithdrawal > 0 && netTarget > 0 && pensionTotalAfterGrowth > 0
+      ) ? Math.max(0, netTarget - Math.min(pensionTotalAfterGrowth, grossWithdrawal) * (netTarget / grossWithdrawal))
+        : netTarget;
       // Draw from cash pots in priority order: cash/cash_isa → ss_isa → lisa (age 60+ only)
-      let cashRemaining = netTarget;
+      let cashRemaining = _atfCashBudgetMC;
       for (const _ci of cashDrawOrder) {
         if (cashRemaining <= 0) break;
         if ((allCashPots[_ci].type || 'cash') === 'lisa' && age < 60) continue;
@@ -861,7 +875,7 @@ export function runSimulation(p) {
         runCashPots[_ci] -= take;
         cashRemaining -= take;
       }
-      const cashTaken = netTarget - cashRemaining;
+      const cashTaken = _atfCashBudgetMC - cashRemaining;
 
       const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       const remainingNet = Math.max(0, netTarget - cashTaken);
