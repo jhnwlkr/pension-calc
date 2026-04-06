@@ -4093,10 +4093,10 @@ function renderTaxBreakdown(r) {
       ? `<p class="tw-step-note">From April 2027, the Personal Allowance only applies to non-savings income (pension drawdown, state pension, employment). Property, savings and dividend income are taxed from the bottom of their own rate bands without Personal Allowance benefit (Finance Bill 2025-26).</p>
          <table class="tw-table">
            <tr><td>Personal allowance</td><td class="num">${paNote_}</td></tr>
-           <tr><td>Non-savings income (pension + SP + employment)</td><td class="num">${fmtN(_t1Gross)}</td></tr>
+           <tr><td>Income eligible for Personal Allowance (e.g. Pension / State Pension / Employment)</td><td class="num">${fmtN(_t1Gross)}</td></tr>
            <tr><td>Allowance used</td><td class="num">${fmtN(Math.min(bands_.effectivePA, _t1Gross))}</td></tr>
-           <tr class="tw-total"><td>Non-savings above allowance</td><td class="num">${fmtN(Math.max(0, _t1Gross - bands_.effectivePA))}</td></tr>
-           <tr class="tw-sub"><td>\u21b3 Property / savings / dividends (taxed without PA — see Step 3)</td><td class="num">${fmtN(_t2PlusGross)}</td></tr>
+           <tr class="tw-total"><td>PA eligible income above allowance</td><td class="num">${fmtN(Math.max(0, _t1Gross - bands_.effectivePA))}</td></tr>
+           <tr class="tw-sub"><td>\u21b3 Income ineligible for Personal Allowance (e.g. Property / savings interest / dividends)</td><td class="num">${fmtN(_t2PlusGross)}</td></tr>
          </table>`
       : `<table class="tw-table">
            <tr><td>Personal allowance</td><td class="num">${paNote_}</td></tr>
