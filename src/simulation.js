@@ -737,6 +737,9 @@ export function runSimulation(p) {
         }
       }
       // cash growth (market-linked for S&S ISA/LISA, fixed rate for cash/cash_isa)
+      const yearIdx = Math.floor(Math.random() * HIST_EQUITY_RETURNS.length);
+      const eqRetYear = HIST_EQUITY_RETURNS[yearIdx];
+      const bdRetYear = HIST_BONDS_RETURNS[yearIdx];
       for (let ci = 0; ci < numCashPots; ci++) {
         const _cpType = allCashPots[ci].type || 'cash';
         if (_cpType === 'ss_isa' || _cpType === 'lisa') {
@@ -746,10 +749,6 @@ export function runSimulation(p) {
           runCashPots[ci] *= (1 + allCashPots[ci].interestPct / 100);
         }
       }
-
-      const yearIdx = Math.floor(Math.random() * HIST_EQUITY_RETURNS.length);
-      const eqRetYear = HIST_EQUITY_RETURNS[yearIdx];
-      const bdRetYear = HIST_BONDS_RETURNS[yearIdx];
 
       let blendedRet = 0;
       const totalForBlend = runPots.reduce((s, v) => s + v, 0);
