@@ -3845,8 +3845,7 @@ document.querySelectorAll('.tab').forEach(btn => {
 document.getElementById('run-btn').addEventListener('click', () => {
   sanitizeParams();
   const btn = document.getElementById('run-btn');
-  const spinner = document.getElementById('spinner');
-  btn.disabled = true; spinner.style.display = 'block';
+  btn.disabled = true;
   setTimeout(() => {
     try {
       const activeTab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
@@ -3882,7 +3881,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
     } catch (err) {
       console.error('Run simulation failed', err);
     } finally {
-      btn.disabled = false; spinner.style.display = 'none';
+      btn.disabled = false;
     }
   }, 10);
 });
