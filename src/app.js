@@ -2524,9 +2524,7 @@ function renderAnnualIncomeTable(r) {
     const ageDisplay = hasPartner
       ? `${d.age}<span style="color:var(--text2)">/${d.partnerAge}</span>`
       : `${d.age}`;
-    const ageLabel = d.age === r.p.retirementAge && r.p.retirementAge > r.p.currentAge
-      ? `${ageDisplay}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear} · pre-ret. growth →</span>`
-      : `${ageDisplay}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear}</span>`;
+    const ageLabel = `${ageDisplay}<br><span style="font-size:0.72rem;color:var(--text2)">${d.calYear}</span>`;
     return `<tr class="${cls}">
       <td>${ageLabel}</td>
       ${cell(d.cashNom, d.cashReal)}
