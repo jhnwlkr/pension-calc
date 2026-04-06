@@ -165,9 +165,10 @@
     .run-btn-full { display: inline; }
     .run-btn-short { display: none; }
     .header { gap: 6px; }
-    .header .run-btn { min-width: unset; padding: 0 18px; height: 36px; font-size: 0.95rem; order: 1; }
+    .header-btns { display: flex; gap: 4px; align-items: center; }
+    .header .run-btn { min-width: unset; padding: 0 18px; height: 36px; font-size: 0.95rem; }
     .header-text h1 { line-height: 1.2; max-width: 5rem; }
-    .sidebar-toggle { display: flex; width: 36px; height: 36px; padding: 0; justify-content: center; gap: 0; font-size: 1.1rem; order: 0; }
+    .sidebar-toggle { display: flex; width: 36px; height: 36px; padding: 0; justify-content: center; gap: 0; font-size: 1.1rem; }
     .layout { grid-template-columns: 1fr; min-height: unset; }
     .sidebar { border-right: none; border-bottom: 1px solid var(--border); display: none; padding: 16px; }
     .sidebar.open { display: block; }
@@ -286,9 +287,11 @@
     </div>
     <div class="header-sub">Historical bootstrapping · Guyton-Klinger guardrails · Stochastic inflation · UK 2024/25 tax</div>
   </div>
-  <button class="run-btn header-run-btn" id="run-btn"><span class="run-btn-full">Calculate</span><span class="run-btn-short">Run</span></button>
+  <div class="header-btns">
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-expanded="false" aria-controls="sidebar">⚙</button>
+    <button class="run-btn header-run-btn" id="run-btn"><span class="run-btn-full">Calculate</span><span class="run-btn-short">Run</span></button>
+  </div>
   <div class="spinner" id="spinner">Simulating…</div>
-  <button class="sidebar-toggle" id="sidebar-toggle" aria-expanded="false" aria-controls="sidebar">⚙</button>
 </div>
 <div class="mobile-top-strip">
   <label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;color:var(--text2);white-space:nowrap;cursor:pointer">
