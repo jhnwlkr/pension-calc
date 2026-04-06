@@ -3371,7 +3371,7 @@ function renderAccumulationCards(r) {
   const p = r.p;
   const useToday = isTodayMoney();
   const baseInflFactor = 1 + (p.inflation || 0) / 100;
-  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
   const deflAtRet = useToday ? Math.pow(1 / baseInflFactor, yearsToRetirement) : 1;
 
   // Projected total at retirement — use the same deterministic arrays as the rest of the app
