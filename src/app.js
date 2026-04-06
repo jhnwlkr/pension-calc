@@ -464,8 +464,8 @@ function renderIncomesUI() {
         <input type="checkbox" data-inc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}>
         <span>Income period</span>
         <div class="inc-age-inputs">
-          <label>From age <input type="number" class="inc-age-input" min="18" max="100" data-inc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${retAge}"></label>
-          <label>Until age <input type="number" class="inc-age-input" min="18" max="100" data-inc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
+          <label>From age <input type="number" class="inc-age-input" min="18" max="999" maxlength="3" data-inc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${retAge}"></label>
+          <label>Until age <input type="number" class="inc-age-input" min="18" max="999" maxlength="3" data-inc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
         </div>
       </div>
       <div class="inc-row">
@@ -513,6 +513,7 @@ function renderIncomesUI() {
       } else if (field === 'name' || field === 'frequency') {
         inc[field] = el.value;
       } else if (field === 'startAge' || field === 'endAge') {
+        if (el.value.length > 3) { el.value = el.value.slice(0, 3); }
         inc[field] = el.value !== '' ? +el.value : undefined;
       } else {
         inc[field] = +el.value;
@@ -525,14 +526,17 @@ function renderIncomesUI() {
       const inc = incomesData.find(i => i.id === +el.dataset.incId);
       if (!inc) return;
       const field = el.dataset.field;
-      if (field === 'endAge' && inc.endAge !== undefined && inc.startAge !== undefined && inc.endAge <= inc.startAge) {
-        inc.endAge = inc.startAge + 1;
-        el.value = inc.endAge;
-        persistParams();
-      } else if (field === 'startAge' && inc.startAge !== undefined && inc.endAge !== undefined && inc.startAge >= inc.endAge) {
-        inc.endAge = inc.startAge + 1;
-        persistParams();
+      const targetEndAge = +document.getElementById('end-age').value || 100;
+      let changed = false;
+      if (field === 'endAge' && inc.endAge !== undefined) {
+        if (inc.endAge > targetEndAge) { inc.endAge = targetEndAge; changed = true; }
+        if (inc.startAge !== undefined && inc.endAge <= inc.startAge) { inc.endAge = inc.startAge + 1; changed = true; }
+        if (changed) el.value = inc.endAge;
+      } else if (field === 'startAge' && inc.startAge !== undefined) {
+        if (inc.startAge > targetEndAge) { inc.startAge = targetEndAge - 1; el.value = inc.startAge; changed = true; }
+        if (inc.endAge !== undefined && inc.startAge >= inc.endAge) { inc.endAge = inc.startAge + 1; changed = true; }
       }
+      if (changed) persistParams();
     });
   });
 }
@@ -968,8 +972,8 @@ function renderPartnerIncomesUI() {
         <input type="checkbox" data-pinc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}>
         <span>Income period</span>
         <div class="inc-age-inputs">
-          <label>From age <input type="number" class="inc-age-input" min="18" max="100" data-pinc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${partnerRetAge}"></label>
-          <label>Until age <input type="number" class="inc-age-input" min="18" max="100" data-pinc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
+          <label>From age <input type="number" class="inc-age-input" min="18" max="999" maxlength="3" data-pinc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${partnerRetAge}"></label>
+          <label>Until age <input type="number" class="inc-age-input" min="18" max="999" maxlength="3" data-pinc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
         </div>
       </div>
       <div class="inc-row">
@@ -1012,6 +1016,7 @@ function renderPartnerIncomesUI() {
       } else if (field === 'name' || field === 'frequency') {
         inc[field] = el.value;
       } else if (field === 'startAge' || field === 'endAge') {
+        if (el.value.length > 3) { el.value = el.value.slice(0, 3); }
         inc[field] = el.value !== '' ? +el.value : undefined;
       } else {
         inc[field] = +el.value;
@@ -1024,14 +1029,17 @@ function renderPartnerIncomesUI() {
       const inc = partnerIncomesData.find(i => i.id === +el.dataset.pincId);
       if (!inc) return;
       const field = el.dataset.field;
-      if (field === 'endAge' && inc.endAge !== undefined && inc.startAge !== undefined && inc.endAge <= inc.startAge) {
-        inc.endAge = inc.startAge + 1;
-        el.value = inc.endAge;
-        persistParams();
-      } else if (field === 'startAge' && inc.startAge !== undefined && inc.endAge !== undefined && inc.startAge >= inc.endAge) {
-        inc.endAge = inc.startAge + 1;
-        persistParams();
+      const targetEndAge = +document.getElementById('end-age').value || 100;
+      let changed = false;
+      if (field === 'endAge' && inc.endAge !== undefined) {
+        if (inc.endAge > targetEndAge) { inc.endAge = targetEndAge; changed = true; }
+        if (inc.startAge !== undefined && inc.endAge <= inc.startAge) { inc.endAge = inc.startAge + 1; changed = true; }
+        if (changed) el.value = inc.endAge;
+      } else if (field === 'startAge' && inc.startAge !== undefined) {
+        if (inc.startAge > targetEndAge) { inc.startAge = targetEndAge - 1; el.value = inc.startAge; changed = true; }
+        if (inc.endAge !== undefined && inc.startAge >= inc.endAge) { inc.endAge = inc.startAge + 1; changed = true; }
       }
+      if (changed) persistParams();
     });
   });
 }
