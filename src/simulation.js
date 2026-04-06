@@ -106,36 +106,87 @@ export function runDeterministicProjection(p, returnPct) {
     ...(p.partner?.cashPots || []).map(cp => ({ ...cp, _ownerCurrentAge: p.partner.currentAge })),
   ];
   const cashBals = allCashPots.map(cp => {
-    const totalMonthsToRet = Math.round(yearsToRetirement * 12);
-    const monthlyRate = cp.interestPct / 100 / 12;
-    const now = new Date();
-    let delayMonths = 0;
-    if (cp.contribStartMonth) {
-      const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
-      delayMonths = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth()));
-    }
-    const contribMonths = Math.max(0, totalMonthsToRet - delayMonths);
-    let val;
-    if (cp.valueFromAge) {
-      const fromDelayMonths = Math.max(0, (cp.valueFromAge - cp._ownerCurrentAge) * 12);
-      if (fromDelayMonths >= totalMonthsToRet) {
-        val = 0; // arrives at/after retirement — injected post-retirement
-      } else {
-        const growthMonths = totalMonthsToRet - fromDelayMonths;
-        val = monthlyRate > 0 ? cp.value * Math.pow(1 + monthlyRate, growthMonths) : cp.value;
+    const cpType = cp.type || 'cash';
+    const isML = cpType === 'ss_isa' || cpType === 'lisa';
+    if (isML) {
+      // S&S ISA / LISA: annual compounding using equity-adjusted scaled return
+      const eq = (cp.equityPct || 80) / 100;
+      const annualRate = (eq * meanEq + (1 - eq) * meanBd) * scaleFactor / 100;
+      const ownerAge = cp._ownerCurrentAge;
+      const now = new Date();
+      let delayYears = 0;
+      if (cp.contribStartMonth) {
+        const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
+        delayYears = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12;
       }
+      const contribYears = Math.max(0, yearsToRetirement - delayYears);
+      const annualContrib = (cp.monthlyContrib || 0) * 12;
+      let val;
+      if (cp.valueFromAge) {
+        const yearsUntilArrives = Math.max(0, cp.valueFromAge - ownerAge);
+        if (yearsUntilArrives >= yearsToRetirement) {
+          val = 0;
+        } else {
+          const growthYears = yearsToRetirement - yearsUntilArrives;
+          val = annualRate > 0 ? cp.value * Math.pow(1 + annualRate, growthYears) : cp.value;
+        }
+      } else {
+        val = annualRate > 0 ? cp.value * Math.pow(1 + annualRate, yearsToRetirement) : cp.value;
+      }
+      if (annualContrib > 0 && contribYears > 0) {
+        val += annualRate > 0
+          ? annualContrib * (Math.pow(1 + annualRate, contribYears) - 1) / annualRate
+          : annualContrib * contribYears;
+      }
+      if (cpType === 'lisa' && annualContrib > 0 && ownerAge < 50) {
+        const lisaBonus = Math.min(annualContrib, 4000) * 0.25;
+        const eligibleYears = Math.max(0, Math.min(contribYears, 50 - ownerAge));
+        if (eligibleYears > 0) {
+          val += annualRate > 0
+            ? lisaBonus * (Math.pow(1 + annualRate, eligibleYears) - 1) / annualRate
+            : lisaBonus * eligibleYears;
+        }
+      }
+      return Math.max(0, val);
     } else {
-      val = monthlyRate > 0
-        ? cp.value * Math.pow(1 + monthlyRate, totalMonthsToRet)
-        : cp.value;
+      // Fixed interest: monthly compounding
+      const totalMonthsToRet = Math.round(yearsToRetirement * 12);
+      const monthlyRate = cp.interestPct / 100 / 12;
+      const now = new Date();
+      let delayMonths = 0;
+      if (cp.contribStartMonth) {
+        const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
+        delayMonths = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth()));
+      }
+      const contribMonths = Math.max(0, totalMonthsToRet - delayMonths);
+      let val;
+      if (cp.valueFromAge) {
+        const fromDelayMonths = Math.max(0, (cp.valueFromAge - cp._ownerCurrentAge) * 12);
+        if (fromDelayMonths >= totalMonthsToRet) {
+          val = 0;
+        } else {
+          const growthMonths = totalMonthsToRet - fromDelayMonths;
+          val = monthlyRate > 0 ? cp.value * Math.pow(1 + monthlyRate, growthMonths) : cp.value;
+        }
+      } else {
+        val = monthlyRate > 0
+          ? cp.value * Math.pow(1 + monthlyRate, totalMonthsToRet)
+          : cp.value;
+      }
+      if ((cp.monthlyContrib || 0) > 0 && contribMonths > 0) {
+        val += monthlyRate > 0
+          ? cp.monthlyContrib * (Math.pow(1 + monthlyRate, contribMonths) - 1) / monthlyRate
+          : cp.monthlyContrib * contribMonths;
+      }
+      return Math.max(0, val);
     }
-    if ((cp.monthlyContrib || 0) > 0 && contribMonths > 0) {
-      val += monthlyRate > 0
-        ? cp.monthlyContrib * (Math.pow(1 + monthlyRate, contribMonths) - 1) / monthlyRate
-        : cp.monthlyContrib * contribMonths;
-    }
-    return Math.max(0, val);
   });
+
+  // Sort draw order: cash/cash_isa first, then ss_isa, then lisa (LISA locked until age 60)
+  const detCashDrawOrder = Array.from({ length: cashBals.length }, (_, ci) => {
+    const t = allCashPots[ci].type || 'cash';
+    return { ci, priority: t === 'lisa' ? 2 : t === 'ss_isa' ? 1 : 0 };
+  }).sort((a, b) => a.priority - b.priority).map(x => x.ci);
 
   // --- Retirement: year-by-year ---
   const detPotByYear = new Float64Array(years + 1);
@@ -156,9 +207,15 @@ export function runDeterministicProjection(p, returnPct) {
         cashBals[ci2] += allCashPots[ci2].value;
       }
     }
-    // Cash pot growth
+    // Cash pot growth (market-linked for S&S ISA/LISA, fixed rate for cash/cash_isa)
     for (let ci2 = 0; ci2 < cashBals.length; ci2++) {
-      cashBals[ci2] *= (1 + allCashPots[ci2].interestPct / 100);
+      const _cpType = allCashPots[ci2].type || 'cash';
+      if (_cpType === 'ss_isa' || _cpType === 'lisa') {
+        const _eq = (allCashPots[ci2].equityPct || 80) / 100;
+        cashBals[ci2] *= 1 + (_eq * meanEq + (1 - _eq) * meanBd) * scaleFactor / 100;
+      } else {
+        cashBals[ci2] *= (1 + allCashPots[ci2].interestPct / 100);
+      }
     }
 
     const combined = detPotByYear[y] + cashBals.reduce((s, v) => s + v, 0);
@@ -197,11 +254,13 @@ export function runDeterministicProjection(p, returnPct) {
     const notionalTc = calcPensionTax(grossNeeded, spNom, hasSP, p.taxFreeFrac || 0.25);
     const netTarget = notionalTc.pensionNet;
 
-    // Draw from cash pots first
+    // Draw from cash pots in priority order: cash/cash_isa → ss_isa → lisa (age 60+ only)
     let cashRemaining = netTarget;
-    for (let ci2 = 0; ci2 < cashBals.length && cashRemaining > 0; ci2++) {
-      const take = Math.min(cashBals[ci2], cashRemaining);
-      cashBals[ci2] -= take;
+    for (const _ci2 of detCashDrawOrder) {
+      if (cashRemaining <= 0) break;
+      if ((allCashPots[_ci2].type || 'cash') === 'lisa' && age < 60) continue;
+      const take = Math.min(cashBals[_ci2], cashRemaining);
+      cashBals[_ci2] -= take;
       cashRemaining -= take;
     }
     const cashTaken = netTarget - cashRemaining;
@@ -227,6 +286,12 @@ export function buildAnnualIncomeData(r, pctileIdx) {
   const startPensionPot = r.startPensionPot || r.startPot;
 
   const cashBals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
+  // Build combined pot list and draw order for cash pots
+  const _baidAllCashPots = [...(p.cashPots || []), ...(p.partner?.cashPots || [])];
+  const _baidCashDrawOrder = Array.from({ length: cashBals.length }, (_, ci) => {
+    const t = (_baidAllCashPots[ci]?.type) || 'cash';
+    return { ci, priority: t === 'lisa' ? 2 : t === 'ss_isa' ? 1 : 0 };
+  }).sort((a, b) => a.priority - b.priority).map(x => x.ci);
   // Per-person LSA tracking: 25% tax-free each year until £268,275 is used up
   const primaryPotFrac_ = r.primaryPotFrac ?? 1.0;
   let cumulPrimaryTaxFree = 0;
@@ -259,7 +324,10 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       }
     }
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
-      cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
+      const _cpType = p.cashPots[ci2].type || 'cash';
+      cashBals[ci2] *= _cpType === 'ss_isa' || _cpType === 'lisa'
+        ? 1 + (r.returnPct ?? 5) / 100
+        : 1 + p.cashPots[ci2].interestPct / 100;
     }
 
     const ageCtxAID = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor };
@@ -286,9 +354,11 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
     let cashContrib = 0;
-    for (let ci2 = 0; ci2 < cashBals.length && cashContrib < netTargetAnn; ci2++) {
-      const take = Math.min(cashBals[ci2], netTargetAnn - cashContrib);
-      cashBals[ci2] -= take;
+    for (const _ci2 of _baidCashDrawOrder) {
+      if (cashContrib >= netTargetAnn) break;
+      if ((_baidAllCashPots[_ci2]?.type || 'cash') === 'lisa' && age < 60) continue;
+      const take = Math.min(cashBals[_ci2], netTargetAnn - cashContrib);
+      cashBals[_ci2] -= take;
       cashContrib += take;
     }
 
@@ -462,35 +532,80 @@ export function runSimulation(p) {
   const numCashPots = allCashPots.length;
   const startCashPotVals = new Float64Array(numCashPots);
   allCashPots.forEach((cp, ci) => {
-    const totalMonthsToRet = Math.round(yearsToRetirement * 12);
-    const monthlyRate = cp.interestPct / 100 / 12;
-    const now = new Date();
-    let delayMonths = 0;
-    if (cp.contribStartMonth) {
-      const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
-      delayMonths = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth()));
-    }
-    const contribMonths = Math.max(0, totalMonthsToRet - delayMonths);
-    let val;
-    if (cp.valueFromAge) {
-      const fromDelayMonths = Math.max(0, (cp.valueFromAge - cp._ownerCurrentAge) * 12);
-      if (fromDelayMonths >= totalMonthsToRet) {
-        val = 0; // arrives at/after retirement — injected post-retirement
-      } else {
-        const growthMonths = totalMonthsToRet - fromDelayMonths;
-        val = monthlyRate > 0 ? cp.value * Math.pow(1 + monthlyRate, growthMonths) : cp.value;
+    const cpType = cp.type || 'cash';
+    const isML = cpType === 'ss_isa' || cpType === 'lisa';
+    if (isML) {
+      // S&S ISA / LISA: annual compounding at user's expected return
+      const annualRate = (p.returnPct ?? 5) / 100;
+      const ownerAge = cp._ownerCurrentAge;
+      const now = new Date();
+      let delayYears = 0;
+      if (cp.contribStartMonth) {
+        const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
+        delayYears = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12;
       }
+      const contribYears = Math.max(0, yearsToRetirement - delayYears);
+      const annualContrib = (cp.monthlyContrib || 0) * 12;
+      let val;
+      if (cp.valueFromAge) {
+        const yearsUntilArrives = Math.max(0, cp.valueFromAge - ownerAge);
+        if (yearsUntilArrives >= yearsToRetirement) {
+          val = 0;
+        } else {
+          const growthYears = yearsToRetirement - yearsUntilArrives;
+          val = annualRate > 0 ? cp.value * Math.pow(1 + annualRate, growthYears) : cp.value;
+        }
+      } else {
+        val = annualRate > 0 ? cp.value * Math.pow(1 + annualRate, yearsToRetirement) : cp.value;
+      }
+      if (annualContrib > 0 && contribYears > 0) {
+        val += annualRate > 0
+          ? annualContrib * (Math.pow(1 + annualRate, contribYears) - 1) / annualRate
+          : annualContrib * contribYears;
+      }
+      // LISA: 25% govt bonus on up to £4,000/yr contributions while owner age < 50
+      if (cpType === 'lisa' && annualContrib > 0 && ownerAge < 50) {
+        const lisaBonus = Math.min(annualContrib, 4000) * 0.25;
+        const eligibleYears = Math.max(0, Math.min(contribYears, 50 - ownerAge));
+        if (eligibleYears > 0) {
+          val += annualRate > 0
+            ? lisaBonus * (Math.pow(1 + annualRate, eligibleYears) - 1) / annualRate
+            : lisaBonus * eligibleYears;
+        }
+      }
+      startCashPotVals[ci] = Math.max(0, val);
     } else {
-      val = monthlyRate > 0
-        ? cp.value * Math.pow(1 + monthlyRate, totalMonthsToRet)
-        : cp.value;
+      // Fixed interest: monthly compounding (existing logic)
+      const totalMonthsToRet = Math.round(yearsToRetirement * 12);
+      const monthlyRate = cp.interestPct / 100 / 12;
+      const now = new Date();
+      let delayMonths = 0;
+      if (cp.contribStartMonth) {
+        const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
+        delayMonths = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth()));
+      }
+      const contribMonths = Math.max(0, totalMonthsToRet - delayMonths);
+      let val;
+      if (cp.valueFromAge) {
+        const fromDelayMonths = Math.max(0, (cp.valueFromAge - cp._ownerCurrentAge) * 12);
+        if (fromDelayMonths >= totalMonthsToRet) {
+          val = 0;
+        } else {
+          const growthMonths = totalMonthsToRet - fromDelayMonths;
+          val = monthlyRate > 0 ? cp.value * Math.pow(1 + monthlyRate, growthMonths) : cp.value;
+        }
+      } else {
+        val = monthlyRate > 0
+          ? cp.value * Math.pow(1 + monthlyRate, totalMonthsToRet)
+          : cp.value;
+      }
+      if ((cp.monthlyContrib || 0) > 0 && contribMonths > 0) {
+        val += monthlyRate > 0
+          ? cp.monthlyContrib * (Math.pow(1 + monthlyRate, contribMonths) - 1) / monthlyRate
+          : cp.monthlyContrib * contribMonths;
+      }
+      startCashPotVals[ci] = Math.max(0, val);
     }
-    if ((cp.monthlyContrib || 0) > 0 && contribMonths > 0) {
-      val += monthlyRate > 0
-        ? cp.monthlyContrib * (Math.pow(1 + monthlyRate, contribMonths) - 1) / monthlyRate
-        : cp.monthlyContrib * contribMonths;
-    }
-    startCashPotVals[ci] = Math.max(0, val);
   });
 
   const startTotals = new Float64Array(nRuns);
@@ -577,6 +692,12 @@ export function runSimulation(p) {
 
   const retCalYear = new Date().getFullYear() + Math.round(yearsToRetirement);
 
+  // Sort cash pot draw order: cash/cash_isa first, then ss_isa, then lisa (LISA locked until age 60)
+  const cashDrawOrder = Array.from({ length: numCashPots }, (_, ci) => {
+    const t = allCashPots[ci].type || 'cash';
+    return { ci, priority: t === 'lisa' ? 2 : t === 'ss_isa' ? 1 : 0 };
+  }).sort((a, b) => a.priority - b.priority).map(x => x.ci);
+
   for (let r = 0; r < nRuns; r++) {
     const runPots = new Float64Array(numPots);
     potsOrder.forEach((origIdx, rank) => { runPots[rank] = startPotsPerRun[r][origIdx]; });
@@ -615,9 +736,15 @@ export function runSimulation(p) {
           runCashPots[ci] += allCashPots[ci].value;
         }
       }
-      // cash growth
+      // cash growth (market-linked for S&S ISA/LISA, fixed rate for cash/cash_isa)
       for (let ci = 0; ci < numCashPots; ci++) {
-        runCashPots[ci] *= (1 + allCashPots[ci].interestPct / 100);
+        const _cpType = allCashPots[ci].type || 'cash';
+        if (_cpType === 'ss_isa' || _cpType === 'lisa') {
+          const _eq = (allCashPots[ci].equityPct || 80) / 100;
+          runCashPots[ci] *= 1 + (_eq * eqRetYear + (1 - _eq) * bdRetYear) / 100;
+        } else {
+          runCashPots[ci] *= (1 + allCashPots[ci].interestPct / 100);
+        }
       }
 
       const yearIdx = Math.floor(Math.random() * HIST_EQUITY_RETURNS.length);
@@ -669,23 +796,39 @@ export function runSimulation(p) {
 
       const notionalTc = calcPensionTax(grossWithdrawal, spNomMC, hasSPthisYear, taxFreeFrac);
       const netTarget = notionalTc.pensionNet;
+      // Draw from cash pots in priority order: cash/cash_isa → ss_isa → lisa (age 60+ only)
       let cashRemaining = netTarget;
-      for (let ci = 0; ci < numCashPots && cashRemaining > 0; ci++) {
-        const take = Math.min(runCashPots[ci], cashRemaining);
-        runCashPots[ci] -= take;
+      for (const _ci of cashDrawOrder) {
+        if (cashRemaining <= 0) break;
+        if ((allCashPots[_ci].type || 'cash') === 'lisa' && age < 60) continue;
+        const take = Math.min(runCashPots[_ci], cashRemaining);
+        runCashPots[_ci] -= take;
         cashRemaining -= take;
       }
       const cashTaken = netTarget - cashRemaining;
 
       const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       const remainingNet = Math.max(0, netTarget - cashTaken);
-      let pensionWithdrawal = netTarget > 0
+      const _pensionWithdrawalTarget = netTarget > 0
         ? remainingNet * (grossWithdrawal / netTarget) * guardrailFactor
         : 0;
+      let pensionWithdrawal = _pensionWithdrawalTarget;
       for (let rank = 0; rank < numPots && pensionWithdrawal > 0; rank++) {
         const take = Math.min(runPots[rank], pensionWithdrawal);
         runPots[rank] -= take;
         pensionWithdrawal -= take;
+      }
+      // LISA early draw (age < 60): only if pension pots also depleted — 25% penalty applies
+      if (age < 60 && pensionWithdrawal > 0) {
+        const pensionActual = _pensionWithdrawalTarget - pensionWithdrawal;
+        const netFromPension = grossWithdrawal > 0 ? pensionActual * (netTarget / grossWithdrawal) : 0;
+        let _lisaDeficit = Math.max(0, remainingNet - netFromPension);
+        for (const _ci of cashDrawOrder) {
+          if ((allCashPots[_ci].type || 'cash') !== 'lisa' || runCashPots[_ci] <= 0 || _lisaDeficit <= 0) continue;
+          const take = Math.min(runCashPots[_ci], _lisaDeficit / 0.75);
+          runCashPots[_ci] -= take;
+          _lisaDeficit -= take * 0.75;
+        }
       }
 
       for (let rank = 0; rank < numPots - 1; rank++) {
@@ -813,7 +956,12 @@ export function runSimulation(p) {
     const inflF = 1 + p.inflation / 100;
     for (let y = 0; y < years; y++) {
       const age = p.retirementAge + y;
-      for (let ci = 0; ci < numCashPots; ci++) cb[ci] *= (1 + p.cashPots[ci].interestPct / 100);
+      for (let ci = 0; ci < numCashPots; ci++) {
+        const _cpType = allCashPots[ci].type || 'cash';
+        cb[ci] *= _cpType === 'ss_isa' || _cpType === 'lisa'
+          ? 1 + (p.returnPct ?? 5) / 100
+          : 1 + allCashPots[ci].interestPct / 100;
+      }
       const inflFactor = p.drawdownInflation ? Math.pow(inflF, y) : 1.0;
       const hasSP = age >= p.spAge;
       const spNomDet = hasSP ? p.sp * Math.pow(inflF, y) : 0;
@@ -836,8 +984,10 @@ export function runSimulation(p) {
       const ntc = calcPensionTax(grossNeeded, spNomDet, hasSP, taxFreeFrac);
       const netTarget = ntc.pensionNet;
       let remaining = netTarget;
-      for (let ci = 0; ci < numCashPots && remaining > 0; ci++) {
-        const take = Math.min(cb[ci], remaining); cb[ci] -= take; remaining -= take;
+      for (const _ci of cashDrawOrder) {
+        if (remaining <= 0) break;
+        if ((allCashPots[_ci].type || 'cash') === 'lisa' && age < 60) continue;
+        const take = Math.min(cb[_ci], remaining); cb[_ci] -= take; remaining -= take;
       }
       cashContribByYear[y] = netTarget - remaining;
       cashBalByYear[y + 1] = cb.reduce((s, v) => s + v, 0);

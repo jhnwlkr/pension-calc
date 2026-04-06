@@ -652,14 +652,18 @@ function renderDbPensionsUI() {
 let nextCashPotId = 1;
 let cashPotsData = [];
 
-function addCashPot(value, interestPct, name, monthlyContrib, contribStartMonth, valueFromYear) {
+function addCashPot(value, interestPct, name, monthlyContrib, contribStartMonth, valueFromYear, type, equityPct) {
   const id = nextCashPotId++;
+  const t = type || 'cash';
+  const mktLinked = t === 'ss_isa' || t === 'lisa';
   cashPotsData.push({
     id,
     uuid: crypto.randomUUID(),
     name: name || '',
+    type: t,
     value: (value !== undefined && value !== null) ? +value : 0,
-    interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
+    interestPct: mktLinked ? 0 : (interestPct !== undefined && interestPct !== null ? +interestPct : 3.5),
+    equityPct: mktLinked ? (equityPct !== undefined && equityPct !== null ? +equityPct : 80) : 80,
     monthlyContrib: (monthlyContrib !== undefined && monthlyContrib !== null) ? +monthlyContrib : 0,
     contribStartMonth: contribStartMonth || new Date().toISOString().slice(0, 7),
     valueFromAge: valueFromYear ? +valueFromYear : undefined,
@@ -676,26 +680,80 @@ function removeCashPot(id) {
 function renderCashPotsUI() {
   const container = document.getElementById('cash-pots-container');
   container.innerHTML = '';
+
+  // ISA allowance warning
+  const isaAnnual = cashPotsData.filter(p => p.type && p.type !== 'cash').reduce((s, p) => s + (p.monthlyContrib || 0) * 12, 0);
+  const lisaAnnual = cashPotsData.filter(p => p.type === 'lisa').reduce((s, p) => s + (p.monthlyContrib || 0) * 12, 0);
+  if (isaAnnual > 20000 || lisaAnnual > 4000) {
+    const msg = isaAnnual > 20000
+      ? `⚠ ISA contributions £${Math.round(isaAnnual).toLocaleString()}/yr exceed the £20,000 annual ISA allowance`
+      : `⚠ LISA contributions £${Math.round(lisaAnnual).toLocaleString()}/yr exceed the £4,000 annual LISA limit`;
+    const warn = document.createElement('div');
+    warn.style.cssText = 'font-size:0.74rem;color:#dc2626;padding:5px 8px;background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;margin-bottom:6px';
+    warn.textContent = msg;
+    container.appendChild(warn);
+  }
+
   if (cashPotsData.length === 0) {
-    container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:6px 0">No cash pots added.</div>';
+    container.insertAdjacentHTML('beforeend', '<div style="font-size:0.78rem;color:var(--text2);padding:6px 0">No cash or ISA pots added.</div>');
     return;
   }
+
+  const curAge = dobToAge(document.getElementById('current-dob').value) || 18;
+  const endAge = +document.getElementById('end-age').value || 100;
+
   cashPotsData.forEach((pot, idx) => {
+    const type = pot.type || 'cash';
+    const isML = type === 'ss_isa' || type === 'lisa';
+    const arrivesAge = pot.valueFromAge ?? curAge;
+    const titleLabel = type === 'cash' ? 'Cash Pot' : type === 'cash_isa' ? 'Cash ISA' : type === 'ss_isa' ? 'S&S ISA' : 'LISA';
+    const eq = pot.equityPct ?? 80;
+
+    const rateField = isML
+      ? `<div>
+          <span class="field-label">Equity / Bond</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="dyn-input" type="range" min="0" max="100" step="5"
+              data-cash-pot-id="${pot.id}" data-field="equityPct"
+              value="${eq}" style="flex:1">
+            <span id="v-cash-equity-${pot.id}" style="font-size:0.78rem;min-width:46px;text-align:right">${eq}% / ${100 - eq}%</span>
+          </div>
+        </div>`
+      : `<div>
+          <span class="field-label">Interest rate</span>
+          <div class="input-group">
+            <input class="dyn-input" type="number" min="0" max="20" step="0.1"
+              data-cash-pot-id="${pot.id}" data-field="interestPct"
+              value="${pot.interestPct}" style="text-align:right">
+            <span class="input-suffix">%</span>
+          </div>
+        </div>`;
+
+    const lisaNote = type === 'lisa'
+      ? `<div style="font-size:0.72rem;color:var(--text2);margin-top:4px;padding:4px 6px;background:var(--surface2);border-radius:3px">25% govt bonus on contributions up to £4,000/yr (until age 50). Accessible penalty-free from age 60.</div>`
+      : '';
+
     const div = document.createElement('div');
     div.className = 'pot-card';
-    const curAge = dobToAge(document.getElementById('current-dob').value) || 18;
-    const endAge = +document.getElementById('end-age').value || 100;
-    const arrivesAge = pot.valueFromAge ?? curAge;
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title" id="cash-pot-title-${pot.id}">${pot.name || ('Cash Pot ' + (idx + 1))}</span>
+        <span class="pot-card-title" id="cash-pot-title-${pot.id}">${pot.name || (titleLabel + ' ' + (idx + 1))}</span>
         <button class="remove-btn" data-cash-pot-id="${pot.id}">✕</button>
       </div>
       <div style="margin-bottom:8px">
-        <input class="dyn-input" type="text" placeholder="Name (optional, e.g. ISA)"
+        <input class="dyn-input" type="text" placeholder="Name (optional)"
           data-cash-pot-id="${pot.id}" data-field="name"
           value="${(pot.name || '').replace(/"/g, '&quot;')}"
           style="font-size:0.8rem;color:var(--text2)">
+      </div>
+      <div class="inc-row" style="margin-bottom:8px">
+        <label class="field-label" style="min-width:42px">Type</label>
+        <select class="dyn-select" data-cash-pot-id="${pot.id}" data-field="type" style="flex:1">
+          <option value="cash" ${type === 'cash' ? 'selected' : ''}>Regular Cash</option>
+          <option value="cash_isa" ${type === 'cash_isa' ? 'selected' : ''}>Cash ISA</option>
+          <option value="ss_isa" ${type === 'ss_isa' ? 'selected' : ''}>Stocks &amp; Shares ISA</option>
+          <option value="lisa" ${type === 'lisa' ? 'selected' : ''}>LISA (Lifetime ISA)</option>
+        </select>
       </div>
       <div class="two-col">
         <div>
@@ -705,13 +763,7 @@ function renderCashPotsUI() {
             <input class="dyn-input" type="number" min="0" step="1000" data-cash-pot-id="${pot.id}" data-field="value" value="${pot.value}">
           </div>
         </div>
-        <div>
-          <span class="field-label">Interest rate</span>
-          <div class="input-group">
-            <input class="dyn-input" type="number" min="0" max="20" step="0.1" data-cash-pot-id="${pot.id}" data-field="interestPct" value="${pot.interestPct}" style="text-align:right">
-            <span class="input-suffix">%</span>
-          </div>
-        </div>
+        ${rateField}
       </div>
       <div class="two-col" id="contrib-row-${pot.id}" style="margin-top:6px;${pot.valueFromAge ? 'display:none' : ''}">
         <div>
@@ -733,7 +785,8 @@ function renderCashPotsUI() {
           <input type="range" class="dyn-input" min="${curAge}" max="${endAge}" step="1" value="${arrivesAge}" data-cash-pot-id="${pot.id}" data-field="valueFromAge" style="width:90px">
           <span id="arrives-val-${pot.id}" style="font-size:0.82rem;min-width:24px;text-align:right">${arrivesAge}</span>
         </div>
-      </div>`;
+      </div>
+      ${lisaNote}`;
     container.appendChild(div);
   });
 
@@ -741,24 +794,38 @@ function renderCashPotsUI() {
     btn.addEventListener('click', () => removeCashPot(+btn.dataset.cashPotId));
   });
 
-  container.querySelectorAll('.dyn-input[data-cash-pot-id]').forEach(inp => {
-    inp.addEventListener('input', () => {
+  container.querySelectorAll('.dyn-input[data-cash-pot-id], .dyn-select[data-cash-pot-id]').forEach(inp => {
+    const evName = inp.tagName === 'SELECT' ? 'change' : 'input';
+    inp.addEventListener(evName, () => {
       const potId = +inp.dataset.cashPotId;
       const field = inp.dataset.field;
       const pot = cashPotsData.find(p => p.id === potId);
       if (pot) {
+        if (field === 'type') {
+          pot.type = inp.value;
+          const isML2 = inp.value === 'ss_isa' || inp.value === 'lisa';
+          if (isML2) { pot.interestPct = 0; if (!pot.equityPct) pot.equityPct = 80; }
+          else { if (!pot.interestPct) pot.interestPct = 3.5; }
+          persistParams();
+          renderCashPotsUI();
+          return;
+        }
         if (field === 'name') {
           pot.name = inp.value;
+          const type2 = pot.type || 'cash';
+          const lbl2 = type2 === 'cash' ? 'Cash Pot' : type2 === 'cash_isa' ? 'Cash ISA' : type2 === 'ss_isa' ? 'S&S ISA' : 'LISA';
           const titleEl = document.getElementById('cash-pot-title-' + potId);
-          if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (cashPotsData.indexOf(pot) + 1));
+          if (titleEl) titleEl.textContent = inp.value || (lbl2 + ' ' + (cashPotsData.indexOf(pot) + 1));
         } else if (field === 'contribStartMonth') {
           pot.contribStartMonth = inp.value;
         } else if (field === 'valueFromAge') {
           pot.valueFromAge = +inp.value;
           const valSpan = document.getElementById('arrives-val-' + potId);
           if (valSpan) valSpan.textContent = inp.value;
-        } else if (field === 'valueFromYear') {
-          pot.valueFromYear = inp.value ? +inp.value : undefined;
+        } else if (field === 'equityPct') {
+          pot.equityPct = +inp.value;
+          const lbl = document.getElementById('v-cash-equity-' + potId);
+          if (lbl) lbl.textContent = inp.value + '% / ' + (100 - +inp.value) + '%';
         } else {
           pot[field] = +inp.value;
         }
@@ -793,7 +860,20 @@ function renderCashPotsUI() {
     });
   });
 }
-
+        <div>
+          <span class="field-label">Value</span>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="1000" data-cash-pot-id="${pot.id}" data-field="value" value="${pot.value}">
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Interest rate</span>
+          <div class="input-group">
+            <input class="dyn-input" type="number" min="0" max="20" step="0.1" data-cash-pot-id="${pot.id}" data-field="interestPct" value="${pot.interestPct}" style="text-align:right">
+            <span class="input-suffix">%</span>
+          </div>
+        </div>
 // add-cash-pot button wiring is initialized in initApp().
 
 // ── Partner dynamic data ──────────────────────────────────────────────────
@@ -960,14 +1040,18 @@ function renderPartnerPotsUI() {
   validateGroupAllocations(partnerGroupsData, partnerPotsData, 'pp-');
 }
 
-function addPartnerCashPot(value, interestPct, name, monthlyContrib, contribStartMonth, valueFromYear) {
+function addPartnerCashPot(value, interestPct, name, monthlyContrib, contribStartMonth, valueFromYear, type, equityPct) {
   const id = nextPartnerCashPotId++;
+  const t = type || 'cash';
+  const mktLinked = t === 'ss_isa' || t === 'lisa';
   partnerCashPotsData.push({
     id,
     uuid: crypto.randomUUID(),
     name: name || '',
+    type: t,
     value: (value !== undefined && value !== null) ? +value : 0,
-    interestPct: (interestPct !== undefined && interestPct !== null) ? +interestPct : 3.5,
+    interestPct: mktLinked ? 0 : (interestPct !== undefined && interestPct !== null ? +interestPct : 3.5),
+    equityPct: mktLinked ? (equityPct !== undefined && equityPct !== null ? +equityPct : 80) : 80,
     monthlyContrib: (monthlyContrib !== undefined && monthlyContrib !== null) ? +monthlyContrib : 0,
     contribStartMonth: contribStartMonth || new Date().toISOString().slice(0, 7),
     valueFromAge: valueFromYear ? +valueFromYear : undefined,
@@ -985,26 +1069,80 @@ function renderPartnerCashPotsUI() {
   const container = document.getElementById('partner-cash-pots-container');
   if (!container) return;
   container.innerHTML = '';
+
+  // ISA allowance warning
+  const isaAnnual = partnerCashPotsData.filter(p => p.type && p.type !== 'cash').reduce((s, p) => s + (p.monthlyContrib || 0) * 12, 0);
+  const lisaAnnual = partnerCashPotsData.filter(p => p.type === 'lisa').reduce((s, p) => s + (p.monthlyContrib || 0) * 12, 0);
+  if (isaAnnual > 20000 || lisaAnnual > 4000) {
+    const msg = isaAnnual > 20000
+      ? `⚠ ISA contributions £${Math.round(isaAnnual).toLocaleString()}/yr exceed the £20,000 annual ISA allowance`
+      : `⚠ LISA contributions £${Math.round(lisaAnnual).toLocaleString()}/yr exceed the £4,000 annual LISA limit`;
+    const warn = document.createElement('div');
+    warn.style.cssText = 'font-size:0.74rem;color:#dc2626;padding:5px 8px;background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;margin-bottom:6px';
+    warn.textContent = msg;
+    container.appendChild(warn);
+  }
+
   if (partnerCashPotsData.length === 0) {
-    container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:4px 0">No cash pots added.</div>';
+    container.insertAdjacentHTML('beforeend', '<div style="font-size:0.78rem;color:var(--text2);padding:4px 0">No cash or ISA pots added.</div>');
     return;
   }
+
+  const partnerCurAge = dobToAge(document.getElementById('partner-dob')?.value) || 18;
+  const endAge = +document.getElementById('end-age').value || 100;
+
   partnerCashPotsData.forEach((pot, idx) => {
+    const type = pot.type || 'cash';
+    const isML = type === 'ss_isa' || type === 'lisa';
+    const arrivesAge = pot.valueFromAge ?? partnerCurAge;
+    const titleLabel = type === 'cash' ? 'Cash Pot' : type === 'cash_isa' ? 'Cash ISA' : type === 'ss_isa' ? 'S&S ISA' : 'LISA';
+    const eq = pot.equityPct ?? 80;
+
+    const rateField = isML
+      ? `<div>
+          <span class="field-label">Equity / Bond</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="dyn-input" type="range" min="0" max="100" step="5"
+              data-ppartner-cash-id="${pot.id}" data-field="equityPct"
+              value="${eq}" style="flex:1">
+            <span id="v-pcash-equity-${pot.id}" style="font-size:0.78rem;min-width:46px;text-align:right">${eq}% / ${100 - eq}%</span>
+          </div>
+        </div>`
+      : `<div>
+          <span class="field-label">Interest rate</span>
+          <div class="input-group">
+            <input class="dyn-input" type="number" min="0" max="20" step="0.1"
+              data-ppartner-cash-id="${pot.id}" data-field="interestPct"
+              value="${pot.interestPct}" style="text-align:right">
+            <span class="input-suffix">%</span>
+          </div>
+        </div>`;
+
+    const lisaNote = type === 'lisa'
+      ? `<div style="font-size:0.72rem;color:var(--text2);margin-top:4px;padding:4px 6px;background:var(--surface2);border-radius:3px">25% govt bonus on contributions up to £4,000/yr (until age 50). Accessible penalty-free from age 60.</div>`
+      : '';
+
     const div = document.createElement('div');
     div.className = 'pot-card';
-    const partnerCurAge = dobToAge(document.getElementById('partner-dob')?.value) || 18;
-    const endAge = +document.getElementById('end-age').value || 100;
-    const arrivesAge = pot.valueFromAge ?? partnerCurAge;
     div.innerHTML = `
       <div class="pot-card-header">
-        <span class="pot-card-title" id="ppartner-cash-title-${pot.id}">${pot.name || ('Cash Pot ' + (idx + 1))}</span>
+        <span class="pot-card-title" id="ppartner-cash-title-${pot.id}">${pot.name || (titleLabel + ' ' + (idx + 1))}</span>
         <button class="remove-btn" data-ppartner-cash-id="${pot.id}">✕</button>
       </div>
       <div style="margin-bottom:8px">
-        <input class="dyn-input" type="text" placeholder="Name (optional, e.g. ISA)"
+        <input class="dyn-input" type="text" placeholder="Name (optional)"
           data-ppartner-cash-id="${pot.id}" data-field="name"
           value="${(pot.name || '').replace(/"/g, '&quot;')}"
           style="font-size:0.8rem;color:var(--text2)">
+      </div>
+      <div class="inc-row" style="margin-bottom:8px">
+        <label class="field-label" style="min-width:42px">Type</label>
+        <select class="dyn-select" data-ppartner-cash-id="${pot.id}" data-field="type" style="flex:1">
+          <option value="cash" ${type === 'cash' ? 'selected' : ''}>Regular Cash</option>
+          <option value="cash_isa" ${type === 'cash_isa' ? 'selected' : ''}>Cash ISA</option>
+          <option value="ss_isa" ${type === 'ss_isa' ? 'selected' : ''}>Stocks &amp; Shares ISA</option>
+          <option value="lisa" ${type === 'lisa' ? 'selected' : ''}>LISA (Lifetime ISA)</option>
+        </select>
       </div>
       <div class="two-col">
         <div>
@@ -1013,13 +1151,7 @@ function renderPartnerCashPotsUI() {
             <input class="dyn-input" type="number" min="0" step="1000" data-ppartner-cash-id="${pot.id}" data-field="value" value="${pot.value}">
           </div>
         </div>
-        <div>
-          <span class="field-label">Interest rate</span>
-          <div class="input-group">
-            <input class="dyn-input" type="number" min="0" max="20" step="0.1" data-ppartner-cash-id="${pot.id}" data-field="interestPct" value="${pot.interestPct}" style="text-align:right">
-            <span class="input-suffix">%</span>
-          </div>
-        </div>
+        ${rateField}
       </div>
       <div class="two-col" id="pcontrib-row-${pot.id}" style="margin-top:6px;${pot.valueFromAge ? 'display:none' : ''}">
         <div>
@@ -1041,30 +1173,48 @@ function renderPartnerCashPotsUI() {
           <input type="range" class="dyn-input" min="${partnerCurAge}" max="${endAge}" step="1" value="${arrivesAge}" data-ppartner-cash-id="${pot.id}" data-field="valueFromAge" style="width:90px">
           <span id="parrives-val-${pot.id}" style="font-size:0.82rem;min-width:24px;text-align:right">${arrivesAge}</span>
         </div>
-      </div>`;
+      </div>
+      ${lisaNote}`;
     container.appendChild(div);
   });
+
   container.querySelectorAll('.remove-btn[data-ppartner-cash-id]').forEach(btn => {
     btn.addEventListener('click', () => removePartnerCashPot(+btn.dataset.ppartnerCashId));
   });
-  container.querySelectorAll('.dyn-input[data-ppartner-cash-id]').forEach(inp => {
-    inp.addEventListener('input', () => {
+
+  container.querySelectorAll('.dyn-input[data-ppartner-cash-id], .dyn-select[data-ppartner-cash-id]').forEach(inp => {
+    const evName = inp.tagName === 'SELECT' ? 'change' : 'input';
+    inp.addEventListener(evName, () => {
       const pot = partnerCashPotsData.find(p => p.id === +inp.dataset.ppartnerCashId);
       if (pot) {
-        if (inp.dataset.field === 'name') {
+        const field = inp.dataset.field;
+        if (field === 'type') {
+          pot.type = inp.value;
+          const isML2 = inp.value === 'ss_isa' || inp.value === 'lisa';
+          if (isML2) { pot.interestPct = 0; if (!pot.equityPct) pot.equityPct = 80; }
+          else { if (!pot.interestPct) pot.interestPct = 3.5; }
+          persistParams();
+          renderPartnerCashPotsUI();
+          return;
+        }
+        if (field === 'name') {
           pot.name = inp.value;
+          const type2 = pot.type || 'cash';
+          const lbl2 = type2 === 'cash' ? 'Cash Pot' : type2 === 'cash_isa' ? 'Cash ISA' : type2 === 'ss_isa' ? 'S&S ISA' : 'LISA';
           const titleEl = document.getElementById('ppartner-cash-title-' + pot.id);
-          if (titleEl) titleEl.textContent = inp.value || ('Cash Pot ' + (partnerCashPotsData.indexOf(pot) + 1));
-        } else if (inp.dataset.field === 'contribStartMonth') {
+          if (titleEl) titleEl.textContent = inp.value || (lbl2 + ' ' + (partnerCashPotsData.indexOf(pot) + 1));
+        } else if (field === 'contribStartMonth') {
           pot.contribStartMonth = inp.value;
-        } else if (inp.dataset.field === 'valueFromAge') {
+        } else if (field === 'valueFromAge') {
           pot.valueFromAge = +inp.value;
           const valSpan = document.getElementById('parrives-val-' + pot.id);
           if (valSpan) valSpan.textContent = inp.value;
-        } else if (inp.dataset.field === 'valueFromYear') {
-          pot.valueFromYear = inp.value ? +inp.value : undefined;
+        } else if (field === 'equityPct') {
+          pot.equityPct = +inp.value;
+          const lbl = document.getElementById('v-pcash-equity-' + pot.id);
+          if (lbl) lbl.textContent = inp.value + '% / ' + (100 - +inp.value) + '%';
         } else {
-          pot[inp.dataset.field] = +inp.value;
+          pot[field] = +inp.value;
         }
       }
       persistParams();
@@ -1602,7 +1752,7 @@ function importBackup(payload, mode) {
     cashPotsData = [];
     actuals.cashPotRegistry.forEach(p => {
       const id = nextCashPotId++;
-      cashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7), valueFromAge: p.valueFromAge ? +p.valueFromAge : undefined });
+      cashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', type: p.type || 'cash', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, equityPct: p.equityPct !== undefined ? +p.equityPct : 80, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7), valueFromAge: p.valueFromAge ? +p.valueFromAge : undefined });
     });
     renderCashPotsUI();
   }
@@ -1630,7 +1780,7 @@ function importBackup(payload, mode) {
     partnerCashPotsData = [];
     actuals.partnerCashPotRegistry.forEach(p => {
       const id = nextPartnerCashPotId++;
-      partnerCashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7), valueFromAge: p.valueFromAge ? +p.valueFromAge : undefined });
+      partnerCashPotsData.push({ id, uuid: p.uuid || crypto.randomUUID(), name: p.name || '', type: p.type || 'cash', value: +p.value || 0, interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5, equityPct: p.equityPct !== undefined ? +p.equityPct : 80, monthlyContrib: +p.monthlyContrib || 0, contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7), valueFromAge: p.valueFromAge ? +p.valueFromAge : undefined });
     });
     renderPartnerCashPotsUI();
   }
@@ -2091,8 +2241,10 @@ function restoreParams(obj) {
             id,
             uuid: p.uuid || crypto.randomUUID(),
             name: p.name || '',
+            type: p.type || 'cash',
             value: +p.value || 0,
             interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
+            equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
             monthlyContrib: +p.monthlyContrib || 0,
             contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7),
             valueFromAge: p.valueFromAge ? +p.valueFromAge : undefined,
@@ -2159,8 +2311,10 @@ function restoreParams(obj) {
             id,
             uuid: p.uuid || crypto.randomUUID(),
             name: p.name || '',
+            type: p.type || 'cash',
             value: +p.value || 0,
             interestPct: p.interestPct !== undefined ? +p.interestPct : 3.5,
+            equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
             monthlyContrib: +p.monthlyContrib || 0,
             contribStartMonth: p.contribStartMonth || new Date().toISOString().slice(0, 7),
             valueFromAge: p.valueFromAge ? +p.valueFromAge : undefined,
