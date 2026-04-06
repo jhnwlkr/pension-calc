@@ -57,11 +57,29 @@ export function incomeTaxBands(taxable) {
   return { effectivePA, paUsed, above, brAmount, brTax, hrAmount, hrTax, arAmount, arTax, totalTax: brTax + hrTax + arTax };
 }
 
-export function calcOtherIncomesNet(incomes, inflFactor) {
+export function calcOtherIncomesNet(incomes, inflFactor, ageCtx) {
   let grossTotal = 0;
   const items = incomes.map(inc => {
     const annualAmt = inc.frequency === 'monthly' ? inc.amount * 12 : inc.amount;
-    const gross = annualAmt * (inc.inflationLinked ? inflFactor : 1);
+    if (ageCtx && inc.incomePeriod) {
+      const effectiveStart = inc.startAge ? Math.max(inc.startAge, ageCtx.retirementAge) : ageCtx.retirementAge;
+      const effectiveEnd = inc.endAge ? inc.endAge : Infinity;
+      if (ageCtx.currentAge < effectiveStart || ageCtx.currentAge > effectiveEnd) {
+        return { name: inc.name, gross: 0, tax: 0, net: 0 };
+      }
+    }
+    let gross;
+    if (!inc.inflationLinked) {
+      gross = annualAmt;
+    } else if (inc.inflationBase === 'nominal' && ageCtx) {
+      const todayAge = ageCtx.retirementAge - ageCtx.yearsToRetirement;
+      const effectiveStart = (inc.incomePeriod && inc.startAge) ? Math.max(inc.startAge, ageCtx.retirementAge) : ageCtx.retirementAge;
+      const yearsFromTodayToStart = Math.max(0, effectiveStart - todayAge);
+      const inflFactorToStart = Math.pow(ageCtx.baseInflFactor, yearsFromTodayToStart);
+      gross = annualAmt * (inflFactor / inflFactorToStart);
+    } else {
+      gross = annualAmt * inflFactor;
+    }
     grossTotal += gross;
     return { name: inc.name, gross, tax: 0, net: gross };
   });

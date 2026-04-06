@@ -149,9 +149,10 @@ export function runDeterministicProjection(p, returnPct) {
     const partnerSpNom = (p.partner && partnerAge >= p.partner.spAge) ? p.partner.sp * ci : 0;
     const ciFromNowDet = Math.pow(baseInflFactor, yearsToRetirement + y);
     const partnerRetiredDet = !!(p.partner && partnerAge >= p.partner.retirementAge);
-    const otherGrossDet = calcOtherIncomesNet(p.incomes || [], ciFromNowDet).grossTotal;
+    const ageCtxDet = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor };
+    const otherGrossDet = calcOtherIncomesNet(p.incomes || [], ciFromNowDet, ageCtxDet).grossTotal;
     const partnerOtherGrossDet = (p.partner?.incomes?.length && partnerRetiredDet)
-      ? calcOtherIncomesNet(p.partner.incomes, ciFromNowDet).grossTotal : 0;
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNowDet, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor }).grossTotal : 0;
     const totalOtherGrossDet = otherGrossDet + partnerOtherGrossDet;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const baseTargetDet = p.drawdown * inflFactor;
@@ -224,10 +225,11 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
     }
 
-    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
+    const ageCtxAID = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor };
+    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow, ageCtxAID);
     const partnerRetiredAID = !!(p.partner && partnerAge >= p.partner.retirementAge);
     const partnerOtherAID = (p.partner?.incomes?.length && partnerRetiredAID)
-      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor }) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
     // Reduction applies to total gross income (drawdown target + other incomes combined).
     // Only the drawdown target can be cut; other incomes are fixed. Floor at 0.
     const inflFactor = p.drawdownInflation ? ci : 1.0;
@@ -543,9 +545,11 @@ export function runSimulation(p) {
       // Use base inflation for pre-retirement portion; stochastic cumulInfl from retirement onward
       const ciMCFromNow = Math.pow(1 + p.inflation / 100, yearsToRetirement) * cumulInfl;
       const partnerRetiredMC = !!(p.partner && partnerAgeMC >= p.partner.retirementAge);
-      const otherGrossMC = calcOtherIncomesNet(p.incomes || [], ciMCFromNow).grossTotal;
+      const baseInflMC = 1 + p.inflation / 100;
+      const ageCtxMC = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor: baseInflMC };
+      const otherGrossMC = calcOtherIncomesNet(p.incomes || [], ciMCFromNow, ageCtxMC).grossTotal;
       const partnerOtherGrossMC = (p.partner?.incomes?.length && partnerRetiredMC)
-        ? calcOtherIncomesNet(p.partner.incomes, ciMCFromNow).grossTotal : 0;
+        ? calcOtherIncomesNet(p.partner.incomes, ciMCFromNow, { currentAge: partnerAgeMC, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor: baseInflMC }).grossTotal : 0;
       const totalOtherGrossMC = otherGrossMC + partnerOtherGrossMC;
       const inflFactor = p.drawdownInflation ? cumulInfl : 1.0;
       const baseTargetMC = p.drawdown * inflFactor;
@@ -708,9 +712,10 @@ export function runSimulation(p) {
       const partnerSpNomDet = (p.partner && partnerAgeDet >= p.partner.spAge) ? p.partner.sp * Math.pow(inflF, y) : 0;
       const ciCashFromNow = Math.pow(inflF, yearsToRetirement + y);
       const partnerRetiredCash = !!(p.partner && partnerAgeDet >= p.partner.retirementAge);
-      const otherGrossCash = calcOtherIncomesNet(p.incomes || [], ciCashFromNow).grossTotal;
+      const ageCtxCash = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor: inflF };
+      const otherGrossCash = calcOtherIncomesNet(p.incomes || [], ciCashFromNow, ageCtxCash).grossTotal;
       const partnerOtherGrossCash = (p.partner?.incomes?.length && partnerRetiredCash)
-        ? calcOtherIncomesNet(p.partner.incomes, ciCashFromNow).grossTotal : 0;
+        ? calcOtherIncomesNet(p.partner.incomes, ciCashFromNow, { currentAge: partnerAgeDet, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor: inflF }).grossTotal : 0;
       const baseTargetCash = p.drawdown * inflFactor;
       const totalOtherGrossCash = otherGrossCash + partnerOtherGrossCash;
       const adjustedTargetCash = age >= p.reductionAge
@@ -746,9 +751,9 @@ export function runSimulation(p) {
   const cashAtRetirement = cashContribByYear[0] || 0;
   const grossNeededRet = potWithdrawal(p.retirementAge, p, 1.0);
   const potWAtRetirement = pensionGrossAfterCash(grossNeededRet, cashAtRetirement, hasSpAtRetirement);
-  const otherAtRetirement = calcOtherIncomesNet(p.incomes, Math.pow(baseInflFactor, yearsToRetirement));
+  const otherAtRetirement = calcOtherIncomesNet(p.incomes, Math.pow(baseInflFactor, yearsToRetirement), { currentAge: p.retirementAge, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor });
   const partnerOtherAtRet = (partnerRetiredAtRet && p.partner.incomes?.length)
-    ? calcOtherIncomesNet(p.partner.incomes, Math.pow(baseInflFactor, yearsToRetirement))
+    ? calcOtherIncomesNet(p.partner.incomes, Math.pow(baseInflFactor, yearsToRetirement), { currentAge: partnerAgeAtRet, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor })
     : { netTotal: 0, grossTotal: 0 };
   taxCalc = calcPensionTax(potWAtRetirement, hasSpAtRetirement ? p.sp : 0, hasSpAtRetirement, taxFreeFrac, otherAtRetirement.grossTotal);
   netMonthly = (cashAtRetirement + taxCalc.pensionNet + (hasSpAtRetirement ? taxCalc.spNet : 0) + partnerSpAtRet + taxCalc.otherNet + partnerOtherAtRet.netTotal) / 12;
@@ -769,7 +774,7 @@ export function runSimulation(p) {
     const ci = Math.pow(baseInflFactor, yi);
     const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + yi);
     const spInfl = hasStatePension ? p.sp * ci : 0;
-    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
+    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow, { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor });
     const cashC = det.detCashContribByYear[yi] || 0;
     // Use deterministic projection to check whether the pension pot is depleted at this year
     const pensionDepleted = det.detPotByYear[yi] <= 0;
@@ -780,7 +785,7 @@ export function runSimulation(p) {
     const partnerAgeRI = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
     const partnerSpInflRI = (p.partner && partnerAgeRI >= p.partner.spAge) ? p.partner.sp * ci : 0;
     const partnerOtherRI = (p.partner?.incomes?.length && partnerAgeRI >= p.partner.retirementAge)
-      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow) : { grossTotal: 0, netTotal: 0 };
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAgeRI, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor }) : { grossTotal: 0, netTotal: 0 };
     return {
       age,
       gross: (cashC + potW + spInfl + partnerSpInflRI + otherNet.grossTotal + partnerOtherRI.grossTotal) * realF,
@@ -793,7 +798,7 @@ export function runSimulation(p) {
     const ci = Math.pow(baseInflFactor, yi);
     const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + yi);
     const spInfl = hasStatePension ? p.sp * ci : 0;
-    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
+    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow, { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor });
     const cashC = det.detCashContribByYear[yi] || 0;
     // Use deterministic projection to check whether the pension pot is depleted at this year
     const pensionDepleted = det.detPotByYear[yi] <= 0;
@@ -804,7 +809,7 @@ export function runSimulation(p) {
     const partnerAgeNM = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
     const partnerSpInflNM = (p.partner && partnerAgeNM >= p.partner.spAge) ? p.partner.sp * ci : 0;
     const partnerOtherNM = (p.partner?.incomes?.length && partnerAgeNM >= p.partner.retirementAge)
-      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow) : { netTotal: 0 };
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAgeNM, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor }) : { netTotal: 0 };
     return {
       age,
       cash: (cashC * realF) / 12,

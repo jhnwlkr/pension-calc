@@ -399,7 +399,7 @@ function buildGroupRowHTML(pot, groups, potAttr, idPfx) {
 let nextIncomeId = 1;
 let incomesData = [];
 
-function addIncome(name, amount, frequency, inflationLinked = false) {
+function addIncome(name, amount, frequency, inflationLinked = false, incomePeriod = false, startAge = undefined, endAge = undefined, inflationBase = 'real') {
   const id = nextIncomeId++;
   incomesData.push({
     id,
@@ -408,6 +408,10 @@ function addIncome(name, amount, frequency, inflationLinked = false) {
     amount: amount !== undefined ? amount : 0,
     frequency: frequency || 'annual',
     inflationLinked,
+    incomePeriod,
+    startAge,
+    endAge,
+    inflationBase,
   });
   renderIncomesUI();
 }
@@ -425,9 +429,14 @@ function renderIncomesUI() {
     container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:6px 0">No other income sources added.</div>';
     return;
   }
+  const retAge = +document.getElementById('retirement-age').value || 65;
   incomesData.forEach(inc => {
     const div = document.createElement('div');
     div.className = 'income-card';
+    const startVal = inc.startAge ?? '';
+    const endVal = inc.endAge ?? '';
+    const periodDisabled = inc.incomePeriod ? '' : 'disabled';
+    const nominalLabel = inc.incomePeriod ? 'From Start Age' : 'From Retirement';
     div.innerHTML = `
       <div class="income-card-header">
         <div class="input-group" style="flex:1;margin-right:6px">
@@ -451,10 +460,23 @@ function renderIncomesUI() {
           </select>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-        <input type="checkbox" data-inc-id="${inc.id}" data-field="inflationLinked" ${inc.inflationLinked ? 'checked' : ''} style="cursor:pointer;width:14px;height:14px">
-        <span style="font-size:0.78rem;color:var(--text2)">Increases with inflation</span>
-      </div>`;
+      <div class="inc-row">
+        <input type="checkbox" data-inc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}>
+        <span>Income period</span>
+        <div class="inc-age-inputs">
+          <label>From age <input type="number" class="inc-age-input" min="18" max="100" data-inc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${retAge}"></label>
+          <label>Until age <input type="number" class="inc-age-input" min="18" max="100" data-inc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
+        </div>
+      </div>
+      <div class="inc-row">
+        <input type="checkbox" data-inc-id="${inc.id}" data-field="inflationLinked" ${inc.inflationLinked ? 'checked' : ''}>
+        <span>Increases with inflation</span>
+      </div>
+      ${inc.inflationLinked ? `
+      <div class="inc-row inc-infl-base">
+        <label><input type="radio" name="inflBase-${inc.id}" data-inc-id="${inc.id}" data-field="inflationBase" value="real" ${inc.inflationBase !== 'nominal' ? 'checked' : ''}> From Today</label>
+        <label><input type="radio" name="inflBase-${inc.id}" data-inc-id="${inc.id}" data-field="inflationBase" value="nominal" ${inc.inflationBase === 'nominal' ? 'checked' : ''}> ${nominalLabel}</label>
+      </div>` : ''}`;
     container.appendChild(div);
   });
 
@@ -465,15 +487,35 @@ function renderIncomesUI() {
 
   // Wire inputs
   container.querySelectorAll('[data-inc-id]').forEach(el => {
-    const evName = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
+    const evName = (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio') ? 'change' : 'input';
     el.addEventListener(evName, () => {
       const incId = +el.dataset.incId;
       const field = el.dataset.field;
       const inc = incomesData.find(i => i.id === incId);
-      if (inc) {
-        if (field === 'inflationLinked') inc[field] = el.checked;
-        else if (field === 'name' || field === 'frequency') inc[field] = el.value;
-        else inc[field] = +el.value;
+      if (!inc) return;
+      if (field === 'incomePeriod') {
+        inc.incomePeriod = el.checked;
+        if (el.checked && !inc.startAge) {
+          inc.startAge = +document.getElementById('retirement-age').value || 65;
+        }
+        persistParams();
+        renderIncomesUI();
+        return;
+      }
+      if (field === 'inflationLinked') {
+        inc.inflationLinked = el.checked;
+        persistParams();
+        renderIncomesUI();
+        return;
+      }
+      if (field === 'inflationBase') {
+        inc.inflationBase = el.value;
+      } else if (field === 'name' || field === 'frequency') {
+        inc[field] = el.value;
+      } else if (field === 'startAge' || field === 'endAge') {
+        inc[field] = el.value !== '' ? +el.value : undefined;
+      } else {
+        inc[field] = +el.value;
       }
       persistParams();
     });
@@ -846,7 +888,7 @@ function renderPartnerCashPotsUI() {
   });
 }
 
-function addPartnerIncome(name, amount, frequency, inflationLinked) {
+function addPartnerIncome(name, amount, frequency, inflationLinked, incomePeriod = false, startAge = undefined, endAge = undefined, inflationBase = 'real') {
   const id = nextPartnerIncomeId++;
   partnerIncomesData.push({
     id,
@@ -855,6 +897,10 @@ function addPartnerIncome(name, amount, frequency, inflationLinked) {
     amount: amount !== undefined ? amount : 0,
     frequency: frequency || 'annual',
     inflationLinked: inflationLinked === true,
+    incomePeriod,
+    startAge,
+    endAge,
+    inflationBase,
   });
   renderPartnerIncomesUI();
 }
@@ -873,9 +919,14 @@ function renderPartnerIncomesUI() {
     container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:4px 0">No other income added.</div>';
     return;
   }
+  const partnerRetAge = +document.getElementById('partner-retirement-age')?.value || 65;
   partnerIncomesData.forEach(inc => {
     const div = document.createElement('div');
     div.className = 'income-card';
+    const startVal = inc.startAge ?? '';
+    const endVal = inc.endAge ?? '';
+    const periodDisabled = inc.incomePeriod ? '' : 'disabled';
+    const nominalLabel = inc.incomePeriod ? 'From Start Age' : 'From Retirement';
     div.innerHTML = `
       <div class="income-card-header">
         <div class="input-group" style="flex:1;margin-right:6px">
@@ -898,23 +949,57 @@ function renderPartnerIncomesUI() {
           </select>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-        <input type="checkbox" data-pinc-id="${inc.id}" data-field="inflationLinked" ${inc.inflationLinked ? 'checked' : ''} style="cursor:pointer;width:14px;height:14px">
-        <span style="font-size:0.78rem;color:var(--text2)">Increases with inflation</span>
-      </div>`;
+      <div class="inc-row">
+        <input type="checkbox" data-pinc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}>
+        <span>Income period</span>
+        <div class="inc-age-inputs">
+          <label>From age <input type="number" class="inc-age-input" min="18" max="100" data-pinc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${partnerRetAge}"></label>
+          <label>Until age <input type="number" class="inc-age-input" min="18" max="100" data-pinc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
+        </div>
+      </div>
+      <div class="inc-row">
+        <input type="checkbox" data-pinc-id="${inc.id}" data-field="inflationLinked" ${inc.inflationLinked ? 'checked' : ''}>
+        <span>Increases with inflation</span>
+      </div>
+      ${inc.inflationLinked ? `
+      <div class="inc-row inc-infl-base">
+        <label><input type="radio" name="pinflBase-${inc.id}" data-pinc-id="${inc.id}" data-field="inflationBase" value="real" ${inc.inflationBase !== 'nominal' ? 'checked' : ''}> From Today</label>
+        <label><input type="radio" name="pinflBase-${inc.id}" data-pinc-id="${inc.id}" data-field="inflationBase" value="nominal" ${inc.inflationBase === 'nominal' ? 'checked' : ''}> ${nominalLabel}</label>
+      </div>` : ''}`;
     container.appendChild(div);
   });
   container.querySelectorAll('.remove-btn[data-pinc-id]').forEach(btn => {
     btn.addEventListener('click', () => removePartnerIncome(+btn.dataset.pincId));
   });
   container.querySelectorAll('[data-pinc-id]').forEach(el => {
-    const evName = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
+    const evName = (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio') ? 'change' : 'input';
     el.addEventListener(evName, () => {
       const inc = partnerIncomesData.find(i => i.id === +el.dataset.pincId);
-      if (inc) {
-        if (el.dataset.field === 'inflationLinked') inc[el.dataset.field] = el.checked;
-        else if (el.dataset.field === 'name' || el.dataset.field === 'frequency') inc[el.dataset.field] = el.value;
-        else inc[el.dataset.field] = +el.value;
+      if (!inc) return;
+      const field = el.dataset.field;
+      if (field === 'incomePeriod') {
+        inc.incomePeriod = el.checked;
+        if (el.checked && !inc.startAge) {
+          inc.startAge = +document.getElementById('partner-retirement-age')?.value || 65;
+        }
+        persistParams();
+        renderPartnerIncomesUI();
+        return;
+      }
+      if (field === 'inflationLinked') {
+        inc.inflationLinked = el.checked;
+        persistParams();
+        renderPartnerIncomesUI();
+        return;
+      }
+      if (field === 'inflationBase') {
+        inc.inflationBase = el.value;
+      } else if (field === 'name' || field === 'frequency') {
+        inc[field] = el.value;
+      } else if (field === 'startAge' || field === 'endAge') {
+        inc[field] = el.value !== '' ? +el.value : undefined;
+      } else {
+        inc[field] = +el.value;
       }
       persistParams();
     });
@@ -1205,7 +1290,7 @@ function importBackup(payload, mode) {
     incomesData = [];
     actuals.incomeRegistry.forEach(inc => {
       const id = nextIncomeId++;
-      incomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
+      incomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true, incomePeriod: inc.incomePeriod === true, startAge: inc.startAge || undefined, endAge: inc.endAge || undefined, inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real' });
     });
     renderIncomesUI();
   }
@@ -1213,7 +1298,7 @@ function importBackup(payload, mode) {
     partnerIncomesData = [];
     actuals.partnerIncomeRegistry.forEach(inc => {
       const id = nextPartnerIncomeId++;
-      partnerIncomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true });
+      partnerIncomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true, incomePeriod: inc.incomePeriod === true, startAge: inc.startAge || undefined, endAge: inc.endAge || undefined, inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real' });
     });
     renderPartnerIncomesUI();
   }
@@ -1612,6 +1697,10 @@ function restoreParams(obj) {
             amount: inc.amount || 0,
             frequency: inc.frequency || 'annual',
             inflationLinked: inc.inflationLinked === true,
+            incomePeriod: inc.incomePeriod === true,
+            startAge: inc.startAge || undefined,
+            endAge: inc.endAge || undefined,
+            inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real',
           });
         });
         renderIncomesUI();
@@ -1721,6 +1810,10 @@ function restoreParams(obj) {
             amount: inc.amount || 0,
             frequency: inc.frequency || 'annual',
             inflationLinked: inc.inflationLinked === true,
+            incomePeriod: inc.incomePeriod === true,
+            startAge: inc.startAge || undefined,
+            endAge: inc.endAge || undefined,
+            inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real',
           });
         });
         renderPartnerIncomesUI();
@@ -1847,10 +1940,11 @@ function buildAnnualIncomeData(r) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
     }
 
-    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow);
+    const ageCtxAID = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor };
+    const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow, ageCtxAID);
     const partnerRetiredAID = !!(partner && partnerAge >= partner.retirementAge);
     const partnerOtherAID = (partner?.incomes?.length && partnerRetiredAID)
-      ? calcOtherIncomesNet(partner.incomes, ciFromNow) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
+      ? calcOtherIncomesNet(partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: partner.retirementAge, yearsToRetirement: Math.max(0, partner.retirementAge - partner.currentAge), baseInflFactor }) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
     // Reduction applies to total gross income (drawdown target + other incomes combined).
     // Only the drawdown target can be cut; other incomes are fixed. Floor at 0.
     const inflFactor = p.drawdownInflation ? ci : 1.0;
@@ -2893,11 +2987,12 @@ function renderTaxBreakdown(r) {
   const a = v => v * scale;           // nominal annual → annual display
 
   // ── Per-source other income items ──────────────────────────────────────────
-  const otherItems = calcOtherIncomesNet(r.p?.incomes || [], ciFromNow).items
+  const ageCtxTax = { currentAge: d.age, retirementAge: r.p.retirementAge, yearsToRetirement: _ytr, baseInflFactor: _infl };
+  const otherItems = calcOtherIncomesNet(r.p?.incomes || [], ciFromNow, ageCtxTax).items
     .filter(it => it.gross > 0);
   const _partnerRetired = !!(hasPartner && d.partnerAge !== null && d.partnerAge >= r.p.partner.retirementAge);
   const partnerOtherItems = (_partnerRetired && r.p.partner?.incomes?.length)
-    ? calcOtherIncomesNet(r.p.partner.incomes, ciFromNow).items.filter(it => it.gross > 0)
+    ? calcOtherIncomesNet(r.p.partner.incomes, ciFromNow, { currentAge: d.partnerAge, retirementAge: r.p.partner.retirementAge, yearsToRetirement: Math.max(0, r.p.partner.retirementAge - r.p.partner.currentAge), baseInflFactor: _infl }).items.filter(it => it.gross > 0)
     : [];
 
   // ── Per-person pot fractions from simulation ───────────────────────────────
@@ -3377,9 +3472,10 @@ function runHistoricalReplayProjection(r, startYear) {
     const partnerSpNom = (p.partner && partnerAge >= p.partner.spAge) ? p.partner.sp * ci : 0;
     const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + y);
     const partnerRetired = !!(p.partner && partnerAge >= p.partner.retirementAge);
-    const otherGross = calcOtherIncomesNet(p.incomes || [], ciFromNow).grossTotal;
+    const ageCtxHR = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor };
+    const otherGross = calcOtherIncomesNet(p.incomes || [], ciFromNow, ageCtxHR).grossTotal;
     const partnerOtherGross = (p.partner?.incomes?.length && partnerRetired)
-      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow).grossTotal : 0;
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - p.partner.currentAge), baseInflFactor }).grossTotal : 0;
     const totalOtherGross = otherGross + partnerOtherGross;
     const inflFactor = p.drawdownInflation ? ci : 1.0;
     const baseTarget = p.drawdown * inflFactor;
