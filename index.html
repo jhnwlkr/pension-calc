@@ -249,6 +249,12 @@
   .journal-entry-del:hover { color:var(--red); }
   #income-table.reduction-col-hidden th:nth-child(4),
   #income-table.reduction-col-hidden td:nth-child(4) { display: none; }
+  #accum-summary { margin: 14px 0 0; }
+  #accum-cards { display: flex; gap: 10px; flex-wrap: wrap; }
+  .accum-card { flex: 1; min-width: 160px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+  .accum-card-label { font-size: 0.72rem; color: var(--text2); margin-bottom: 3px; }
+  .accum-card-value { font-size: 1.15rem; font-weight: 700; color: var(--text); }
+  .accum-card-sub { font-size: 0.7rem; color: var(--text2); margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -701,6 +707,9 @@
       </div>
       <div class="ai-note" id="pot-chart-note">Projected at the selected nominal return rate. Amber dashed line = State Pension start age. Use the Monte Carlo tab for probability-based projections.</div>
       <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>
+      <div id="accum-summary">
+        <div id="accum-cards"></div>
+      </div>
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
         <h3 style="margin:0 0 10px;font-size:1rem">Monthly Net Income Breakdown</h3>
         <div class="table-scroll">
@@ -914,7 +923,7 @@
 <div id="planning-disclaimer">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances, so consider professional advice before making decisions.</div>
 
 <div id="fiscal-drag-tip"></div>
-<script type="module" src="./src/app.js?v=32"></script>
+<script type="module" src="./src/app.js?v=33"></script>
 
 </body>
 </html>

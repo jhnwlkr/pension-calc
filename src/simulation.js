@@ -69,11 +69,15 @@ export function runDeterministicProjection(p, returnPct) {
   });
 
   // --- Pre-retirement: grow each pot at its own equity-adjusted rate ---
+  // Also track year-by-year totals for the accumulation chart.
+  const accPensionByYear = new Float64Array(fullYearsToRet + 1);
+  accPensionByYear[0] = allPotsConfig.reduce((s, pot) => s + (pot.value || 0), 0);
   const potValsAtRet = allPotsConfig.map((pot, i) => {
     let val = pot.value;
     const potRet = potRets[i];
     for (let y = 0; y < fullYearsToRet; y++) {
       val = val * potRet + (y < pot.contribStopYear ? (pot.annualContrib || 0) : 0);
+      accPensionByYear[y + 1] = (accPensionByYear[y + 1] || 0) + val;
     }
     if (partialYear > 0) {
       const partialContrib = fullYearsToRet < pot.contribStopYear ? (pot.annualContrib || 0) * partialYear : 0;
@@ -188,6 +192,45 @@ export function runDeterministicProjection(p, returnPct) {
     return { ci, priority: t === 'lisa' ? 2 : t === 'ss_isa' ? 1 : 0 };
   }).sort((a, b) => a.priority - b.priority).map(x => x.ci);
 
+  // Year-by-year cash accumulation for the chart (annual-step approximation, from today to retirement)
+  const accCashByYear = new Float64Array(fullYearsToRet + 1);
+  accCashByYear[0] = allCashPots.reduce((s, cp) => s + (cp.value || 0), 0);
+  if (fullYearsToRet > 0) {
+    const cashAccBals = allCashPots.map(cp => cp.value || 0);
+    const now = new Date();
+    for (let y = 0; y < fullYearsToRet; y++) {
+      for (let ci2 = 0; ci2 < allCashPots.length; ci2++) {
+        const cp = allCashPots[ci2];
+        const cpType = cp.type || 'cash';
+        const isML = cpType === 'ss_isa' || cpType === 'lisa';
+        // Inject arriving lump sum
+        if (cp.valueFromAge && cp.valueFromAge === Math.round(cp._ownerCurrentAge + y)) {
+          cashAccBals[ci2] += cp.value || 0;
+        }
+        // Growth
+        if (isML) {
+          const _eq = (cp.equityPct || 80) / 100;
+          cashAccBals[ci2] *= 1 + (_eq * meanEq + (1 - _eq) * meanBd) * scaleFactor / 100;
+        } else {
+          cashAccBals[ci2] *= 1 + (cp.interestPct || 0) / 100;
+        }
+        // Contributions
+        let delayYears = 0;
+        if (cp.contribStartMonth) {
+          const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
+          delayYears = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12;
+        }
+        if (y >= delayYears && (cp.monthlyContrib || 0) > 0) {
+          cashAccBals[ci2] += (cp.monthlyContrib || 0) * 12;
+          if (cpType === 'lisa' && cp._ownerCurrentAge + y < 50) {
+            cashAccBals[ci2] += Math.min((cp.monthlyContrib || 0) * 12, 4000) * 0.25;
+          }
+        }
+      }
+      accCashByYear[y + 1] = cashAccBals.reduce((s, v) => s + v, 0);
+    }
+  }
+
   // --- Retirement: year-by-year ---
   const detPotByYear = new Float64Array(years + 1);
   const detCashBalByYear = new Float64Array(years + 1);
@@ -275,7 +318,7 @@ export function runDeterministicProjection(p, returnPct) {
   }
   detCashContribByYear[years] = 0;
 
-  return { detPotByYear, detCashBalByYear, detCashContribByYear };
+  return { detPotByYear, detCashBalByYear, detCashContribByYear, accPensionByYear, accCashByYear, accYearsToRet: fullYearsToRet };
 }
 
 export function buildAnnualIncomeData(r, pctileIdx) {
@@ -1115,8 +1158,29 @@ export function runSimulation(p) {
     percentileData, pctiles, survivalByAge, realIncomeByAge,
     netMonthlyByAge, swrByAge, taxCalc,
     detPotByYear: det.detPotByYear, detCashBalByYear: det.detCashBalByYear, detCashContribByYear: det.detCashContribByYear, returnPct,
+    // Accumulation (pre-retirement) arrays — base scenario
+    accPensionByYear: det.accPensionByYear, accCashByYear: det.accCashByYear, accYearsToRet: det.accYearsToRet,
     mcRepPaths,
   };
+
+  // Bear / bull deterministic projections (±2%) — for full-range sensitivity lines on the chart
+  const bearReturnPct = Math.max(1, returnPct - 2);
+  const bullReturnPct = returnPct + 2;
+  const bearDet = runDeterministicProjection(Object.assign({}, p, { taxFreeFrac }), bearReturnPct);
+  const bullDet = runDeterministicProjection(Object.assign({}, p, { taxFreeFrac }), bullReturnPct);
+  if (bearDet) {
+    result.bearDetPotByYear = bearDet.detPotByYear;
+    result.bearDetCashBalByYear = bearDet.detCashBalByYear;
+    result.bearAccPensionByYear = bearDet.accPensionByYear;
+    result.bearAccCashByYear = bearDet.accCashByYear;
+  }
+  if (bullDet) {
+    result.bullDetPotByYear = bullDet.detPotByYear;
+    result.bullDetCashBalByYear = bullDet.detCashBalByYear;
+    result.bullAccPensionByYear = bullDet.accPensionByYear;
+    result.bullAccCashByYear = bullDet.accCashByYear;
+  }
+
   result.annualIncomeData = buildAnnualIncomeData(result, 2);
   return result;
 }

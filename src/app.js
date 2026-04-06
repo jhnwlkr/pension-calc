@@ -1562,7 +1562,7 @@ function setTodayMoney(checked, r) {
     renderCards(r);
     // re-render current active view immediately
     const tab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
-    if (tab === 'pot') { renderPotChart(r); renderIncomeTable(r); }
+    if (tab === 'pot') { renderPotChart(r); renderAccumulationCards(r); renderIncomeTable(r); }
     else if (tab === 'taxbreakdown') renderTaxBreakdown(r);
     else if (tab === 'realincome') renderRealIncomeChart(r);
     else if (tab === 'netmonthly') renderNetMonthlyChart(r);
@@ -3365,6 +3365,91 @@ function buildActualsChartData(r) {
 }
 
 // ── Pot Chart (Deterministic) ─────────────────────────────────────────────
+function renderAccumulationCards(r) {
+  const container = document.getElementById('accum-cards');
+  if (!container) return;
+  const p = r.p;
+  const useToday = isTodayMoney();
+  const baseInflFactor = 1 + (p.inflation || 0) / 100;
+  const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
+  const deflAtRet = useToday ? Math.pow(1 / baseInflFactor, yearsToRetirement) : 1;
+
+  // Projected total at retirement (pension + cash, base scenario)
+  const accLen = r.accPensionByYear ? r.accPensionByYear.length : 0;
+  const projPension = accLen > 0 ? r.accPensionByYear[accLen - 1] : (r.detPotByYear?.[0] ?? 0);
+  const projCash = accLen > 0 ? r.accCashByYear[accLen - 1] : (r.detCashBalByYear?.[0] ?? 0);
+  const projTotal = (projPension + projCash) * deflAtRet;
+
+  // Total contributions (pension annual + cash monthly)
+  let totalContribs = 0;
+  (p.pots || []).forEach(pot => { totalContribs += (pot.annualContrib || 0) * yearsToRetirement; });
+  if (p.partner) {
+    const ytp = Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge));
+    (p.partner.pots || []).forEach(pot => { totalContribs += (pot.annualContrib || 0) * ytp; });
+  }
+  (p.cashPots || []).forEach(cp => {
+    let delayYears = 0;
+    if (cp.contribStartMonth) {
+      const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
+      const now = new Date();
+      delayYears = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12;
+    }
+    const contribYears = Math.max(0, yearsToRetirement - delayYears);
+    totalContribs += (cp.monthlyContrib || 0) * 12 * contribYears;
+    if (cp.type === 'lisa' && (cp.monthlyContrib || 0) > 0 && p.currentAge < 50) {
+      const eligibleYears = Math.max(0, Math.min(contribYears, 50 - p.currentAge));
+      totalContribs += Math.min((cp.monthlyContrib || 0) * 12, 4000) * 0.25 * eligibleYears;
+    }
+  });
+  if (p.partner) {
+    const ytp = Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge));
+    (p.partner.cashPots || []).forEach(cp => {
+      let delayYears = 0;
+      if (cp.contribStartMonth) {
+        const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
+        const now = new Date();
+        delayYears = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12;
+      }
+      const contribYears = Math.max(0, ytp - delayYears);
+      totalContribs += (cp.monthlyContrib || 0) * 12 * contribYears;
+      if (cp.type === 'lisa' && (cp.monthlyContrib || 0) > 0 && p.partner.currentAge < 50) {
+        const eligibleYears = Math.max(0, Math.min(contribYears, 50 - p.partner.currentAge));
+        totalContribs += Math.min((cp.monthlyContrib || 0) * 12, 4000) * 0.25 * eligibleYears;
+      }
+    });
+  }
+  // Contributions in today's money if toggle is on — use simple avg deflator at midpoint
+  const contribsDisp = useToday ? totalContribs * Math.pow(1 / baseInflFactor, yearsToRetirement / 2) : totalContribs;
+
+  // Current total pot value
+  const currentPotTotal = (p.pots || []).reduce((s, pot) => s + (pot.value || 0), 0)
+    + (p.partner?.pots || []).reduce((s, pot) => s + (pot.value || 0), 0)
+    + (p.cashPots || []).reduce((s, cp) => s + (cp.value || 0), 0)
+    + (p.partner?.cashPots || []).reduce((s, cp) => s + (cp.value || 0), 0);
+
+  // Total growth = projected - current values (deflated) - contributions (deflated)
+  const currentDisp = useToday ? currentPotTotal : currentPotTotal;
+  const totalGrowth = Math.max(0, projTotal - currentDisp - contribsDisp);
+
+  const yrs = Math.round(yearsToRetirement);
+  container.innerHTML = `
+    <div class="accum-card">
+      <div class="accum-card-label">Projected pot at retirement</div>
+      <div class="accum-card-value">${fmtGBP(projTotal)}</div>
+      <div class="accum-card-sub">${yrs} year${yrs !== 1 ? 's' : ''} to go · pension ${fmtGBP(projPension * deflAtRet)} · cash ${fmtGBP(projCash * deflAtRet)}</div>
+    </div>
+    <div class="accum-card">
+      <div class="accum-card-label">Total contributions</div>
+      <div class="accum-card-value">${fmtGBP(contribsDisp)}</div>
+      <div class="accum-card-sub">you add before retirement${useToday ? ' (approx. today\'s money)' : ''}</div>
+    </div>
+    <div class="accum-card">
+      <div class="accum-card-label">Total growth</div>
+      <div class="accum-card-value">${fmtGBP(totalGrowth)}</div>
+      <div class="accum-card-sub">projected investment return${useToday ? ' (today\'s money)' : ''}</div>
+    </div>`;
+}
+
 function renderPotChart(r) {
   if (!chartAvailable()) return;
   destroyChart('pot');
@@ -3375,57 +3460,119 @@ function renderPotChart(r) {
   const p = r.p;
   const baseInflFactor = 1 + (p?.inflation || 0) / 100;
   const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
-  const deflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
+  // Deflator indexed from today (year 0 = currentAge)
+  const deflatorFromToday = y => Math.pow(1 / baseInflFactor, y);
   const returnPct = r.returnPct ?? 5;
-
-  // Simulation values indexed from r.ages[0] = retirementAge
-  const detVals = Array.from(r.detPotByYear || []).map((v, i) => useToday ? v * deflator(i) : v);
+  const bearReturnPct = Math.max(1, returnPct - 2);
+  const bullReturnPct = returnPct + 2;
 
   const { chartAges, potActualsByAge, todayIdx, showTodayLine } = buildActualsChartData(r);
-  const spAgeIdx = chartAges.indexOf(p.spAge);
 
-  // Simulation: null before retirementAge or before currentAge — no fabricated history
-  const simValues = chartAges.map(a => {
-    if (a < r.ages[0] || a < p.currentAge) return null;
-    const i = a - r.ages[0];
-    return i < detVals.length ? detVals[i] : null;
-  });
+  // Build full age range from currentAge to endAge
+  const currentAge = Math.floor(p.currentAge);
+  const allAges = [];
+  for (let a = currentAge; a <= p.endAge; a++) allAges.push(a);
 
-  // Actuals overlay: sparse array, gaps left blank (spanGaps: false)
+  // Helper: stitch pre-ret acc array + post-ret det array into a full values array over allAges
+  function stitchSeries(accArr, detArr, accOffset) {
+    // accArr[0] = value at currentAge, accArr[i] = value at currentAge+i (up to retirementAge)
+    // detArr[0] = value at retirementAge, detArr[i] = value at retirementAge+i
+    // accOffset = integer offset if accArr starts earlier than currentAge (0 for us)
+    return allAges.map(a => {
+      const yearFromToday = a - currentAge;
+      if (a < p.retirementAge) {
+        const i = a - currentAge;
+        const v = (accArr && i < accArr.length) ? accArr[i] : null;
+        if (v == null) return null;
+        return useToday ? v * deflatorFromToday(yearFromToday) : v;
+      } else {
+        const i = a - p.retirementAge;
+        const v = (detArr && i < detArr.length) ? detArr[i] : null;
+        if (v == null) return null;
+        return useToday ? v * deflatorFromToday(yearFromToday) : v;
+      }
+    });
+  }
+
+  // Base: pension + cash combined
+  const basePensionCash = stitchSeries(
+    (r.accPensionByYear && r.accCashByYear)
+      ? Array.from(r.accPensionByYear).map((v, i) => v + (r.accCashByYear[i] || 0))
+      : null,
+    Array.from(r.detPotByYear || []).map((v, i) => v + ((r.detCashBalByYear || [])[i] || 0)),
+    0
+  );
+
+  // Bear: pension + cash combined
+  const bearPensionCash = (r.bearDetPotByYear) ? stitchSeries(
+    (r.bearAccPensionByYear && r.bearAccCashByYear)
+      ? Array.from(r.bearAccPensionByYear).map((v, i) => v + (r.bearAccCashByYear[i] || 0))
+      : null,
+    Array.from(r.bearDetPotByYear).map((v, i) => v + ((r.bearDetCashBalByYear || [])[i] || 0)),
+    0
+  ) : null;
+
+  // Bull: pension + cash combined
+  const bullPensionCash = (r.bullDetPotByYear) ? stitchSeries(
+    (r.bullAccPensionByYear && r.bullAccCashByYear)
+      ? Array.from(r.bullAccPensionByYear).map((v, i) => v + (r.bullAccCashByYear[i] || 0))
+      : null,
+    Array.from(r.bullDetPotByYear).map((v, i) => v + ((r.bullDetCashBalByYear || [])[i] || 0)),
+    0
+  ) : null;
+
+  // Actuals overlay
+  const retDeflator = i => Math.pow(1 / baseInflFactor, yearsToRetirement + i);
   const hasActuals = Object.keys(potActualsByAge).length > 0;
-  const actualsValues = chartAges.map(a => {
+  const actualsValues = allAges.map(a => {
     if (potActualsByAge[a] == null) return null;
-    const simI = Math.max(0, a - r.ages[0]);
-    return useToday ? potActualsByAge[a] * deflator(simI) : potActualsByAge[a];
+    const yearFromToday = a - currentAge;
+    return useToday ? potActualsByAge[a] * deflatorFromToday(yearFromToday) : potActualsByAge[a];
   });
+
+  const spAgeIdx = allAges.indexOf(p.spAge);
+  const retAgeIdx = allAges.indexOf(p.retirementAge);
+  const todayAgeIdx = allAges.indexOf(currentAge);
 
   const titleEl = document.getElementById('pot-chart-title');
-  if (titleEl) titleEl.textContent = `Pot Balance — Deterministic Projection (${returnPct}% return)`;
+  if (titleEl) titleEl.textContent = `Pot Balance — ${returnPct}% base · ${bearReturnPct}% bear · ${bullReturnPct}% bull`;
+
+  const noteEl = document.getElementById('pot-chart-note');
+  if (noteEl) noteEl.textContent = `Deterministic projection from today. Dashed lines show ±2% return sensitivity. Amber = State Pension age. Orange = Retirement.`;
 
   const overlayPlugin = {
     id: 'overlay',
     afterDraw(chart) {
       const { ctx: c, scales: { x, y } } = chart;
-      if (spAgeIdx >= 0) {
-        const xPx = x.getPixelForValue(spAgeIdx);
-        c.save(); c.strokeStyle = '#d97706'; c.lineWidth = 1.5; c.setLineDash([6, 4]);
+      const drawVLine = (idx, color, dash, label, labelY) => {
+        if (idx < 0) return;
+        const xPx = x.getPixelForValue(idx);
+        c.save(); c.strokeStyle = color; c.lineWidth = 1.5; c.setLineDash(dash);
         c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
-        c.fillStyle = '#d97706'; c.font = '11px system-ui,sans-serif';
-        c.textAlign = 'left'; c.fillText('State Pension', xPx + 4, y.top + 14); c.restore();
-      }
+        c.fillStyle = color; c.font = '11px system-ui,sans-serif';
+        c.textAlign = 'left'; c.fillText(label, xPx + 4, labelY); c.restore();
+      };
+      drawVLine(retAgeIdx, '#ea580c', [6, 4], 'Retirement', y.top + 14);
+      drawVLine(spAgeIdx, '#d97706', [6, 4], 'State Pension', y.top + 28);
       if (showTodayLine) {
-        const xPx = x.getPixelForValue(todayIdx);
+        const xPx = x.getPixelForValue(allAges.indexOf(currentAge));
         c.save(); c.strokeStyle = '#2563eb'; c.lineWidth = 1.5; c.setLineDash([4, 4]);
         c.beginPath(); c.moveTo(xPx, y.top); c.lineTo(xPx, y.bottom); c.stroke();
         c.fillStyle = '#2563eb'; c.font = '11px system-ui,sans-serif';
-        c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 28); c.restore();
+        c.textAlign = 'left'; c.fillText('Today', xPx + 4, y.top + 42); c.restore();
       }
     }
   };
 
   const datasets = [
-    { label: `${returnPct}% return (projected)`, data: simValues, borderColor: 'rgba(37,99,235,1)', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2, spanGaps: false },
+    { label: `${returnPct}% return`, data: basePensionCash, borderColor: 'rgba(37,99,235,1)', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2, spanGaps: false },
   ];
+  if (bearPensionCash) {
+    datasets.push({ label: `${bearReturnPct}% (bear)`, data: bearPensionCash, borderColor: 'rgba(220,38,38,0.55)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5, borderDash: [5, 4], spanGaps: false });
+  }
+  if (bullPensionCash) {
+    datasets.push({ label: `${bullReturnPct}% (bull)`, data: bullPensionCash, borderColor: 'rgba(22,163,74,0.55)', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5, borderDash: [5, 4], spanGaps: false });
+  }
   if (hasActuals) {
     datasets.push({ label: 'Actual total pot', data: actualsValues, borderColor: '#16a34a', backgroundColor: '#16a34a', showLine: true, tension: 0.2, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2, spanGaps: false, fill: false });
   }
@@ -3433,7 +3580,7 @@ function renderPotChart(r) {
   charts['pot'] = new Chart(ctx, {
     type: 'line',
     plugins: [overlayPlugin],
-    data: { labels: chartAges, datasets },
+    data: { labels: allAges, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
@@ -4730,6 +4877,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
       renderCards(r);
       const explain = buildExplainability(getParams(), r);
       renderExplainability(explain, r);
+      renderAccumulationCards(r);
       renderIncomeTable(r);
 
       if (activeTab === 'pot') renderPotChart(r);
@@ -4844,6 +4992,7 @@ function initApp() {
         renderCards(r);
         const explain = buildExplainability(getParams(), r);
         renderExplainability(explain, r);
+        renderAccumulationCards(r);
         renderIncomeTable(r);
         const activeTab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
         if (activeTab === 'pot') renderPotChart(r);
