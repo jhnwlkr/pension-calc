@@ -4044,6 +4044,9 @@ function initApp() {
   // so this final call overwrites storage with the complete correct state.
   persistParams();
 
+  // Apply actuals enabled state (covers fresh loads and old saved state without the key)
+  applyActualsEnabled(isActualsEnabled());
+
   // ── Flatpickr DOB pickers ─────────────────────────────────────────────
   // Initialised here so defaultDate picks up the already-restored value.
   function _initDobPicker(inputId, labelId) {
