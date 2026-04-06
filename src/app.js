@@ -519,7 +519,7 @@ function renderIncomesUI() {
       }
       if (field === 'inflationBase') {
         inc.inflationBase = el.value;
-      } else if (field === 'name' || field === 'frequency') {
+      } else if (field === 'name' || field === 'frequency' || field === 'incomeType') {
         inc[field] = el.value;
       } else if (field === 'startAge' || field === 'endAge') {
         if (el.value.length > 3) { el.value = el.value.slice(0, 3); }
