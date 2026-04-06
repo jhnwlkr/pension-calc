@@ -81,13 +81,22 @@ export function runDeterministicProjection(p, returnPct) {
     }
     return Math.max(0, val);
   });
-  const pensionPot = potValsAtRet.reduce((s, v) => s + v, 0);
+  const pensionPotBeforePcls = potValsAtRet.reduce((s, v) => s + v, 0);
 
-  // Blended return for retirement drawdown phase — weighted by pot value at retirement
-  const retBlended = 1 + (pensionPot > 0
+  // PCLS: deduct one-off lump sum from pot at retirement before drawdown begins
+  const _priPotDet = potValsAtRet.slice(0, p.pots.length).reduce((s, v) => s + v, 0);
+  const _parPotDet = pensionPotBeforePcls - _priPotDet;
+  const _priPclsDet = p.taxFreeMode === 'pcls'
+    ? Math.min((p.pclsPct || 0) / 100 * _priPotDet, LSA, _priPotDet * 0.25) : 0;
+  const _parPclsDet = p.partner?.taxFreeMode === 'pcls'
+    ? Math.min((p.partner?.pclsPct || 0) / 100 * _parPotDet, LSA, _parPotDet * 0.25) : 0;
+  const pensionPot = Math.max(0, pensionPotBeforePcls - _priPclsDet - _parPclsDet);
+
+  // Blended return for retirement drawdown phase — weighted by pre-PCLS pot values
+  const retBlended = 1 + (pensionPotBeforePcls > 0
     ? allPotsConfig.reduce((s, pot, i) => {
         const eq = (pot.equityPct ?? 80) / 100;
-        return s + potValsAtRet[i] / pensionPot * (eq * meanEq + (1 - eq) * meanBd) * scaleFactor / 100;
+        return s + potValsAtRet[i] / pensionPotBeforePcls * (eq * meanEq + (1 - eq) * meanBd) * scaleFactor / 100;
       }, 0)
     : returnPct / 100);
 
@@ -282,17 +291,14 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
     // Per-year tax-free fracs — respects taxFreeMode (ufpls / pcls / none) per person
+    // PCLS: pot already reduced at retirement, all subsequent drawdown is fully taxable
     const actualPriDraw = potWithdrawNominal * primaryPotFrac_;
     const actualParDraw = potWithdrawNominal * (1 - primaryPotFrac_);
     const priMode = p.taxFreeMode || 'ufpls';
     const parMode = p.partner?.taxFreeMode || 'ufpls';
     let primaryTFracYear;
-    if (priMode === 'none') {
+    if (priMode === 'none' || priMode === 'pcls') {
       primaryTFracYear = 0;
-    } else if (priMode === 'pcls') {
-      // PCLS: tax-free only in year 0, up to pclsAmount (capped at LSA and 25% of withdrawal)
-      const pclsAmt = Math.min(p.pclsAmount || 0, LSA, actualPriDraw * 0.25);
-      primaryTFracYear = (yi === 0 && actualPriDraw > 0) ? pclsAmt / actualPriDraw : 0;
     } else {
       // UFPLS: 25% each year until LSA exhausted
       primaryTFracYear = actualPriDraw > 0
@@ -300,11 +306,8 @@ export function buildAnnualIncomeData(r, pctileIdx) {
         : (cumulPrimaryTaxFree < LSA ? 0.25 : 0);
     }
     let partnerTFracYear;
-    if (parMode === 'none') {
+    if (parMode === 'none' || parMode === 'pcls') {
       partnerTFracYear = 0;
-    } else if (parMode === 'pcls') {
-      const pclsAmt = Math.min(p.partner?.pclsAmount || 0, LSA, actualParDraw * 0.25);
-      partnerTFracYear = (yi === 0 && actualParDraw > 0) ? pclsAmt / actualParDraw : 0;
     } else {
       partnerTFracYear = (p.partner && actualParDraw > 0)
         ? Math.min(0.25, Math.max(0, LSA - cumulPartnerTaxFree) / actualParDraw)
@@ -516,27 +519,32 @@ export function runSimulation(p) {
     ...(p.partner ? { partner: Object.assign({}, p.partner, { sp: partnerSpAtRetirement }) } : {}),
   });
 
-  // Each person's pot gets its own LSA (£268,275) — compute weighted combined tax-free fraction
-  // Respects taxFreeMode: 'ufpls' (25%/yr), 'pcls' (one-off lump sum), 'none' (0%)
+  // Each person's pot gets its own LSA (£268,275)
+  // For PCLS: income from the reduced pot is fully taxable (taxFreeFrac = 0)
+  // For UFPLS: 25% of each withdrawal is tax-free until LSA is used up
   const primaryPotMedian = Float64Array.from(primaryStartTotals).sort()[Math.floor(nRuns / 2)];
   const partnerPotMedian = Float64Array.from(partnerStartTotals).sort()[Math.floor(nRuns / 2)];
   const priMode_ = p.taxFreeMode || 'ufpls';
   const parMode_ = p.partner?.taxFreeMode || 'ufpls';
-  const primaryTaxFreeAmt = priMode_ === 'none' ? 0
-    : priMode_ === 'pcls' ? Math.min(p.pclsAmount || 0, LSA, primaryPotMedian * 0.25)
+  // PCLS amounts (from median pots) — deducted from the pot at retirement
+  const primaryPclsAmt = priMode_ === 'pcls'
+    ? Math.min((p.pclsPct || 0) / 100 * primaryPotMedian, LSA, primaryPotMedian * 0.25) : 0;
+  const partnerPclsAmt = (p.partner && parMode_ === 'pcls')
+    ? Math.min((p.partner?.pclsPct || 0) / 100 * partnerPotMedian, LSA, partnerPotMedian * 0.25) : 0;
+  // startPensionPot post-PCLS (used for drawdown% mode and card display)
+  const startPensionPotPrePcls = startPensionPot;
+  const startPensionPotPostPcls = Math.max(0, startPensionPot - primaryPclsAmt - partnerPclsAmt);
+
+  // taxFreeFrac scalar: 0 for PCLS (pot reduced, income fully taxable); 0 for none; 25%-until-LSA for UFPLS
+  const primaryTaxFreeAmt = priMode_ === 'none' || priMode_ === 'pcls' ? 0
     : (primaryPotMedian > 0 ? primaryPotMedian * Math.min(0.25, LSA / primaryPotMedian) : 0);
-  const partnerTaxFreeAmt = !p.partner ? 0
-    : parMode_ === 'none' ? 0
-    : parMode_ === 'pcls' ? Math.min(p.partner?.pclsAmount || 0, LSA, partnerPotMedian * 0.25)
+  const partnerTaxFreeAmt = !p.partner || parMode_ === 'none' || parMode_ === 'pcls' ? 0
     : (partnerPotMedian > 0 ? partnerPotMedian * Math.min(0.25, LSA / partnerPotMedian) : 0);
-  const taxFreeFrac = startPensionPot > 0 ? (primaryTaxFreeAmt + partnerTaxFreeAmt) / startPensionPot : 0.25;
-  // Per-person fractions exported so Tax Breakdown can tax each person independently
-  const primaryTaxFreeFrac = priMode_ === 'none' ? 0
-    : priMode_ === 'pcls' ? (primaryPotMedian > 0 ? Math.min(p.pclsAmount || 0, LSA, primaryPotMedian * 0.25) / primaryPotMedian : 0)
+  const taxFreeFrac = startPensionPotPostPcls > 0 ? (primaryTaxFreeAmt + partnerTaxFreeAmt) / startPensionPotPostPcls : (priMode_ === 'ufpls' ? 0.25 : 0);
+  // Per-person fractions for tax breakdown display
+  const primaryTaxFreeFrac = priMode_ === 'none' || priMode_ === 'pcls' ? 0
     : (primaryPotMedian > 0 ? Math.min(0.25, LSA / primaryPotMedian) : 0.25);
-  const partnerTaxFreeFrac = !p.partner ? 0
-    : parMode_ === 'none' ? 0
-    : parMode_ === 'pcls' ? (partnerPotMedian > 0 ? Math.min(p.partner?.pclsAmount || 0, LSA, partnerPotMedian * 0.25) / partnerPotMedian : 0)
+  const partnerTaxFreeFrac = !p.partner || parMode_ === 'none' || parMode_ === 'pcls' ? 0
     : (partnerPotMedian > 0 ? Math.min(0.25, LSA / partnerPotMedian) : 0.25);
   const primaryPotFrac = (primaryPotMedian + partnerPotMedian) > 0
     ? primaryPotMedian / (primaryPotMedian + partnerPotMedian)
@@ -564,6 +572,16 @@ export function runSimulation(p) {
   for (let r = 0; r < nRuns; r++) {
     const runPots = new Float64Array(numPots);
     potsOrder.forEach((origIdx, rank) => { runPots[rank] = startPotsPerRun[r][origIdx]; });
+
+    // PCLS: deduct per-run lump sum from pension pots at retirement
+    const _runPensionTotal = runPots.reduce((s, v) => s + v, 0);
+    const _runPriPcls = priMode_ === 'pcls' ? Math.min((p.pclsPct||0)/100 * primaryStartTotals[r], LSA, primaryStartTotals[r] * 0.25) : 0;
+    const _runParPcls = parMode_ === 'pcls' ? Math.min((p.partner?.pclsPct||0)/100 * partnerStartTotals[r], LSA, partnerStartTotals[r] * 0.25) : 0;
+    const _runPclsTotal = _runPriPcls + _runParPcls;
+    if (_runPclsTotal > 0 && _runPensionTotal > 0) {
+      const _scale = Math.max(0, (_runPensionTotal - _runPclsTotal) / _runPensionTotal);
+      for (let pi = 0; pi < numPots; pi++) runPots[pi] *= _scale;
+    }
 
     const runCashPots = Float64Array.from(startCashPotVals);
     const runStartValues = Float64Array.from(runPots);
@@ -615,7 +633,7 @@ export function runSimulation(p) {
       cumulInfl *= (1 + inflThisYear);
       const pensionTotalAfterGrowth = runPots.reduce((s, v) => s + v, 0);
 
-      const pensionOnlyStart = startTotals[r];
+      const pensionOnlyStart = Math.max(0, startTotals[r] - _runPclsTotal);
       const guardrailActive = p.guardrails && pensionTotalAfterGrowth < pensionOnlyStart * 0.80;
       if (guardrailActive) guardrailEverTriggered = true;
 
@@ -908,6 +926,8 @@ export function runSimulation(p) {
     ages, years, p, prob, guardrailPct, medianReal,
     swrPct, swr, netMonthly, grossMonthly, netAnnual, grossAnnual, startPot, startPensionPot, startCashTotal,
     startCashPotVals, cashContribByYear, cashBalByYear, taxFreeFrac, primaryTaxFreeFrac, partnerTaxFreeFrac, primaryPotFrac, startInitialPotValues,
+    primaryPclsAmt, partnerPclsAmt,
+    primaryPotPrePcls: primaryPotMedian, partnerPotPrePcls: partnerPotMedian,
     percentileData, pctiles, survivalByAge, realIncomeByAge,
     netMonthlyByAge, swrByAge, taxCalc,
     detPotByYear: det.detPotByYear, detCashBalByYear: det.detCashBalByYear, detCashContribByYear: det.detCashContribByYear, returnPct,

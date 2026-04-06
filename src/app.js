@@ -1179,7 +1179,7 @@ function getPartnerEnabled() {
 
 function getPartnerParams() {
   if (!getPartnerEnabled()) return null;
-  const partnerTfMode = document.querySelector('input[name="partner-tf-mode"]:checked')?.value || 'ufpls';
+  const partnerPclsEnabled = document.getElementById('partner-pcls-enabled')?.checked ?? false;
   return {
     currentAge: dobToAge(document.getElementById('partner-dob').value),
     currentAgeFrac: dobToAgeExact(document.getElementById('partner-dob').value),
@@ -1189,8 +1189,8 @@ function getPartnerParams() {
     pots: partnerPotsData.map(p => Object.assign({}, p)),
     cashPots: partnerCashPotsData.map(p => Object.assign({}, p)),
     incomes: partnerIncomesData.map(i => Object.assign({}, i)),
-    taxFreeMode: partnerTfMode,
-    pclsAmount: partnerTfMode === 'pcls' ? (+document.getElementById('partner-pcls-amount').value || 0) : 0,
+    taxFreeMode: partnerPclsEnabled ? 'pcls' : 'ufpls',
+    pclsPct: partnerPclsEnabled ? (+document.getElementById('partner-pcls-pct').value || 25) : 0,
   };
 }
 
@@ -1216,9 +1216,8 @@ function getParams() {
     incomes: incomesData.map(i => Object.assign({}, i)),
     cashPots: cashPotsData.map(p => Object.assign({}, p)),
     partner: getPartnerParams(),
-    taxFreeMode: document.querySelector('input[name="tf-mode"]:checked')?.value || 'ufpls',
-    pclsAmount: (document.querySelector('input[name="tf-mode"]:checked')?.value === 'pcls')
-      ? (+document.getElementById('pcls-amount').value || 0) : 0,
+    taxFreeMode: document.getElementById('pcls-enabled')?.checked ? 'pcls' : 'ufpls',
+    pclsPct: document.getElementById('pcls-enabled')?.checked ? (+document.getElementById('pcls-pct').value || 25) : 0,
   };
 }
 
@@ -1351,10 +1350,10 @@ function buildExportPayload() {
   settings['today-money']         = isTodayMoney() ? '1' : '0';
   settings['actuals-enabled']     = isActualsEnabled() ? '1' : '0';
   settings['recalibrate-toggle']  = document.getElementById('recalibrate-toggle')?.checked ? '1' : '0';
-  settings['tf-mode']             = document.querySelector('input[name="tf-mode"]:checked')?.value || 'ufpls';
-  settings['pcls-amount']         = document.getElementById('pcls-amount')?.value || '0';
-  settings['partner-tf-mode']     = document.querySelector('input[name="partner-tf-mode"]:checked')?.value || 'ufpls';
-  settings['partner-pcls-amount'] = document.getElementById('partner-pcls-amount')?.value || '0';
+  settings['pcls-enabled']         = document.getElementById('pcls-enabled')?.checked ? '1' : '0';
+  settings['pcls-pct']             = document.getElementById('pcls-pct')?.value || '25';
+  settings['partner-pcls-enabled'] = document.getElementById('partner-pcls-enabled')?.checked ? '1' : '0';
+  settings['partner-pcls-pct']     = document.getElementById('partner-pcls-pct')?.value || '25';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) settings[id] = el.value; });
 
   // Actuals = all pot registries, income registries, groups, events
@@ -1750,10 +1749,10 @@ function persistParams() {
   obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
   obj['actuals-enabled'] = isActualsEnabled() ? '1' : '0';
   obj['recalibrate-toggle'] = document.getElementById('recalibrate-toggle')?.checked ? '1' : '0';
-  obj['tf-mode'] = document.querySelector('input[name="tf-mode"]:checked')?.value || 'ufpls';
-  obj['pcls-amount'] = document.getElementById('pcls-amount')?.value || '0';
-  obj['partner-tf-mode'] = document.querySelector('input[name="partner-tf-mode"]:checked')?.value || 'ufpls';
-  obj['partner-pcls-amount'] = document.getElementById('partner-pcls-amount')?.value || '0';
+  obj['pcls-enabled'] = document.getElementById('pcls-enabled')?.checked ? '1' : '0';
+  obj['pcls-pct'] = document.getElementById('pcls-pct')?.value || '25';
+  obj['partner-pcls-enabled'] = document.getElementById('partner-pcls-enabled')?.checked ? '1' : '0';
+  obj['partner-pcls-pct'] = document.getElementById('partner-pcls-pct')?.value || '25';
   obj['active-tab'] = document.querySelector('.tab.active')?.dataset.tab || 'pot';
   obj['mc-pctile'] = document.getElementById('mc-pctile').value;
   const taxYearEl = document.getElementById('tax-year-select');
@@ -2011,21 +2010,23 @@ function restoreParams(obj) {
     const cb = document.getElementById('recalibrate-toggle');
     if (cb) cb.checked = obj['recalibrate-toggle'] !== '0';
   }
-  if (obj['tf-mode']) {
-    const el = document.getElementById('tf-' + obj['tf-mode']);
-    if (el) { el.checked = true; updateTfMode('primary'); }
+  if (obj['pcls-enabled'] !== undefined) {
+    const cb = document.getElementById('pcls-enabled');
+    if (cb) { cb.checked = obj['pcls-enabled'] !== '0' && obj['pcls-enabled'] !== ''; updateTfMode('primary'); }
   }
-  if (obj['pcls-amount'] !== undefined) {
-    const el = document.getElementById('pcls-amount');
-    if (el) el.value = obj['pcls-amount'];
+  if (obj['pcls-pct'] !== undefined) {
+    const el = document.getElementById('pcls-pct');
+    const lbl = document.getElementById('v-pcls-pct');
+    if (el) { el.value = obj['pcls-pct']; if (lbl) lbl.textContent = obj['pcls-pct'] + '%'; }
   }
-  if (obj['partner-tf-mode']) {
-    const el = document.getElementById('partner-tf-' + obj['partner-tf-mode']);
-    if (el) { el.checked = true; updateTfMode('partner'); }
+  if (obj['partner-pcls-enabled'] !== undefined) {
+    const cb = document.getElementById('partner-pcls-enabled');
+    if (cb) { cb.checked = obj['partner-pcls-enabled'] !== '0' && obj['partner-pcls-enabled'] !== ''; updateTfMode('partner'); }
   }
-  if (obj['partner-pcls-amount'] !== undefined) {
-    const el = document.getElementById('partner-pcls-amount');
-    if (el) el.value = obj['partner-pcls-amount'];
+  if (obj['partner-pcls-pct'] !== undefined) {
+    const el = document.getElementById('partner-pcls-pct');
+    const lbl = document.getElementById('v-partner-pcls-pct');
+    if (el) { el.value = obj['partner-pcls-pct']; if (lbl) lbl.textContent = obj['partner-pcls-pct'] + '%'; }
   }
   // Restore UI view state
   if (obj['active-tab']) setActiveTab(obj['active-tab']);
@@ -2082,11 +2083,10 @@ function updateDrawdownMode(mode) {
 }
 
 function updateTfMode(person) {
-  const isPrimary = person !== 'partner';
-  const prefix = isPrimary ? '' : 'partner-';
-  const mode = document.querySelector(`input[name="${prefix}tf-mode"]:checked`)?.value || 'ufpls';
-  const pclsRow = document.getElementById(`${prefix}pcls-amount-row`);
-  if (pclsRow) pclsRow.classList.toggle('hidden', mode !== 'pcls');
+  const prefix = person === 'partner' ? 'partner-' : '';
+  const enabled = document.getElementById(`${prefix}pcls-enabled`)?.checked ?? false;
+  const pclsRow = document.getElementById(`${prefix}pcls-pct-row`);
+  if (pclsRow) pclsRow.classList.toggle('hidden', !enabled);
 }
 
 const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
@@ -2185,27 +2185,22 @@ function buildAnnualIncomeData(r) {
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
 
     // Per-year tax-free fracs — respects taxFreeMode (ufpls / pcls / none) per person
+    // PCLS: pot is already reduced at retirement, all subsequent drawdown is fully taxable
     const actualPriDraw = potWithdrawNominal * primaryPotFrac_;
     const actualParDraw = potWithdrawNominal * (1 - primaryPotFrac_);
     const priMode = p.taxFreeMode || 'ufpls';
     const parMode = p.partner?.taxFreeMode || 'ufpls';
     let primaryTFracYear;
-    if (priMode === 'none') {
+    if (priMode === 'none' || priMode === 'pcls') {
       primaryTFracYear = 0;
-    } else if (priMode === 'pcls') {
-      const pclsAmt = Math.min(p.pclsAmount || 0, LSA, actualPriDraw * 0.25);
-      primaryTFracYear = (yi === 0 && actualPriDraw > 0) ? pclsAmt / actualPriDraw : 0;
     } else {
       primaryTFracYear = actualPriDraw > 0
         ? Math.min(0.25, Math.max(0, LSA - cumulPrimaryTaxFree) / actualPriDraw)
         : (cumulPrimaryTaxFree < LSA ? 0.25 : 0);
     }
     let partnerTFracYear;
-    if (parMode === 'none') {
+    if (parMode === 'none' || parMode === 'pcls') {
       partnerTFracYear = 0;
-    } else if (parMode === 'pcls') {
-      const pclsAmt = Math.min(p.partner?.pclsAmount || 0, LSA, actualParDraw * 0.25);
-      partnerTFracYear = (yi === 0 && actualParDraw > 0) ? pclsAmt / actualParDraw : 0;
     } else {
       partnerTFracYear = (partner && actualParDraw > 0)
         ? Math.min(0.25, Math.max(0, LSA - cumulPartnerTaxFree) / actualParDraw)
@@ -2495,13 +2490,24 @@ function renderCards(r) {
   const detRetPot     = detPension + detCash;
   const detPensionDisp = useToday ? detPension * realDeflRet : detPension;
   const detCashDisp    = useToday ? detCash * realDeflRet    : detCash;
+  // PCLS £ equivalent next to slider
+  const primaryPclsDisp = useToday ? (r.primaryPclsAmt || 0) * realDeflRet : (r.primaryPclsAmt || 0);
+  const partnerPclsDisp = useToday ? (r.partnerPclsAmt || 0) * realDeflRet : (r.partnerPclsAmt || 0);
+  const pclsGbpEl = document.getElementById('pcls-gbp-equiv');
+  if (pclsGbpEl) pclsGbpEl.textContent = (r.primaryPclsAmt || 0) > 0 ? `≈ ${fmtGBP(primaryPclsDisp)} lump sum` : '';
+  const partnerPclsGbpEl = document.getElementById('partner-pcls-gbp-equiv');
+  if (partnerPclsGbpEl) partnerPclsGbpEl.textContent = (r.partnerPclsAmt || 0) > 0 ? `≈ ${fmtGBP(partnerPclsDisp)} lump sum` : '';
+
   document.getElementById('c-median').textContent = fmtGBP(detPensionDisp);
   const cMedianSub = document.getElementById('c-median-sub');
   if (cMedianSub) {
+    const pclsLine = (r.primaryPclsAmt || 0) + (r.partnerPclsAmt || 0) > 0
+      ? `<span style="display:block;font-size:0.72rem;color:var(--text2);margin-top:3px">After PCLS deduction of <strong style="color:var(--text)">${fmtGBP(primaryPclsDisp + partnerPclsDisp)}</strong></span>`
+      : '';
     const cashLine = detCashDisp > 0
       ? `<span style="display:block;font-size:0.72rem;color:var(--text2);margin-top:3px">Cash/ISA: <strong style="color:var(--text)">${fmtGBP(detCashDisp)}</strong></span>`
       : '';
-    cMedianSub.innerHTML = `${useToday ? "today's money" : 'nominal at retirement'}${cashLine}`;
+    cMedianSub.innerHTML = `${useToday ? "today's money" : 'nominal at retirement'}${pclsLine}${cashLine}`;
   }
 
   // SWR: keep the MC-derived absolute safe amount (r.swr) but express as % of det pot
@@ -3482,8 +3488,8 @@ function renderTaxBreakdown(r) {
         <div class="tw-step-title">Step 1 — Gross income &amp; tax-free cash</div>
         <table class="tw-table">
           ${dwAnn > 0 ? `<tr><td>Pension pot drawdown (gross)</td><td class="num">${fmtN(dwAnn)}</td></tr>
-          <tr class="tw-sub"><td>↳ Tax-free portion (${fmtPct(tfFrac * 100)}${mode === 'pcls' ? ' — PCLS lump sum' : mode === 'none' ? ' — no tax-free cash' : ' — UFPLS'})</td><td class="num">− ${fmtN(taxFreeAnn_)}</td></tr>
-          <tr class="tw-sub tw-sub2"><td>&nbsp;&nbsp;↳ ${fmtGBP(cumulTaxFreeUsed + taxFreeAnn_)} used · ${fmtGBP(Math.max(0, LSA - cumulTaxFreeUsed - taxFreeAnn_))} remaining of ${fmtGBP(LSA)}</td><td class="num"></td></tr>
+          <tr class="tw-sub"><td>↳ Tax-free portion (${mode === 'pcls' ? `0% — PCLS lump sum taken at retirement` : mode === 'none' ? '0% — no tax-free cash' : `${fmtPct(tfFrac * 100)} — UFPLS`})</td><td class="num">− ${fmtN(taxFreeAnn_)}</td></tr>
+          ${mode !== 'pcls' ? `<tr class="tw-sub tw-sub2"><td>&nbsp;&nbsp;↳ ${fmtGBP(cumulTaxFreeUsed + taxFreeAnn_)} used · ${fmtGBP(Math.max(0, LSA - cumulTaxFreeUsed - taxFreeAnn_))} remaining of ${fmtGBP(LSA)}</td><td class="num"></td></tr>` : ''}
           <tr class="tw-sub tw-subtotal"><td>↳ Taxable pension drawdown</td><td class="num">${fmtN(pensionTaxable_)}</td></tr>` : ''}
           ${hasSP_ ? `<tr><td>State pension</td><td class="num">${fmtN(spAnn)}</td></tr>` : ''}
           ${items_.map(it => `<tr><td>${it.name || 'Other income'}${it.gross > 0 && it.type && it.type !== 'employment' ? ` <small class="tx-rate">${it.type}</small>` : ''}</td><td class="num">${fmtN(it.gross)}</td></tr>`).join('')}
@@ -4361,14 +4367,20 @@ function initApp() {
   document.getElementById('drawdown-inflation').addEventListener('change', persistParams);
 
   // Tax-free cash mode (primary + partner)
-  document.querySelectorAll('input[name="tf-mode"]').forEach(radio => {
-    radio.addEventListener('change', () => { updateTfMode('primary'); persistParams(); });
+  document.getElementById('pcls-enabled')?.addEventListener('change', () => { updateTfMode('primary'); recalcAndRender(); persistParams(); });
+  document.getElementById('pcls-pct')?.addEventListener('input', () => {
+    const el = document.getElementById('pcls-pct');
+    const lbl = document.getElementById('v-pcls-pct');
+    if (lbl) lbl.textContent = el.value + '%';
+    recalcAndRender(); persistParams();
   });
-  document.getElementById('pcls-amount')?.addEventListener('input', persistParams);
-  document.querySelectorAll('input[name="partner-tf-mode"]').forEach(radio => {
-    radio.addEventListener('change', () => { updateTfMode('partner'); persistParams(); });
+  document.getElementById('partner-pcls-enabled')?.addEventListener('change', () => { updateTfMode('partner'); recalcAndRender(); persistParams(); });
+  document.getElementById('partner-pcls-pct')?.addEventListener('input', () => {
+    const el = document.getElementById('partner-pcls-pct');
+    const lbl = document.getElementById('v-partner-pcls-pct');
+    if (lbl) lbl.textContent = el.value + '%';
+    recalcAndRender(); persistParams();
   });
-  document.getElementById('partner-pcls-amount')?.addEventListener('input', persistParams);
 
   // Preset buttons for return rate (and any future preset buttons)
   document.querySelectorAll('.preset-btn[data-target]').forEach(btn => {

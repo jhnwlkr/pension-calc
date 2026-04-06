@@ -421,24 +421,19 @@
         <input type="range" id="partner-sp" min="0" max="12900" step="10" value="12540">
       </div>
       <div class="slider-row" style="margin-top:4px">
-        <span class="slider-name" style="display:block;margin-bottom:6px">Tax-free cash method (partner's pension)</span>
-        <div style="display:flex;gap:16px;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text2)">
-            <input type="radio" name="partner-tf-mode" id="partner-tf-ufpls" value="ufpls" checked style="accent-color:var(--accent)"> UFPLS
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text2)">
-            <input type="radio" name="partner-tf-mode" id="partner-tf-pcls" value="pcls" style="accent-color:var(--accent)"> PCLS
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text2)">
-            <input type="radio" name="partner-tf-mode" id="partner-tf-none" value="none" style="accent-color:var(--accent)"> None
-          </label>
-        </div>
-        <div id="partner-pcls-amount-row" class="hidden" style="margin-top:8px">
-          <label style="font-size:0.82rem;color:var(--text2);display:flex;align-items:center;gap:8px">
-            Lump sum amount: £<input type="number" id="partner-pcls-amount" min="0" max="268275" step="1000" value="0"
-              style="width:110px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text1);font-size:0.82rem">
-            <span id="partner-pcls-amount-note" style="font-size:0.72rem;color:var(--text2)"></span>
-          </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="partner-pcls-enabled" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+          <span>
+            <span class="slider-name" style="display:block">Take tax-free cash lump sum (PCLS)</span>
+            <span style="font-size:0.72rem;color:var(--text2)">One-off lump sum at retirement, reducing pot size — unchecked = UFPLS</span>
+          </span>
+        </label>
+        <div id="partner-pcls-pct-row" class="hidden" style="margin-top:8px">
+          <div class="slider-label">
+            <span class="slider-name" style="font-weight:400">PCLS: <span id="v-partner-pcls-pct">25%</span></span>
+            <span id="partner-pcls-gbp-equiv" style="font-size:0.75rem;color:var(--text2)"></span>
+          </div>
+          <input type="range" id="partner-pcls-pct" min="0" max="25" step="1" value="25">
         </div>
       </div>
     </div>
@@ -507,24 +502,19 @@
     </div>
     <!-- Tax-free cash mode -->
     <div class="slider-row" style="margin-top:4px">
-      <span class="slider-name" style="display:block;margin-bottom:6px">Tax-free cash method (your pension)</span>
-      <div style="display:flex;gap:16px;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text2)">
-          <input type="radio" name="tf-mode" id="tf-ufpls" value="ufpls" checked style="accent-color:var(--accent)"> UFPLS (25% tax-free per withdrawal)
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text2)">
-          <input type="radio" name="tf-mode" id="tf-pcls" value="pcls" style="accent-color:var(--accent)"> PCLS (lump sum at retirement)
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text2)">
-          <input type="radio" name="tf-mode" id="tf-none" value="none" style="accent-color:var(--accent)"> None (already taken / crystallised)
-        </label>
-      </div>
-      <div id="pcls-amount-row" class="hidden" style="margin-top:8px">
-        <label style="font-size:0.82rem;color:var(--text2);display:flex;align-items:center;gap:8px">
-          Lump sum amount: £<input type="number" id="pcls-amount" min="0" max="268275" step="1000" value="0"
-            style="width:110px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text1);font-size:0.82rem">
-          <span id="pcls-amount-note" style="font-size:0.72rem;color:var(--text2)"></span>
-        </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="pcls-enabled" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <span>
+          <span class="slider-name" style="display:block">Take tax-free cash lump sum (PCLS)</span>
+          <span style="font-size:0.72rem;color:var(--text2)">One-off lump sum at retirement, reducing pot size — unchecked = 25% tax-free per withdrawal (UFPLS)</span>
+        </span>
+      </label>
+      <div id="pcls-pct-row" class="hidden" style="margin-top:8px">
+        <div class="slider-label">
+          <span class="slider-name" style="font-weight:400">PCLS: <span id="v-pcls-pct">25%</span></span>
+          <span id="pcls-gbp-equiv" style="font-size:0.75rem;color:var(--text2)"></span>
+        </div>
+        <input type="range" id="pcls-pct" min="0" max="25" step="1" value="25">
       </div>
     </div>
   </div>
@@ -899,7 +889,7 @@
 <div id="planning-disclaimer">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances, so consider professional advice before making decisions.</div>
 
 <div id="fiscal-drag-tip"></div>
-<script type="module" src="./src/app.js?v=24"></script>
+<script type="module" src="./src/app.js?v=25"></script>
 
 </body>
 </html>
