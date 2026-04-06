@@ -4,7 +4,7 @@ import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS,
   PROP_SAV_BR_RATE, PROP_SAV_HR_RATE, PROP_SAV_AR_RATE, PROP_SAV_RATE_CHANGE_YEAR,
   DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD, DIV_RATE_CHANGE_YEAR,
 } from './constants.js';
-import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet } from './model.js';
+import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js';
 import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js';
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
@@ -560,6 +560,93 @@ function renderIncomesUI() {
 }
 
 // add-income button wiring is initialized in initApp().
+
+// ── DB Pension State ───────────────────────────────────────────────────────
+let nextDbPensionId = 1;
+let dbPensionsData = [];
+
+function addDbPension(name, startAge, preSpAnnual, postSpAnnual) {
+  const id = nextDbPensionId++;
+  dbPensionsData.push({
+    id,
+    name: name || '',
+    startAge: startAge !== undefined ? +startAge : undefined,
+    preSpAnnual: preSpAnnual !== undefined ? +preSpAnnual : 0,
+    postSpAnnual: postSpAnnual !== undefined ? +postSpAnnual : 0,
+  });
+  renderDbPensionsUI();
+}
+
+function removeDbPension(id) {
+  dbPensionsData = dbPensionsData.filter(d => d.id !== id);
+  renderDbPensionsUI();
+  persistParams();
+}
+
+function renderDbPensionsUI() {
+  const container = document.getElementById('db-pensions-container');
+  if (!container) return;
+  container.innerHTML = '';
+  if (dbPensionsData.length === 0) {
+    container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:6px 0">No DB pensions added.</div>';
+    return;
+  }
+  const retAge = +document.getElementById('retirement-age').value || 65;
+  dbPensionsData.forEach(db => {
+    const div = document.createElement('div');
+    div.className = 'income-card';
+    div.innerHTML = `
+      <div class="income-card-header">
+        <div class="input-group" style="flex:1;margin-right:6px">
+          <input class="dyn-input" type="text" placeholder="Scheme name" data-db-id="${db.id}" data-field="name" value="${(db.name || '').replace(/"/g,'&quot;')}" style="font-weight:600">
+        </div>
+        <button class="remove-btn" data-db-id="${db.id}">✕</button>
+      </div>
+      <div class="two-col">
+        <div>
+          <span class="field-label">Starts at age</span>
+          <div class="input-group">
+            <input class="dyn-input" type="number" min="50" max="90" step="1" data-db-id="${db.id}" data-field="startAge" value="${db.startAge ?? retAge}" placeholder="${retAge}">
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Pre state pension age (£/yr)</span>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="100" data-db-id="${db.id}" data-field="preSpAnnual" value="${db.preSpAnnual}">
+          </div>
+        </div>
+      </div>
+      <div class="inc-row" style="margin-top:6px">
+        <span class="field-label">Post state pension age (£/yr)</span>
+        <div class="input-group" style="width:140px">
+          <span class="input-prefix">£</span>
+          <input class="dyn-input" type="number" min="0" step="100" data-db-id="${db.id}" data-field="postSpAnnual" value="${db.postSpAnnual}">
+        </div>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text2);margin-top:4px">Amounts in today's money. Taxed as employment income.</div>`;
+    container.appendChild(div);
+  });
+
+  container.querySelectorAll('.remove-btn[data-db-id]').forEach(btn => {
+    btn.addEventListener('click', () => removeDbPension(+btn.dataset.dbId));
+  });
+  container.querySelectorAll('[data-db-id]').forEach(el => {
+    const evName = el.type === 'text' ? 'input' : 'input';
+    el.addEventListener(evName, () => {
+      const dbId = +el.dataset.dbId;
+      const field = el.dataset.field;
+      const db = dbPensionsData.find(d => d.id === dbId);
+      if (!db) return;
+      if (field === 'name') {
+        db.name = el.value;
+      } else {
+        db[field] = el.value !== '' ? +el.value : undefined;
+      }
+      persistParams();
+    });
+  });
+}
 
 // ── Dynamic Cash Pots State ────────────────────────────────────────────────
 let nextCashPotId = 1;
@@ -1162,6 +1249,92 @@ function renderPartnerIncomesUI() {
   });
 }
 
+// ── Partner DB Pension State ───────────────────────────────────────────────
+let nextPartnerDbPensionId = 1;
+let partnerDbPensionsData = [];
+
+function addPartnerDbPension(name, startAge, preSpAnnual, postSpAnnual) {
+  const id = nextPartnerDbPensionId++;
+  partnerDbPensionsData.push({
+    id,
+    name: name || '',
+    startAge: startAge !== undefined ? +startAge : undefined,
+    preSpAnnual: preSpAnnual !== undefined ? +preSpAnnual : 0,
+    postSpAnnual: postSpAnnual !== undefined ? +postSpAnnual : 0,
+  });
+  renderPartnerDbPensionsUI();
+}
+
+function removePartnerDbPension(id) {
+  partnerDbPensionsData = partnerDbPensionsData.filter(d => d.id !== id);
+  renderPartnerDbPensionsUI();
+  persistParams();
+}
+
+function renderPartnerDbPensionsUI() {
+  const container = document.getElementById('partner-db-pensions-container');
+  if (!container) return;
+  container.innerHTML = '';
+  if (partnerDbPensionsData.length === 0) {
+    container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:4px 0">No DB pensions added.</div>';
+    return;
+  }
+  const retAge = +document.getElementById('partner-retirement-age')?.value || 65;
+  partnerDbPensionsData.forEach(db => {
+    const div = document.createElement('div');
+    div.className = 'income-card';
+    div.innerHTML = `
+      <div class="income-card-header">
+        <div class="input-group" style="flex:1;margin-right:6px">
+          <input class="dyn-input" type="text" placeholder="Scheme name" data-pdb-id="${db.id}" data-field="name" value="${(db.name || '').replace(/"/g,'&quot;')}" style="font-weight:600">
+        </div>
+        <button class="remove-btn" data-pdb-id="${db.id}">✕</button>
+      </div>
+      <div class="two-col">
+        <div>
+          <span class="field-label">Starts at age</span>
+          <div class="input-group">
+            <input class="dyn-input" type="number" min="50" max="90" step="1" data-pdb-id="${db.id}" data-field="startAge" value="${db.startAge ?? retAge}" placeholder="${retAge}">
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Pre state pension age (£/yr)</span>
+          <div class="input-group">
+            <span class="input-prefix">£</span>
+            <input class="dyn-input" type="number" min="0" step="100" data-pdb-id="${db.id}" data-field="preSpAnnual" value="${db.preSpAnnual}">
+          </div>
+        </div>
+      </div>
+      <div class="inc-row" style="margin-top:6px">
+        <span class="field-label">Post state pension age (£/yr)</span>
+        <div class="input-group" style="width:140px">
+          <span class="input-prefix">£</span>
+          <input class="dyn-input" type="number" min="0" step="100" data-pdb-id="${db.id}" data-field="postSpAnnual" value="${db.postSpAnnual}">
+        </div>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text2);margin-top:4px">Amounts in today's money. Taxed as employment income.</div>`;
+    container.appendChild(div);
+  });
+
+  container.querySelectorAll('.remove-btn[data-pdb-id]').forEach(btn => {
+    btn.addEventListener('click', () => removePartnerDbPension(+btn.dataset.pdbId));
+  });
+  container.querySelectorAll('[data-pdb-id]').forEach(el => {
+    el.addEventListener('input', () => {
+      const dbId = +el.dataset.pdbId;
+      const field = el.dataset.field;
+      const db = partnerDbPensionsData.find(d => d.id === dbId);
+      if (!db) return;
+      if (field === 'name') {
+        db.name = el.value;
+      } else {
+        db[field] = el.value !== '' ? +el.value : undefined;
+      }
+      persistParams();
+    });
+  });
+}
+
 // ── Slider wiring ──────────────────────────────────────────────────────────
 function dobToAge(dobStr) {
   if (!dobStr) return 0;
@@ -1189,6 +1362,7 @@ function getPartnerParams() {
     pots: partnerPotsData.map(p => Object.assign({}, p)),
     cashPots: partnerCashPotsData.map(p => Object.assign({}, p)),
     incomes: partnerIncomesData.map(i => Object.assign({}, i)),
+    dbPensions: partnerDbPensionsData.map(d => Object.assign({}, d)),
     taxFreeMode: partnerPclsEnabled ? 'pcls' : 'ufpls',
     pclsPct: partnerPclsEnabled ? (+document.getElementById('partner-pcls-pct').value || 25) : 0,
   };
@@ -1214,6 +1388,7 @@ function getParams() {
     drawdownInflation: document.getElementById('drawdown-inflation').checked,
     pots: potsData.map(p => Object.assign({}, p)),
     incomes: incomesData.map(i => Object.assign({}, i)),
+    dbPensions: dbPensionsData.map(d => Object.assign({}, d)),
     cashPots: cashPotsData.map(p => Object.assign({}, p)),
     partner: getPartnerParams(),
     taxFreeMode: document.getElementById('pcls-enabled')?.checked ? 'pcls' : 'ufpls',
@@ -1364,6 +1539,8 @@ function buildExportPayload() {
     partnerCashPotRegistry: partnerCashPotsData.map(p => ({ ...p })),
     incomeRegistry:         incomesData.map(i => ({ ...i })),
     partnerIncomeRegistry:  partnerIncomesData.map(i => ({ ...i })),
+    dbPensionRegistry:      dbPensionsData.map(d => ({ ...d })),
+    partnerDbPensionRegistry: partnerDbPensionsData.map(d => ({ ...d })),
     groups:                 groupsData.map(g => ({ ...g })),
     partnerGroups:          partnerGroupsData.map(g => ({ ...g })),
     events:                 actualsEvents.map(e => ({ ...e })),
@@ -1472,6 +1649,22 @@ function importBackup(payload, mode) {
       partnerIncomesData.push({ id, uuid: inc.uuid || crypto.randomUUID(), name: inc.name || 'Income source', amount: inc.amount || 0, frequency: inc.frequency || 'annual', inflationLinked: inc.inflationLinked === true, incomePeriod: inc.incomePeriod === true, startAge: inc.startAge || undefined, endAge: inc.endAge || undefined, inflationBase: inc.inflationBase === 'nominal' ? 'nominal' : 'real', incomeType: inc.incomeType || 'employment' });
     });
     renderPartnerIncomesUI();
+  }
+  if (Array.isArray(actuals.dbPensionRegistry)) {
+    dbPensionsData = [];
+    actuals.dbPensionRegistry.forEach(db => {
+      const id = nextDbPensionId++;
+      dbPensionsData.push({ id, name: db.name || '', startAge: db.startAge !== undefined ? +db.startAge : undefined, preSpAnnual: +db.preSpAnnual || 0, postSpAnnual: +db.postSpAnnual || 0 });
+    });
+    renderDbPensionsUI();
+  }
+  if (Array.isArray(actuals.partnerDbPensionRegistry)) {
+    partnerDbPensionsData = [];
+    actuals.partnerDbPensionRegistry.forEach(db => {
+      const id = nextPartnerDbPensionId++;
+      partnerDbPensionsData.push({ id, name: db.name || '', startAge: db.startAge !== undefined ? +db.startAge : undefined, preSpAnnual: +db.preSpAnnual || 0, postSpAnnual: +db.postSpAnnual || 0 });
+    });
+    renderPartnerDbPensionsUI();
   }
   if (Array.isArray(actuals.groups))        groupsData = actuals.groups.filter(g => g.uuid && g.name);
   if (Array.isArray(actuals.partnerGroups)) partnerGroupsData = actuals.partnerGroups.filter(g => g.uuid && g.name);
@@ -1747,6 +1940,8 @@ function persistParams() {
   obj['partner-groups'] = JSON.stringify(partnerGroupsData);
   obj['partner-cashPots'] = JSON.stringify(partnerCashPotsData);
   obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
+  obj['db-pensions'] = JSON.stringify(dbPensionsData);
+  obj['partner-db-pensions'] = JSON.stringify(partnerDbPensionsData);
   obj['actuals-enabled'] = isActualsEnabled() ? '1' : '0';
   obj['recalibrate-toggle'] = document.getElementById('recalibrate-toggle')?.checked ? '1' : '0';
   obj['pcls-enabled'] = document.getElementById('pcls-enabled')?.checked ? '1' : '0';
@@ -1997,6 +2192,44 @@ function restoreParams(obj) {
           });
         });
         renderPartnerIncomesUI();
+      }
+    } catch(e) {}
+  }
+  if (obj['db-pensions']) {
+    try {
+      const saved = JSON.parse(obj['db-pensions']);
+      if (Array.isArray(saved)) {
+        dbPensionsData = [];
+        saved.forEach(db => {
+          const id = nextDbPensionId++;
+          dbPensionsData.push({
+            id,
+            name: db.name || '',
+            startAge: db.startAge !== undefined ? +db.startAge : undefined,
+            preSpAnnual: +db.preSpAnnual || 0,
+            postSpAnnual: +db.postSpAnnual || 0,
+          });
+        });
+        renderDbPensionsUI();
+      }
+    } catch(e) {}
+  }
+  if (obj['partner-db-pensions']) {
+    try {
+      const saved = JSON.parse(obj['partner-db-pensions']);
+      if (Array.isArray(saved)) {
+        partnerDbPensionsData = [];
+        saved.forEach(db => {
+          const id = nextPartnerDbPensionId++;
+          partnerDbPensionsData.push({
+            id,
+            name: db.name || '',
+            startAge: db.startAge !== undefined ? +db.startAge : undefined,
+            preSpAnnual: +db.preSpAnnual || 0,
+            postSpAnnual: +db.postSpAnnual || 0,
+          });
+        });
+        renderPartnerDbPensionsUI();
       }
     } catch(e) {}
   }
@@ -3253,12 +3486,19 @@ function renderTaxBreakdown(r) {
 
   // ── Per-source other income items ──────────────────────────────────────────
   const ageCtxTax = { currentAge: d.age, retirementAge: r.p.retirementAge, yearsToRetirement: _ytr, baseInflFactor: _infl };
-  const otherItems = calcOtherIncomesNet(r.p?.incomes || [], ciFromNow, ageCtxTax).items
-    .filter(it => it.gross > 0);
+  const otherItems = [
+    ...calcOtherIncomesNet(r.p?.incomes || [], ciFromNow, ageCtxTax).items,
+    ...calcDbIncome(r.p?.dbPensions, r.p?.spAge ?? 999, d.age, ciFromNow).items,
+  ].filter(it => it.gross > 0);
   const _partnerRetired = !!(hasPartner && d.partnerAge !== null && d.partnerAge >= r.p.partner.retirementAge);
-  const partnerOtherItems = (_partnerRetired && r.p.partner?.incomes?.length)
-    ? calcOtherIncomesNet(r.p.partner.incomes, ciFromNow, { currentAge: d.partnerAge, retirementAge: r.p.partner.retirementAge, yearsToRetirement: Math.max(0, r.p.partner.retirementAge - r.p.partner.currentAge), baseInflFactor: _infl }).items.filter(it => it.gross > 0)
-    : [];
+  const partnerOtherItems = [
+    ...(_partnerRetired && r.p.partner?.incomes?.length
+      ? calcOtherIncomesNet(r.p.partner.incomes, ciFromNow, { currentAge: d.partnerAge, retirementAge: r.p.partner.retirementAge, yearsToRetirement: Math.max(0, r.p.partner.retirementAge - r.p.partner.currentAge), baseInflFactor: _infl }).items
+      : []),
+    ...(hasPartner && d.partnerAge !== null
+      ? calcDbIncome(r.p.partner?.dbPensions, r.p.partner?.spAge ?? 999, d.partnerAge, ciFromNow).items
+      : []),
+  ].filter(it => it.gross > 0);
 
   // ── Per-person pot fractions from simulation ───────────────────────────────
   const primaryPotFrac = r.primaryPotFrac     ?? 1.0;
@@ -4450,6 +4690,12 @@ function initApp() {
 
   const addIncomeBtn = document.getElementById('add-income-btn');
   if (addIncomeBtn) addIncomeBtn.addEventListener('click', () => { addIncome('Income source', 0, 'annual', 20); persistParams(); });
+
+  const addDbPensionBtn = document.getElementById('add-db-pension-btn');
+  if (addDbPensionBtn) addDbPensionBtn.addEventListener('click', () => { addDbPension(); persistParams(); });
+
+  const addPartnerDbPensionBtn = document.getElementById('add-partner-db-pension-btn');
+  if (addPartnerDbPensionBtn) addPartnerDbPensionBtn.addEventListener('click', () => { addPartnerDbPension(); persistParams(); });
 
   const addCashPotBtn = document.getElementById('add-cash-pot-btn');
   if (addCashPotBtn) addCashPotBtn.addEventListener('click', () => { addCashPot(0, 3.5); persistParams(); });

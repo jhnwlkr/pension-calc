@@ -201,3 +201,28 @@ export function calcOtherIncomesNet(incomes, inflFactor, ageCtx) {
   });
   return { grossTotal, taxTotal: 0, netTotal: grossTotal, items, byType };
 }
+
+/**
+ * Computes gross DB (defined benefit) pension income for a person in a simulation year.
+ * DB pension income is treated as employment income for tax purposes.
+ * Amounts are expressed in today's money and inflated by ciFromNow.
+ *
+ * @param {Array}  dbPensions  array of { id, name, startAge, preSpAnnual, postSpAnnual }
+ * @param {number} spAge       state pension age (selects pre vs post SP amount)
+ * @param {number} age         person's age in this simulation year
+ * @param {number} ciFromNow   cumulative inflation factor from today to this year
+ */
+export function calcDbIncome(dbPensions, spAge, age, ciFromNow) {
+  if (!dbPensions?.length) return { grossTotal: 0, byType: { employment: 0 }, items: [] };
+  const items = [];
+  let grossTotal = 0;
+  for (const db of dbPensions) {
+    if (age < (db.startAge || 0)) continue;
+    const annual = age < spAge ? (db.preSpAnnual || 0) : (db.postSpAnnual || 0);
+    const gross = annual * ciFromNow;
+    if (gross <= 0) continue;
+    grossTotal += gross;
+    items.push({ name: db.name || 'DB Pension', gross, tax: 0, net: gross, type: 'employment' });
+  }
+  return { grossTotal, byType: { employment: grossTotal }, items };
+}
