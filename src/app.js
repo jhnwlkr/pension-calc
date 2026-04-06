@@ -598,7 +598,7 @@ function renderCashPotsUI() {
       </div>
       <div class="two-col">
         <div>
-          <span class="field-label">Current value</span>
+          <span class="field-label">Value</span>
           <div class="input-group">
             <span class="input-prefix">£</span>
             <input class="dyn-input" type="number" min="0" step="1000" data-cash-pot-id="${pot.id}" data-field="value" value="${pot.value}">
@@ -907,7 +907,7 @@ function renderPartnerCashPotsUI() {
       </div>
       <div class="two-col">
         <div>
-          <span class="field-label">Current value</span>
+          <span class="field-label">Value</span>
           <div class="input-group"><span class="input-prefix">£</span>
             <input class="dyn-input" type="number" min="0" step="1000" data-ppartner-cash-id="${pot.id}" data-field="value" value="${pot.value}">
           </div>
