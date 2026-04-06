@@ -4082,7 +4082,27 @@ function renderTaxBreakdown(r) {
     });
     if (!step3Rows_) step3Rows_ = `<tr class="tw-nil"><td colspan="2">All income within personal allowance — no tax due</td></tr>`;
 
-
+    // ── Step 2 HTML — from Apr 2027 PA no longer flows to property/savings/dividends ──
+    const _t1Gross = pensionTaxable_ + (hasSP_ ? spAnn : 0) +
+      items_.filter(it => (it.type || 'employment') === 'employment').reduce((s, it) => s + it.gross, 0);
+    const _t2PlusGross = items_
+      .filter(it => it.type === 'property' || it.type === 'savings' || it.type === 'dividends')
+      .reduce((s, it) => s + it.gross, 0);
+    const _paToNonSavOnly = calYr >= PROP_SAV_RATE_CHANGE_YEAR && _t2PlusGross > 0;
+    const step2Html_ = _paToNonSavOnly
+      ? `<p class="tw-step-note">From April 2027, the Personal Allowance only applies to non-savings income (pension drawdown, state pension, employment). Property, savings and dividend income are taxed from the bottom of their own rate bands without Personal Allowance benefit (Finance Bill 2025-26).</p>
+         <table class="tw-table">
+           <tr><td>Personal allowance</td><td class="num">${paNote_}</td></tr>
+           <tr><td>Non-savings income (pension + SP + employment)</td><td class="num">${fmtN(_t1Gross)}</td></tr>
+           <tr><td>Allowance used</td><td class="num">${fmtN(Math.min(bands_.effectivePA, _t1Gross))}</td></tr>
+           <tr class="tw-total"><td>Non-savings above allowance</td><td class="num">${fmtN(Math.max(0, _t1Gross - bands_.effectivePA))}</td></tr>
+           <tr class="tw-sub"><td>\u21b3 Property / savings / dividends (taxed without PA — see Step 3)</td><td class="num">${fmtN(_t2PlusGross)}</td></tr>
+         </table>`
+      : `<table class="tw-table">
+           <tr><td>Personal allowance</td><td class="num">${paNote_}</td></tr>
+           <tr><td>Allowance used</td><td class="num">${fmtN(bands_.paUsed)}</td></tr>
+           <tr class="tw-total"><td>Income above allowance (taxable)</td><td class="num">${fmtN(bands_.above)}</td></tr>
+         </table>`;
 
     return `<div class="tw-person-section">
       <div class="tw-person-heading">${label}</div>
@@ -4100,11 +4120,7 @@ function renderTaxBreakdown(r) {
       </div>
       <div class="tw-step">
         <div class="tw-step-title">Step 2 — Personal allowance</div>
-        <table class="tw-table">
-          <tr><td>Personal allowance</td><td class="num">${paNote_}</td></tr>
-          <tr><td>Allowance used</td><td class="num">${fmtN(bands_.paUsed)}</td></tr>
-          <tr class="tw-total"><td>Income above allowance (taxable)</td><td class="num">${fmtN(bands_.above)}</td></tr>
-        </table>
+        ${step2Html_}
       </div>
       <div class="tw-step">
         <div class="tw-step-title">Step 3 — Tax by income source (stacking order)</div>
