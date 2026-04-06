@@ -5,7 +5,7 @@ import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS,
   DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD, DIV_RATE_CHANGE_YEAR,
 } from './constants.js';
 import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js';
-import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js?v=31';
+import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js';
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
 let nextPotId = 1;
