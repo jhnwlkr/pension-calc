@@ -430,6 +430,7 @@ function renderIncomesUI() {
     return;
   }
   const retAge = +document.getElementById('retirement-age').value || 65;
+  const curAge = dobToAge(document.getElementById('current-dob').value) || 18;
   incomesData.forEach(inc => {
     const div = document.createElement('div');
     div.className = 'income-card';
@@ -461,16 +462,14 @@ function renderIncomesUI() {
         </div>
       </div>
       <div class="inc-row">
-        <input type="checkbox" data-inc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}>
-        <span>Income period</span>
+        <label><input type="checkbox" data-inc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}> Income period</label>
         <div class="inc-age-inputs">
-          <label>From age <input type="number" class="inc-age-input" min="18" max="999" maxlength="3" data-inc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${retAge}"></label>
-          <label>Until age <input type="number" class="inc-age-input" min="18" max="999" maxlength="3" data-inc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
+          <label>From age <input type="number" class="inc-age-input" min="${curAge}" max="999" maxlength="3" data-inc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${retAge}"></label>
+          <label>Until age <input type="number" class="inc-age-input" min="${curAge}" max="999" maxlength="3" data-inc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
         </div>
       </div>
       <div class="inc-row">
-        <input type="checkbox" data-inc-id="${inc.id}" data-field="inflationLinked" ${inc.inflationLinked ? 'checked' : ''}>
-        <span>Increases with inflation</span>
+        <label><input type="checkbox" data-inc-id="${inc.id}" data-field="inflationLinked" ${inc.inflationLinked ? 'checked' : ''}> Increases with inflation</label>
       </div>
       ${inc.inflationLinked ? `
       <div class="inc-row inc-infl-base">
@@ -534,7 +533,12 @@ function renderIncomesUI() {
         if (changed) el.value = inc.endAge;
       } else if (field === 'startAge' && inc.startAge !== undefined) {
         if (inc.startAge > targetEndAge) { inc.startAge = targetEndAge - 1; el.value = inc.startAge; changed = true; }
-        if (inc.endAge !== undefined && inc.startAge >= inc.endAge) { inc.endAge = inc.startAge + 1; changed = true; }
+        if (inc.endAge !== undefined && inc.startAge >= inc.endAge) {
+          inc.endAge = inc.startAge + 1;
+          const endEl = container.querySelector(`.inc-age-input[data-inc-id="${inc.id}"][data-field="endAge"]`);
+          if (endEl) endEl.value = inc.endAge;
+          changed = true;
+        }
       }
       if (changed) persistParams();
     });
@@ -939,6 +943,7 @@ function renderPartnerIncomesUI() {
     return;
   }
   const partnerRetAge = +document.getElementById('partner-retirement-age')?.value || 65;
+  const partnerCurAge = dobToAge(document.getElementById('partner-dob')?.value) || 18;
   partnerIncomesData.forEach(inc => {
     const div = document.createElement('div');
     div.className = 'income-card';
@@ -969,16 +974,14 @@ function renderPartnerIncomesUI() {
         </div>
       </div>
       <div class="inc-row">
-        <input type="checkbox" data-pinc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}>
-        <span>Income period</span>
+        <label><input type="checkbox" data-pinc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}> Income period</label>
         <div class="inc-age-inputs">
-          <label>From age <input type="number" class="inc-age-input" min="18" max="999" maxlength="3" data-pinc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${partnerRetAge}"></label>
-          <label>Until age <input type="number" class="inc-age-input" min="18" max="999" maxlength="3" data-pinc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
+          <label>From age <input type="number" class="inc-age-input" min="${partnerCurAge}" max="999" maxlength="3" data-pinc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${partnerRetAge}"></label>
+          <label>Until age <input type="number" class="inc-age-input" min="${partnerCurAge}" max="999" maxlength="3" data-pinc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
         </div>
       </div>
       <div class="inc-row">
-        <input type="checkbox" data-pinc-id="${inc.id}" data-field="inflationLinked" ${inc.inflationLinked ? 'checked' : ''}>
-        <span>Increases with inflation</span>
+        <label><input type="checkbox" data-pinc-id="${inc.id}" data-field="inflationLinked" ${inc.inflationLinked ? 'checked' : ''}> Increases with inflation</label>
       </div>
       ${inc.inflationLinked ? `
       <div class="inc-row inc-infl-base">
@@ -1037,7 +1040,12 @@ function renderPartnerIncomesUI() {
         if (changed) el.value = inc.endAge;
       } else if (field === 'startAge' && inc.startAge !== undefined) {
         if (inc.startAge > targetEndAge) { inc.startAge = targetEndAge - 1; el.value = inc.startAge; changed = true; }
-        if (inc.endAge !== undefined && inc.startAge >= inc.endAge) { inc.endAge = inc.startAge + 1; changed = true; }
+        if (inc.endAge !== undefined && inc.startAge >= inc.endAge) {
+          inc.endAge = inc.startAge + 1;
+          const endEl = container.querySelector(`.inc-age-input[data-pinc-id="${inc.id}"][data-field="endAge"]`);
+          if (endEl) endEl.value = inc.endAge;
+          changed = true;
+        }
       }
       if (changed) persistParams();
     });
