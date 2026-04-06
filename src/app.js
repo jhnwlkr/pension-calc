@@ -4141,7 +4141,16 @@ function initApp() {
   _initDobPicker('partner-dob', 'v-partner-age');
 
   document.getElementById('run-btn').click();
+  updateMobileHeaderOffset();
 }
+
+function updateMobileHeaderOffset() {
+  const stg = document.querySelector('.sticky-top-group');
+  const layout = document.querySelector('.layout');
+  if (!stg || !layout) return;
+  layout.style.marginTop = window.innerWidth <= 768 ? stg.offsetHeight + 'px' : '';
+}
+window.addEventListener('resize', updateMobileHeaderOffset);
 
 if (document.readyState === 'loading') {
   window.addEventListener('DOMContentLoaded', initApp);
