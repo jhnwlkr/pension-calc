@@ -2071,6 +2071,11 @@ function buildAnnualIncomeData(r) {
     const partnerSpInflated = hasPartnerSP ? partner.sp * ci : 0;
 
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
+      if (p.cashPots[ci2].valueFromAge && p.cashPots[ci2].valueFromAge === age) {
+        cashBals[ci2] += p.cashPots[ci2].value;
+      }
+    }
+    for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
       cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
     }
 
