@@ -86,7 +86,7 @@
   .preset-btn:hover, .preset-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .hidden { display: none !important; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
-  .top-bar { position: sticky; top: 0; margin: -20px -20px 8px -20px; padding: 6px 20px; background: var(--bg); border-bottom: 1px solid var(--border); z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .top-bar { position: sticky; top: 0; margin: -20px -20px 8px -20px; padding: 6px 20px; background: var(--bg); border-bottom: 1px solid var(--border); z-index: 10; display: flex; align-items: center; justify-content: flex-end; }
   .explain-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
   .explain-title { font-size: 0.86rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
   .explain-sub { font-size: 0.78rem; color: var(--text2); margin-bottom: 8px; }
@@ -164,6 +164,7 @@
     .sidebar.open { display: block; }
     .main { padding: 12px 12px 44px 12px; }
     .top-bar { margin: -12px -12px 8px -12px; padding: 6px 12px; }
+    #planning-disclaimer { position: static; border-top: none; margin: 16px 0 0; padding: 6px 0; }
     .cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .card { padding: 12px; } .card-value { font-size: 1.3rem; }
     .chart-wrap { height: 220px; } canvas { max-height: 220px; }
@@ -536,8 +537,7 @@
 
 <div class="main">
   <div class="top-bar">
-    <span style="font-size:0.72rem;color:var(--text2)">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances.</span>
-    <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2);flex-shrink:0">
+    <label style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:0.86rem;color:var(--text2)">
       <input type="checkbox" id="today-money-toggle-global" class="today-money-toggle" style="width:16px;height:16px;accent-color:var(--accent);"> Show Today's Prices
     </label>
   </div>
