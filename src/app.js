@@ -462,7 +462,7 @@ function renderIncomesUI() {
         </div>
       </div>
       <div class="inc-row">
-        <label><input type="checkbox" data-inc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}> Income period</label>
+        <label><input type="checkbox" data-inc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}> Period</label>
         <div class="inc-age-inputs">
           <label>From age <input type="number" class="inc-age-input" min="${curAge}" max="999" maxlength="3" data-inc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${retAge}"></label>
           <label>Until age <input type="number" class="inc-age-input" min="${curAge}" max="999" maxlength="3" data-inc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
@@ -974,7 +974,7 @@ function renderPartnerIncomesUI() {
         </div>
       </div>
       <div class="inc-row">
-        <label><input type="checkbox" data-pinc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}> Income period</label>
+        <label><input type="checkbox" data-pinc-id="${inc.id}" data-field="incomePeriod" ${inc.incomePeriod ? 'checked' : ''}> Period</label>
         <div class="inc-age-inputs">
           <label>From age <input type="number" class="inc-age-input" min="${partnerCurAge}" max="999" maxlength="3" data-pinc-id="${inc.id}" data-field="startAge" value="${startVal}" ${periodDisabled} placeholder="${partnerRetAge}"></label>
           <label>Until age <input type="number" class="inc-age-input" min="${partnerCurAge}" max="999" maxlength="3" data-pinc-id="${inc.id}" data-field="endAge" value="${endVal}" ${periodDisabled} placeholder="ever"></label>
