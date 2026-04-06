@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It Works — UK Retirement Calculator</title>
+<meta name="description" content="Methodology behind the UK Retirement Calculator: Monte Carlo simulation using 125+ years of historical returns, Guyton-Klinger guardrails, stochastic inflation, UK income tax modelling, PCLS/UFPLS, ISA/LISA and state pension.">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="apple-touch-icon" href="./favicon.svg">
+<style>
+  :root {
+    --bg: #f5f5f5; --surface: #ffffff; --surface2: #f0f0f0;
+    --border: #e0e0e0; --text: #1a1a1a; --text2: #555555;
+    --accent: #2563eb; --green: #16a34a; --amber: #d97706; --red: #dc2626;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111827; --surface: #1f2937; --surface2: #374151;
+      --border: #374151; --text: #f9fafb; --text2: #9ca3af;
+      --accent: #3b82f6; --shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.65; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Page header */
+  .page-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: var(--shadow);
+  }
+  .page-header-left { display: flex; align-items: center; gap: 12px; }
+  .page-header h1 { font-size: 1rem; font-weight: 700; color: var(--text); }
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--accent);
+    padding: 6px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .back-link:hover { background: var(--accent); color: #fff; text-decoration: none; }
+
+  /* Main layout */
+  .page-wrap {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Hero */
+  .hero { margin-bottom: 40px; }
+  .hero h2 { font-size: 1.7rem; font-weight: 700; margin-bottom: 10px; line-height: 1.3; }
+  .hero p { font-size: 1rem; color: var(--text2); max-width: 640px; }
+
+  /* Table of contents */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 40px;
+    box-shadow: var(--shadow);
+  }
+  .toc h3 {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text2);
+    margin-bottom: 12px;
+  }
+  .toc ol {
+    padding-left: 18px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 24px;
+  }
+  .toc li { font-size: 0.88rem; }
+  @media (max-width: 540px) { .toc ol { grid-template-columns: 1fr; } }
+
+  /* Sections */
+  .method-section {
+    margin-bottom: 48px;
+  }
+  .method-section h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .method-section p { color: var(--text2); margin-bottom: 12px; }
+  .method-section p:last-child { margin-bottom: 0; }
+  .method-section strong { color: var(--text); }
+
+  /* Callout boxes */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 0.88rem;
+    color: var(--text2);
+  }
+  .callout.green { border-left-color: var(--green); }
+  .callout.amber { border-left-color: var(--amber); }
+  .callout strong { color: var(--text); }
+
+  /* Key fact cards */
+  .fact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .fact-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+  .fact-value { font-size: 1.6rem; font-weight: 700; color: var(--accent); line-height: 1; margin-bottom: 6px; }
+  .fact-label { font-size: 0.78rem; color: var(--text2); }
+
+  /* Step list */
+  .step-list { list-style: none; padding: 0; margin: 16px 0; }
+  .step-list li {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    color: var(--text2);
+  }
+  .step-list li::before {
+    content: attr(data-n);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step-list li strong { color: var(--text); }
+
+  /* Rate table */
+  .rate-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin: 16px 0; }
+  .rate-table th { text-align: left; padding: 8px 12px; background: var(--surface2); color: var(--text2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 2px solid var(--border); }
+  .rate-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text2); }
+  .rate-table td:first-child { color: var(--text); font-weight: 500; }
+  .rate-table tr:last-child td { border-bottom: none; }
+
+  /* Disclaimer footer */
+  .disclaimer {
+    background: var(--surface2);
+    border-top: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 20px;
+    font-size: 0.82rem;
+    color: var(--text2);
+    margin-top: 32px;
+  }
+  .disclaimer p { margin-bottom: 8px; }
+  .disclaimer p:last-child { margin: 0; }
+
+  /* Bottom CTA */
+  .cta-block {
+    text-align: center;
+    padding: 32px 0 0;
+    margin-top: 16px;
+  }
+  .cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 28px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .cta-btn:hover { opacity: 0.9; text-decoration: none; }
+  .cta-sub { font-size: 0.82rem; color: var(--text2); margin-top: 10px; }
+
+  @media (max-width: 600px) {
+    .page-wrap { padding: 24px 16px 60px; }
+    .hero h2 { font-size: 1.35rem; }
+    .page-header { padding: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <div class="page-header-left">
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 44 44" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="b1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0.5"/></linearGradient>
+        <linearGradient id="b2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#2563eb" stop-opacity="0.5"/></linearGradient>
+        <linearGradient id="b3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2563eb"/><stop offset="100%" stop-color="#1d4ed8" stop-opacity="0.5"/></linearGradient>
+        <linearGradient id="b4" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#818cf8"/><stop offset="100%" stop-color="#6366f1" stop-opacity="0.5"/></linearGradient>
+      </defs>
+      <rect x="5"  y="28" width="6" height="11" rx="2" fill="url(#b1)"/>
+      <rect x="13" y="21" width="6" height="18" rx="2" fill="url(#b2)"/>
+      <rect x="21" y="15" width="6" height="24" rx="2" fill="url(#b3)"/>
+      <rect x="29" y="8"  width="6" height="31" rx="2" fill="url(#b4)"/>
+      <polyline points="8,27 16,20 24,14 32,7" stroke="#a5b4fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+    </svg>
+    <h1>UK Retirement Calculator — How It Works</h1>
+  </div>
+  <a href="./index.html" class="back-link">&#8592; Back to Calculator</a>
+</header>
+
+<div class="page-wrap">
+
+  <div class="hero">
+    <h2>Methodology &amp; Assumptions</h2>
+    <p>This page explains the models, data sources and assumptions used by the UK Retirement Calculator so you can understand and critically evaluate the projections.</p>
+  </div>
+
+  <nav class="toc" aria-label="Page contents">
+    <h3>Contents</h3>
+    <ol>
+      <li><a href="#s1">Monte Carlo Simulation</a></li>
+      <li><a href="#s2">Historical Return Data</a></li>
+      <li><a href="#s3">Stochastic Inflation</a></li>
+      <li><a href="#s4">Guyton-Klinger Guardrails</a></li>
+      <li><a href="#s5">UK Income Tax Modelling</a></li>
+      <li><a href="#s6">Tax-Free Cash: PCLS &amp; UFPLS</a></li>
+      <li><a href="#s7">State Pension</a></li>
+      <li><a href="#s8">ISA &amp; LISA</a></li>
+      <li><a href="#s9">Accumulation Phase</a></li>
+      <li><a href="#s10">DB Pensions &amp; Other Income</a></li>
+      <li><a href="#s11">Assumptions &amp; Limitations</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1. Monte Carlo -->
+  <section class="method-section" id="s1">
+    <h2><span class="section-num">1</span> Monte Carlo Simulation</h2>
+    <p>
+      The calculator runs <strong>up to 2,000 independent simulations</strong> (1,000 by default) of your retirement.
+      Each simulation draws a different sequence of market returns and inflation shocks, producing a full
+      distribution of outcomes rather than a single "average" projection.
+    </p>
+    <p>
+      Results are reported at five percentile bands — the 5th, 25th, 50th (median), 75th and 95th percentiles
+      of the outcome distribution. The <strong>median (50th percentile)</strong> is the headline figure shown on the
+      summary cards. The 5th percentile represents a severe but historically plausible scenario; the 95th
+      percentile a favourable one.
+    </p>
+    <div class="fact-grid">
+      <div class="fact-card"><div class="fact-value">1,000</div><div class="fact-label">Default simulations</div></div>
+      <div class="fact-card"><div class="fact-value">5</div><div class="fact-label">Percentile bands shown</div></div>
+      <div class="fact-card"><div class="fact-value">126</div><div class="fact-label">Years of return history</div></div>
+      <div class="fact-card"><div class="fact-value">Per year</div><div class="fact-label">Bootstrapped return pairs</div></div>
+    </div>
+    <ul class="step-list" aria-label="Simulation steps">
+      <li data-n="1"><span><strong>Initialise pots</strong> — each simulation starts from your current pot values, applying any pre-retirement contributions up to the retirement date.</span></li>
+      <li data-n="2"><span><strong>Draw retirement pot</strong> — at the retirement date, the simulation records each pot's value (after any PCLS deduction) as the starting drawdown balance.</span></li>
+      <li data-n="3"><span><strong>Annual drawdown</strong> — each year a return pair (equity + bond) is sampled at random from the historical dataset. Growth is applied, then net target income is withdrawn. Cash pots are drawn first, then pension pots.</span></li>
+      <li data-n="4"><span><strong>Apply guardrails</strong> — if enabled, spending is cut when the pot falls below 80% of its retirement-date value (see Section 4).</span></li>
+      <li data-n="5"><span><strong>Record outcome</strong> — the final pot value at the target end age is recorded. A simulation where the pot reaches zero before end age counts as a "pot depleted" outcome.</span></li>
+    </ul>
+    <div class="callout">
+      <strong>Why not use average returns?</strong> Using a single average return ignores sequence-of-returns risk — the danger that poor returns arriving early in retirement cause permanent damage even if long-run averages recover. Monte Carlo simulation captures this effect.
+    </div>
+  </section>
+
+  <!-- 2. Historical Returns -->
+  <section class="method-section" id="s2">
+    <h2><span class="section-num">2</span> Historical Return Data</h2>
+    <p>
+      Returns are drawn by <strong>historical bootstrapping</strong>: each simulated year's returns are taken as a
+      complete (equity, bond) pair from the historical record, preserving the natural correlation between
+      asset classes that existed in that calendar year. This is sometimes called the "block bootstrap" or
+      "historical simulation" method.
+    </p>
+    <p>
+      The dataset spans <strong>1900 to 2025</strong> — 126 annual observations of real-world UK/global market
+      conditions including the Great Depression, World War II, the 1970s stagflation, the dot-com crash,
+      the 2008 financial crisis and the 2022 bond crash.
+    </p>
+    <div class="callout green">
+      <strong>No smoothing or fitting.</strong> The raw historical observations are sampled directly — no
+      normal distribution is fitted and no return is artificially capped or floored. The extreme years
+      (e.g. equities −51% in the early 1930s, or bonds −22% in 2022) remain in the dataset and can
+      appear in any simulation.
+    </div>
+    <p>
+      Each pot's blended return scales with its <strong>equity/bond allocation</strong>. A pot set to 80% equities
+      receives a blended return of <em>0.8 × equity return + 0.2 × bond return</em> for that simulated year.
+      Changing a pot's equity percentage only affects that pot — other pots in the same simulation keep
+      their own allocated returns.
+    </p>
+    <p>
+      The <strong>deterministic (bear/base/bull) projections</strong> shown on the Pot Balance chart use the
+      long-run mean of the historical series as the base case, ±2 percentage points for the bull and
+      bear scenarios.
+    </p>
+  </section>
+
+  <!-- 3. Stochastic Inflation -->
+  <section class="method-section" id="s3">
+    <h2><span class="section-num">3</span> Stochastic Inflation</h2>
+    <p>
+      Inflation is <strong>not fixed</strong> at your input rate. Each simulated year adds a small random shock to the
+      base inflation you set, drawn from a normal distribution (standard deviation ≈ 0.8 percentage points).
+      This models the realistic uncertainty in future price levels.
+    </p>
+    <p>
+      In years where the sampled equity return falls below −10% — implying a significant market crash —
+      an additional "stagflation" shock is added. This reflects the empirical tendency for inflation to
+      remain elevated or spike during periods of financial stress (as observed in the 1970s and after 2021).
+      The stagflation add-on is drawn from a half-normal with mean ≈ 1% and is only positive — it can
+      make inflation worse during crashes, never better.
+    </p>
+    <p>
+      Inflation is constrained to a minimum of 0.5% per year — deflation scenarios are excluded because
+      the dataset does not contain enough deflationary observations to model reliably, and sustained
+      deflation would typically be accompanied by economic conditions not captured by the equity/bond
+      return history alone.
+    </p>
+    <p>
+      Your target income is by default <strong>inflation-linked</strong> — it rises each year in line with that
+      simulation's cumulative inflation. You can disable this in the "Drawdown &amp; Income" settings if you
+      prefer a fixed nominal income target.
+    </p>
+  </section>
+
+  <!-- 4. Guardrails -->
+  <section class="method-section" id="s4">
+    <h2><span class="section-num">4</span> Guyton-Klinger Guardrails</h2>
+    <p>
+      The <strong>Guyton-Klinger guardrail system</strong> is an optional spending-flexibility rule that automatically
+      cuts withdrawals in bad market conditions to reduce the risk of running out of money.
+    </p>
+    <p>
+      The calculator implements a simplified version of the lower guardrail: if, at any year in retirement,
+      the <em>median pension pot across all simulations</em> falls below <strong>80% of the value it had at
+      retirement</strong>, all simulations in that year apply a <strong>10% spending cut</strong> to the amount
+      withdrawn from the pension pot. The cut applies to the pension pot withdrawal only —
+      income from other sources (state pension, DB pensions, employment) is unaffected.
+    </p>
+    <div class="callout amber">
+      <strong>What this means in practice:</strong> If markets fall sharply early in retirement and your
+      median pot contracts significantly, the calculator will reduce your modelled spending by 10% for
+      that year. The "% of scenarios where guardrail triggered" statistic in the results tells you how
+      often this occurs across your 1,000 simulations.
+    </div>
+    <p>
+      The guardrail is a planning heuristic — it does not guarantee you will not run out of money. It does,
+      however, substantially improve long-run sustainability compared to a rigid fixed-withdrawal strategy
+      in most historical scenarios.
+    </p>
+  </section>
+
+  <!-- 5. UK Tax -->
+  <section class="method-section" id="s5">
+    <h2><span class="section-num">5</span> UK Income Tax Modelling</h2>
+    <p>
+      All income is taxed using <strong>England/Wales/Northern Ireland rates</strong> (Scottish rates are not
+      currently modelled). Tax is computed annually within each simulation using the parameters below.
+    </p>
+    <table class="rate-table" aria-label="Income tax bands 2024/25">
+      <thead>
+        <tr><th>Band</th><th>Taxable income</th><th>Rate</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Personal Allowance</td><td>Up to £12,570</td><td>0%</td></tr>
+        <tr><td>Basic Rate</td><td>£12,571 – £50,270</td><td>20%</td></tr>
+        <tr><td>Higher Rate</td><td>£50,271 – £125,140</td><td>40%</td></tr>
+        <tr><td>Additional Rate</td><td>Over £125,140</td><td>45%</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The <strong>Personal Allowance taper</strong> applies: for income over £100,000 the allowance is reduced
+      by £1 for every £2 of earnings above that threshold, creating an effective 60% marginal rate
+      between £100,000 and £125,140.
+    </p>
+    <p>
+      <strong>Fiscal drag</strong> is modelled explicitly: tax band thresholds are held fixed at their 2024/25
+      nominal values throughout the projection. This is the current government policy (frozen thresholds
+      until at least 2028). As your income grows with inflation each year, a larger proportion falls into
+      higher bands — exactly replicating the real-world drag effect.
+    </p>
+    <p>
+      Income sources are stacked for tax purposes each simulation-year in the following order:
+      (1) other earned/property/dividend income, (2) DB pension income, (3) pension pot withdrawals
+      (UFPLS taxable portion or full drawdown), (4) state pension. The gross withdrawal required
+      from the pension pot is back-calculated from the net target income and the applicable marginal rate.
+    </p>
+    <p>
+      <strong>Income used for annual allowance carry-forward calculations</strong> (relevant to pension contributions
+      during the accumulation phase) uses the simplified annual allowance rules: £60,000 per year
+      (current limit) with up to three years' carry-forward of unused allowance at the rate applicable
+      in each earlier year.
+    </p>
+  </section>
+
+  <!-- 6. PCLS / UFPLS -->
+  <section class="method-section" id="s6">
+    <h2><span class="section-num">6</span> Tax-Free Cash: PCLS &amp; UFPLS</h2>
+    <p>
+      Two tax-efficient withdrawal strategies are supported:
+    </p>
+    <ul class="step-list">
+      <li data-n="A"><span><strong>Pension Commencement Lump Sum (PCLS)</strong> — a one-off, fully tax-free cash payment taken at retirement. The maximum is the lesser of: 25% of the pot, £268,275 (the Lump Sum Allowance as of 2024/25), or the elected percentage. After the PCLS is deducted, all future drawdown from the pot is taxed as income. The PCLS is excluded from the tax-free figure if the pot value would imply an entitlement in excess of the Lump Sum Allowance.</span></li>
+      <li data-n="B"><span><strong>Uncrystallised Funds Pension Lump Sum (UFPLS)</strong> — each year, 25% of the gross withdrawal is free of income tax and 75% is taxable. This spreads the tax-free element over the entire drawdown phase, which is often more tax-efficient for those whose income would otherwise exceed higher-rate thresholds. The tax calculations account for the tax-free portion when computing the gross withdrawal required.</span></li>
+    </ul>
+    <div class="callout">
+      <strong>Lump Sum Allowance (LSA):</strong> The LSA of £268,275 is the lifetime cap on tax-free lump sums from pensions (replacing the old Lifetime Allowance). The calculator enforces this limit: if the PCLS election would exceed the LSA, the tax-free amount is capped at £268,275 and remaining funds are drawn as taxable income.
+    </div>
+  </section>
+
+  <!-- 7. State Pension -->
+  <section class="method-section" id="s7">
+    <h2><span class="section-num">7</span> State Pension</h2>
+    <p>
+      The State Pension is entered as a <strong>fixed annual amount in today's money</strong>. Within each simulation,
+      it is uplifted each year by that simulation's cumulative inflation factor (i.e. it is modelled as
+      fully inflation-linked, consistent with the triple lock's inflation element).
+    </p>
+    <p>
+      The full new State Pension for 2024/25 is £11,502 per year (£221.20 per week). You can enter any
+      amount including a partial entitlement. The calculator does not project your National Insurance
+      record or future State Pension entitlement — you should check your forecast at
+      <a href="https://www.gov.uk/check-state-pension" target="_blank" rel="noopener">gov.uk/check-state-pension</a>.
+    </p>
+    <p>
+      State Pension income is <strong>not subject to NI</strong> but is counted as taxable income when stacking
+      income sources for income tax purposes. It is however typically offset against your target drawdown
+      income, reducing the amount that needs to be withdrawn from your pension pots.
+    </p>
+    <div class="callout amber">
+      <strong>Triple lock not modelled.</strong> The triple lock policy (increases by the highest of inflation,
+      earnings growth, or 2.5%) is not projected forward. The inflation-linking assumption used is
+      conservative relative to the full triple lock and is appropriate for planning purposes.
+    </div>
+  </section>
+
+  <!-- 8. ISA / LISA -->
+  <section class="method-section" id="s8">
+    <h2><span class="section-num">8</span> ISA &amp; Lifetime ISA</h2>
+    <p>
+      Two types of tax-advantaged savings accounts are modelled in addition to pension pots:
+    </p>
+    <p>
+      <strong>Stocks &amp; Shares ISA:</strong> Annual contributions up to the ISA allowance (currently £20,000 per year)
+      grow free of income tax and capital gains tax. The projected value at retirement compounds at an
+      equity-blend return (configurable per ISA). Withdrawals are fully tax-free and are applied before
+      pension pot withdrawals in each simulation year, reducing the taxable income drawn from pensions.
+    </p>
+    <p>
+      <strong>Lifetime ISA (LISA):</strong> The government adds a 25% bonus on contributions up to £4,000 per year
+      (max bonus £1,000/year) until age 50. The LISA can only be used for retirement (age 60+) without
+      penalty, so the bonus is modelled as additional balance accumulating at the same equity-blend return.
+      Contributions and bonuses compound from the contribution start date. Withdrawals at retirement are
+      entirely tax-free.
+    </p>
+    <p>
+      The annual allowance warnings are shown if your planned ISA contributions exceed £20,000/year or LISA
+      contributions exceed £4,000/year — the hard limits set by HMRC.
+    </p>
+    <p>
+      <strong>Plain cash savings</strong> and <strong>cash pots</strong> (e.g. an inheritance arriving at a future age) are
+      also modelled. Cash pots earn the bond return component of the blended rate (reflecting savings
+      account or cash-equivalent growth) or a fixed 0% real return depending on your settings.
+    </p>
+  </section>
+
+  <!-- 9. Accumulation Phase -->
+  <section class="method-section" id="s9">
+    <h2><span class="section-num">9</span> Accumulation Phase Projections</h2>
+    <p>
+      The <strong>Pot Balance chart</strong> extends backwards from your retirement date to today, showing how your
+      combined pension + cash pots are projected to grow during the pre-retirement accumulation phase.
+      This is a <strong>deterministic projection</strong> (not stochastic) computed at three return scenarios:
+    </p>
+    <table class="rate-table" aria-label="Accumulation scenarios">
+      <thead>
+        <tr><th>Scenario</th><th>Return assumption</th><th>Chart display</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Base</td><td>Long-run historical mean</td><td>Solid blue (filled)</td></tr>
+        <tr><td>Bear −2%</td><td>Base minus 2 pp per year</td><td>Dashed red</td></tr>
+        <tr><td>Bull +2%</td><td>Base plus 2 pp per year</td><td>Dashed green</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Each pot accumulates at its own equity-adjusted return (scaled from the base rate in proportion to
+      its equity/bond split). Pension contributions are added annually up to the retirement date; ISA and
+      LISA contributions are added up to the LISA age 50 cut-off or the retirement date as applicable.
+    </p>
+    <p>
+      The three <strong>Accumulation Summary cards</strong> show the projected total pot at retirement under the
+      base scenario, broken down into: starting pot value today, total lifetime contributions, and
+      projected investment growth. All values can be shown in today's money (deflated) or nominal pounds.
+    </p>
+  </section>
+
+  <!-- 10. DB / Other Income -->
+  <section class="method-section" id="s10">
+    <h2><span class="section-num">10</span> DB Pensions &amp; Other Income</h2>
+    <p>
+      <strong>Defined Benefit (DB) pensions</strong> are modelled as a fixed annual income in today's money, starting
+      at a specified age. Within each simulation, the DB income is uplifted annually by that year's
+      simulated inflation, consistent with statutory DB revaluation (subject to caps which are not modelled
+      here — the inflation-linking is treated as uncapped).
+    </p>
+    <p>
+      DB income is taxable in the same way as pension income. It is applied before pot withdrawals,
+      reducing the gross amount that must be drawn from defined contribution pots.
+    </p>
+    <p>
+      <strong>Other income sources</strong> — employment/self-employment income, rental income, dividends, and
+      savings interest — can also be entered along with their expected duration. Each income type receives
+      the correct tax treatment:
+    </p>
+    <table class="rate-table" aria-label="Income type tax treatment">
+      <thead>
+        <tr><th>Income type</th><th>Tax treatment</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Employment / SE</td><td>Income tax + National Insurance (Class 1 / 4)</td></tr>
+        <tr><td>Rental / property</td><td>Income tax; property rate (22% basic, 42% higher from Apr 2027)</td></tr>
+        <tr><td>Dividends</td><td>Dividend allowance (£500), then dividend rates (10.75% / 35.75% from Apr 2026)</td></tr>
+        <tr><td>Savings interest</td><td>Personal savings allowance (£1,000 basic / £500 higher rate), then income tax</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Dividend and property rate changes legislated in Finance (No.2) Act 2024 and Finance Bill 2025-26
+      are applied from their respective implementation dates within the projection.
+    </p>
+  </section>
+
+  <!-- 11. Assumptions & Limitations -->
+  <section class="method-section" id="s11">
+    <h2><span class="section-num">11</span> Assumptions &amp; Limitations</h2>
+    <p>
+      The following simplifications and assumptions apply to all projections:
+    </p>
+    <ul class="step-list">
+      <li data-n="→"><span><strong>Tax bands are frozen</strong> at 2024/25 nominal values. No future Budget changes are anticipated. This is a conservative (slightly pessimistic) assumption consistent with current government policy.</span></li>
+      <li data-n="→"><span><strong>National Insurance</strong> is excluded from retirement income tax calculations (State Pension and pension drawdown are not subject to NI). NI is applied to employment/SE income during accumulation where relevant.</span></li>
+      <li data-n="→"><span><strong>Scottish income tax rates</strong> are not modelled. Scottish taxpayers with different rate bands may see materially different tax outcomes.</span></li>
+      <li data-n="→"><span><strong>Annual allowance tapering</strong> for very high earners (adjusted income above £260,000) is not modelled. Contributions are assumed to be within the standard or carry-forward allowance.</span></li>
+      <li data-n="→"><span><strong>Sequence of returns</strong> during pre-retirement is not simulated stochastically — the accumulation chart uses a fixed deterministic return. Only the post-retirement drawdown phase uses Monte Carlo.</span></li>
+      <li data-n="→"><span><strong>Currency risk</strong> is not modelled. The equity return series reflects a broad market blend; portfolio currency exposure is not separated.</span></li>
+      <li data-n="→"><span><strong>Behavioural risks</strong> — panic selling, market timing, switching to cash — are not captured. The model assumes the configured equity/bond split is maintained throughout.</span></li>
+      <li data-n="→"><span><strong>Inheritance tax</strong> and gifting are not modelled. Remaining pension pot at the target end age is shown but no estate planning tax treatment is applied.</span></li>
+      <li data-n="→"><span><strong>Platform fees and fund costs</strong> are not deducted. You should reduce your expected equity return assumption to account for your portfolio's ongoing charge figure (OCF) and platform fees (typically 0.1–0.5% per year combined).</span></li>
+      <li data-n="→"><span><strong>Couple modelling</strong> treats both partners' pots independently but combines income for household drawdown calculations. Partner survivorship is not separately modelled.</span></li>
+    </ul>
+    <div class="disclaimer">
+      <p><strong>This tool is for educational and illustrative purposes only. It does not constitute financial advice.</strong></p>
+      <p>Projections are based on historical data and modelling assumptions that may not reflect future market conditions. Past market returns do not guarantee future results. Tax rules may change. You should consult a qualified independent financial adviser (IFA) before making decisions about your retirement savings.</p>
+      <p>The calculator is not regulated by the Financial Conduct Authority (FCA). It does not take into account your full financial circumstances, risk tolerance, or all sources of income and expenditure.</p>
+    </div>
+  </section>
+
+  <div class="cta-block">
+    <a href="./index.html" class="cta-btn">&#8592; Return to Calculator</a>
+    <p class="cta-sub">Free, open and runs entirely in your browser — your data never leaves your device.</p>
+  </div>
+
+</div>
+</body>
+</html>
