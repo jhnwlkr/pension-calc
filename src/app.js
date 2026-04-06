@@ -48,7 +48,7 @@ function renderPotsUI() {
     div.innerHTML = `
       <div class="pot-card-header">
         <span class="pot-card-title" id="pot-title-${pot.id}">${pot.name || ('Pot ' + (idx + 1))}${pot.archived ? ' <span class="archived-badge">Archived</span>' : ''}</span>
-        ${potsData.length > 1 ? `<button class="remove-btn" data-pot-id="${pot.id}" data-pot-set="user" title="Archive / consolidate / delete">⋯</button>` : ''}
+        ${potsData.length > 1 ? `<button class="remove-btn" data-pot-id="${pot.id}" data-pot-set="user" title="${isActualsEnabled() ? 'Archive / consolidate / delete' : 'Close pot'}">${isActualsEnabled() ? '⋯' : '✕'}</button>` : ''}
       </div>
       <div style="margin-bottom:8px">
         <input class="dyn-input" type="text" placeholder="Name (optional, e.g. SIPP)"
@@ -83,9 +83,12 @@ function renderPotsUI() {
     container.appendChild(div);
   });
 
-  // Wire action buttons (open modal)
+  // Wire action buttons
   container.querySelectorAll('.remove-btn[data-pot-id]').forEach(btn => {
-    btn.addEventListener('click', () => openPotModal(+btn.dataset.potId, 'user'));
+    btn.addEventListener('click', () => {
+      if (isActualsEnabled()) openPotModal(+btn.dataset.potId, 'user');
+      else quickClosePot(+btn.dataset.potId, 'user');
+    });
   });
 
   // Wire number inputs
@@ -173,6 +176,29 @@ function renderPotsUI() {
 // Dynamic control wiring is done in initApp() to avoid DOM timing issues when the script is loaded.
 
 // ── Pot action modal ───────────────────────────────────────────────────────
+function quickClosePot(potId, potSet) {
+  const pots = potSet === 'partner' ? partnerPotsData : potsData;
+  const groups = potSet === 'partner' ? partnerGroupsData : groupsData;
+  const pot = pots.find(p => p.id === potId);
+  if (!pot) return;
+  const hasEntries = actualsEvents.some(e => e.potUuid === pot.uuid);
+  if (hasEntries) {
+    pot.archived = true;
+    pot.archivedDate = new Date().toISOString().slice(0, 10);
+  } else {
+    if (potSet === 'user' && potsData.filter(p => !p.archived).length <= 1 && !pot.archived) return;
+    const oldGroup = pot.groupUuid;
+    if (potSet === 'partner') {
+      partnerPotsData = partnerPotsData.filter(p => p.id !== potId);
+    } else {
+      potsData = potsData.filter(p => p.id !== potId);
+    }
+    if (oldGroup) dissolveIfSingleMember(oldGroup, pots, groups);
+  }
+  potSet === 'partner' ? renderPartnerPotsUI() : renderPotsUI();
+  persistParams();
+}
+
 let _potModalState = { potId: null, potSet: 'user' };
 
 function openPotModal(potId, potSet) {
@@ -610,7 +636,7 @@ function renderPartnerPotsUI() {
     div.innerHTML = `
       <div class="pot-card-header">
         <span class="pot-card-title" id="ppartner-pot-title-${pot.id}">${pot.name || ('Pot ' + (idx + 1))}${pot.archived ? ' <span class="archived-badge">Archived</span>' : ''}</span>
-        <button class="remove-btn" data-ppartner-pot-id="${pot.id}" data-pot-set="partner" title="Archive / consolidate / delete">⋯</button>
+        <button class="remove-btn" data-ppartner-pot-id="${pot.id}" data-pot-set="partner" title="${isActualsEnabled() ? 'Archive / consolidate / delete' : 'Close pot'}">${isActualsEnabled() ? '⋯' : '✕'}</button>
       </div>
       <div style="margin-bottom:8px">
         <input class="dyn-input" type="text" placeholder="Name (optional, e.g. SIPP)"
@@ -643,7 +669,10 @@ function renderPartnerPotsUI() {
     container.appendChild(div);
   });
   container.querySelectorAll('.remove-btn[data-ppartner-pot-id]').forEach(btn => {
-    btn.addEventListener('click', () => openPotModal(+btn.dataset.ppartnerPotId, 'partner'));
+    btn.addEventListener('click', () => {
+      if (isActualsEnabled()) openPotModal(+btn.dataset.ppartnerPotId, 'partner');
+      else quickClosePot(+btn.dataset.ppartnerPotId, 'partner');
+    });
   });
   container.querySelectorAll('.dyn-input[data-ppartner-pot-id]').forEach(inp => {
     inp.addEventListener('input', () => {
@@ -2084,6 +2113,8 @@ function applyActualsEnabled(enabled) {
       setActiveTab('pot');
     }
   }
+  renderPotsUI();
+  renderPartnerPotsUI();
 }
 
 function runSimulation() {
