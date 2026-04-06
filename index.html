@@ -423,14 +423,11 @@
       <div class="slider-row" style="margin-top:4px">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
           <input type="checkbox" id="partner-pcls-enabled" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
-          <span>
-            <span class="slider-name" style="display:block">Take tax-free cash lump sum (PCLS)</span>
-            <span style="font-size:0.72rem;color:var(--text2)">One-off lump sum at retirement, reducing pot size — unchecked = UFPLS</span>
-          </span>
+          <span class="slider-name">Take Tax Free Lump Sum</span>
         </label>
         <div id="partner-pcls-pct-row" class="hidden" style="margin-top:8px">
           <div class="slider-label">
-            <span class="slider-name" style="font-weight:400">PCLS: <span id="v-partner-pcls-pct">25%</span></span>
+            <span class="slider-name" style="font-weight:400">Amount: <span id="v-partner-pcls-pct">25%</span></span>
             <span id="partner-pcls-gbp-equiv" style="font-size:0.75rem;color:var(--text2)"></span>
           </div>
           <input type="range" id="partner-pcls-pct" min="0" max="25" step="1" value="25">
@@ -492,6 +489,21 @@
       </label>
     </div>
     <div class="slider-row">
+    <!-- Tax-free cash mode -->
+    <div class="slider-row" style="margin-top:4px">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="pcls-enabled" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <span class="slider-name">Take Tax Free Lump Sum</span>
+      </label>
+      <div id="pcls-pct-row" class="hidden" style="margin-top:8px">
+        <div class="slider-label">
+          <span class="slider-name" style="font-weight:400">Amount: <span id="v-pcls-pct">25%</span></span>
+          <span id="pcls-gbp-equiv" style="font-size:0.75rem;color:var(--text2)"></span>
+        </div>
+        <input type="range" id="pcls-pct" min="0" max="25" step="1" value="25">
+      </div>
+    </div>
+    <div class="slider-row" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
         <input type="checkbox" id="guardrails" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         <span>
@@ -500,24 +512,6 @@
         </span>
       </label>
     </div>
-    <!-- Tax-free cash mode -->
-    <div class="slider-row" style="margin-top:4px">
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-        <input type="checkbox" id="pcls-enabled" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
-        <span>
-          <span class="slider-name" style="display:block">Take tax-free cash lump sum (PCLS)</span>
-          <span style="font-size:0.72rem;color:var(--text2)">One-off lump sum at retirement, reducing pot size — unchecked = 25% tax-free per withdrawal (UFPLS)</span>
-        </span>
-      </label>
-      <div id="pcls-pct-row" class="hidden" style="margin-top:8px">
-        <div class="slider-label">
-          <span class="slider-name" style="font-weight:400">PCLS: <span id="v-pcls-pct">25%</span></span>
-          <span id="pcls-gbp-equiv" style="font-size:0.75rem;color:var(--text2)"></span>
-        </div>
-        <input type="range" id="pcls-pct" min="0" max="25" step="1" value="25">
-      </div>
-    </div>
-  </div>
 
   <!-- Actuals Journal -->
   <div class="section" id="journal-section">
@@ -889,7 +883,7 @@
 <div id="planning-disclaimer">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances, so consider professional advice before making decisions.</div>
 
 <div id="fiscal-drag-tip"></div>
-<script type="module" src="./src/app.js?v=25"></script>
+<script type="module" src="./src/app.js?v=26"></script>
 
 </body>
 </html>
