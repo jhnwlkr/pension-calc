@@ -3361,9 +3361,9 @@ function renderTaxBreakdown(r) {
       const s = bSplit_(inc, base, brR, hrR, arR);
       if (!s) return { html: '', newBase: base + inc };
       const rows = [];
-      if (s.br > 0) rows.push(`<tr><td>${lbl}: ${fmtGBP(s.br)}/yr &times; ${rStr_(brR)}</td><td class="num">= ${fmtGBP(s.br * brR)}/yr</td></tr>`);
-      if (s.hr > 0) rows.push(`<tr><td>${lbl}: ${fmtGBP(s.hr)}/yr &times; ${rStr_(hrR)}</td><td class="num">= ${fmtGBP(s.hr * hrR)}/yr</td></tr>`);
-      if (s.ar > 0) rows.push(`<tr><td>${lbl}: ${fmtGBP(s.ar)}/yr &times; ${rStr_(arR)}</td><td class="num">= ${fmtGBP(s.ar * arR)}/yr</td></tr>`);
+      if (s.br > 0) rows.push(`<tr><td>${lbl}: ${fmtGBP(s.br)}/yr &times; ${rStr_(brR)}</td><td class="num">= ${fmtA(s.br * brR)}</td></tr>`);
+      if (s.hr > 0) rows.push(`<tr><td>${lbl}: ${fmtGBP(s.hr)}/yr &times; ${rStr_(hrR)}</td><td class="num">= ${fmtA(s.hr * hrR)}</td></tr>`);
+      if (s.ar > 0) rows.push(`<tr><td>${lbl}: ${fmtGBP(s.ar)}/yr &times; ${rStr_(arR)}</td><td class="num">= ${fmtA(s.ar * arR)}</td></tr>`);
       return { html: rows.join(''), newBase: base + inc };
     }
     let step3Rows_ = '';
@@ -3390,24 +3390,7 @@ function renderTaxBreakdown(r) {
     });
     if (!step3Rows_) step3Rows_ = `<tr class="tw-nil"><td colspan="2">All income within personal allowance — no tax due</td></tr>`;
 
-    const step4_ = totalTax_ > 0 ? (() => {
-      const typeRows_ = [];
-      if (pensionTaxAnn_ > 0) typeRows_.push(`<tr><td>Pension drawdown <small class="tx-rate">20/40/45%</small></td><td class="num">= ${fmtGBP(pensionTaxAnn_ / 12)}/mo</td></tr>`);
-      if (spTaxAnn_ > 0) typeRows_.push(`<tr><td>State pension <small class="tx-rate">20/40/45%</small></td><td class="num">= ${fmtGBP(spTaxAnn_ / 12)}/mo</td></tr>`);
-      if (tc_?.employmentTax > 0) typeRows_.push(`<tr><td>Employment / Trading income <small class="tx-rate">20/40/45%</small></td><td class="num">= ${fmtGBP(tc_.employmentTax / 12)}/mo</td></tr>`);
-      if (tc_?.propertyTax > 0) typeRows_.push(`<tr><td>Property / Rental income <small class="tx-rate">${calYr >= 2027 ? '22/42/47%' : '20/40/45%'}</small></td><td class="num">= ${fmtGBP(tc_.propertyTax / 12)}/mo</td></tr>`);
-      if (tc_?.savingsTax > 0) typeRows_.push(`<tr><td>Savings / Interest income <small class="tx-rate">${calYr >= 2027 ? '22/42/47%' : '20/40/45%'}</small></td><td class="num">= ${fmtGBP(tc_.savingsTax / 12)}/mo</td></tr>`);
-      if (tc_?.dividendTax > 0) typeRows_.push(`<tr><td>Dividends <small class="tx-rate">${calYr >= 2026 ? '10.75/35.75/39.35%' : '8.75/33.75/39.35%'}</small></td><td class="num">= ${fmtGBP(tc_.dividendTax / 12)}/mo</td></tr>`);
-      return `
-      <div class="tw-step">
-        <div class="tw-step-title">Step 4 — Tax allocated between income sources</div>
-        <p class="tw-step-note">UK income stacking order (ITA 2007 s23): pension &amp; employment fill the lowest bands first, then property, then savings, then dividends — each at their applicable rate schedule.</p>
-        <table class="tw-table">
-          ${typeRows_.join('')}
-          <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtGBP(totalTax_ / 12)}/mo</td></tr>
-        </table>
-      </div>`;
-    })() : '';
+
 
     return `<div class="tw-person-section">
       <div class="tw-person-heading">${label}</div>
@@ -3433,12 +3416,12 @@ function renderTaxBreakdown(r) {
       </div>
       <div class="tw-step">
         <div class="tw-step-title">Step 3 — Tax by income source (stacking order)</div>
+        <p class="tw-step-note">UK income stacking order (ITA 2007 s23): pension &amp; employment fill the lowest bands first, then property, then savings, then dividends — each at their applicable rate schedule. Each row shows the slice of income falling in that band × the applicable rate.</p>
         <table class="tw-table">
           ${step3Rows_}
           <tr class="tw-total"><td>Total income tax</td><td class="num">${fmtA(totalTax_)}</td></tr>
         </table>
       </div>
-      ${step4_}
     </div>`;
   }
 
