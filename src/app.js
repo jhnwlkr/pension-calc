@@ -1462,6 +1462,7 @@ function persistParams() {
   obj['partner-groups'] = JSON.stringify(partnerGroupsData);
   obj['partner-cashPots'] = JSON.stringify(partnerCashPotsData);
   obj['partner-incomes'] = JSON.stringify(partnerIncomesData);
+  obj['actuals-enabled'] = isActualsEnabled() ? '1' : '0';
   obj['active-tab'] = document.querySelector('.tab.active')?.dataset.tab || 'pot';
   obj['mc-pctile'] = document.getElementById('mc-pctile').value;
   const taxYearEl = document.getElementById('tax-year-select');
@@ -1696,6 +1697,12 @@ function restoreParams(obj) {
         renderPartnerIncomesUI();
       }
     } catch(e) {}
+  }
+  if (obj['actuals-enabled'] !== undefined) {
+    const enabled = obj['actuals-enabled'] !== '0';
+    const cb = document.getElementById('actuals-enabled');
+    if (cb) cb.checked = enabled;
+    applyActualsEnabled(enabled);
   }
   // Restore UI view state
   if (obj['active-tab']) setActiveTab(obj['active-tab']);
@@ -2060,7 +2067,23 @@ function applyActualsRecalibration(p, events) {
 }
 
 function isRecalibrationEnabled() {
-  return document.getElementById('recalibrate-toggle')?.checked && actualsEvents.length > 0;
+  return isActualsEnabled() && document.getElementById('recalibrate-toggle')?.checked && actualsEvents.length > 0;
+}
+
+function isActualsEnabled() {
+  return document.getElementById('actuals-enabled')?.checked ?? false;
+}
+
+function applyActualsEnabled(enabled) {
+  document.getElementById('journal-body')?.classList.toggle('hidden', !enabled);
+  const tabBtn = document.querySelector('.tab[data-tab="actuals"]');
+  if (tabBtn) {
+    tabBtn.style.display = enabled ? '' : 'none';
+    // If currently on actuals tab and disabling, switch to pot
+    if (!enabled && tabBtn.classList.contains('active')) {
+      setActiveTab('pot');
+    }
+  }
 }
 
 function runSimulation() {
@@ -2485,15 +2508,25 @@ function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete chart
 function buildActualsChartData(r) {
   const p = r.p;
   const calYear = new Date().getFullYear();
+  const chartStartAge = r.ages[0];
+  const chartEndAge = r.ages[r.ages.length - 1];
+  const chartAges = [];
+  for (let a = chartStartAge; a <= chartEndAge; a++) chartAges.push(a);
+  // If actuals are disabled return empty data immediately
+  if (!isActualsEnabled()) {
+    const todayIdx = chartAges.indexOf(p.currentAge);
+    const showTodayLine = p.currentAge > p.retirementAge && todayIdx >= 0;
+    return { chartAges, potActualsByAge: {}, incActualsByAge: {}, todayIdx, showTodayLine };
+  }
   // Find the earliest age present in any journal entry
   const journalAgeMin = actualsEvents.filter(e => e.date).reduce((mn, e) => {
     const a = p.currentAge + (new Date(e.date).getFullYear() - calYear);
     return Math.min(mn, a);
   }, r.ages[0]);
-  const chartStartAge = Math.min(r.ages[0], journalAgeMin);
-  const chartEndAge = r.ages[r.ages.length - 1];
-  const chartAges = [];
-  for (let a = chartStartAge; a <= chartEndAge; a++) chartAges.push(a);
+  const extStartAge = Math.min(r.ages[0], journalAgeMin);
+  if (extStartAge < chartStartAge) {
+    for (let a = extStartAge; a < chartStartAge; a++) chartAges.unshift(a);
+  }
   // Pot + cash actuals: for each year-bucket take the latest value per pot UUID,
   // then sum those. This ensures multiple snapshots in the same year don't
   // inflate the chart point — only the most recent snapshot per pot is used.
@@ -3913,6 +3946,12 @@ function initApp() {
   renderJournalRecent();
   document.getElementById('export-backup-btn')?.addEventListener('click', exportBackup);
   updateBackupBadge();
+  document.getElementById('actuals-enabled')?.addEventListener('change', (e) => {
+    applyActualsEnabled(e.target.checked);
+    persistParams();
+    if (lastResults) document.getElementById('run-btn').click();
+  });
+
   document.getElementById('recalibrate-toggle')?.addEventListener('change', () => {
     document.getElementById('run-btn').click();
   });

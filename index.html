@@ -456,7 +456,13 @@
 
   <!-- Actuals Journal -->
   <div class="section" id="journal-section">
-    <h3 class="section-title">Actuals Journal</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)">
+      <h3 style="margin:0">Actuals Journal</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text2);cursor:pointer;font-weight:400">
+        <input type="checkbox" id="actuals-enabled" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer"> Show
+      </label>
+    </div>
+    <div id="journal-body" class="hidden">
     <p style="font-size:0.78rem;color:var(--text2);margin:0 0 12px">Log pot valuations and income received to recalibrate your forecast against reality.</p>
 
     <div style="margin-bottom:12px">
@@ -509,6 +515,7 @@
         <span id="journal-count" style="font-size:0.75rem;color:var(--text2)"></span>
       </div>
       <div id="journal-list"></div>
+    </div>
     </div>
   </div>
 
