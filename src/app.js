@@ -3979,7 +3979,25 @@ function initApp() {
   document.getElementById('actuals-enabled')?.addEventListener('change', (e) => {
     applyActualsEnabled(e.target.checked);
     persistParams();
-    if (lastResults) document.getElementById('run-btn').click();
+    if (lastResults) {
+      const r = runSimulation();
+      if (r) {
+        r.annualIncomeData = buildAnnualIncomeData(r);
+        renderCards(r);
+        const explain = buildExplainability(getParams(), r);
+        renderExplainability(explain, r);
+        renderIncomeTable(r);
+        const activeTab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
+        if (activeTab === 'pot') renderPotChart(r);
+        else if (activeTab === 'taxbreakdown') renderTaxBreakdown(r);
+        else if (activeTab === 'realincome') renderRealIncomeChart(r);
+        else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
+        else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
+        else if (activeTab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
+        else if (activeTab === 'historicalreplay') renderHistoricalReplayTab(r);
+        else if (activeTab === 'actuals') renderActualsTab(r);
+      }
+    }
   });
 
   document.getElementById('recalibrate-toggle')?.addEventListener('change', () => {
