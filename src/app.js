@@ -5,7 +5,7 @@ import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS,
   DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD, DIV_RATE_CHANGE_YEAR,
 } from './constants.js';
 import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js';
-import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js';
+import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js?v=31';
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
 let nextPotId = 1;
@@ -2504,6 +2504,12 @@ function buildAnnualIncomeData(r) {
   const partnerCashBalance = 0;
 
   const cashBals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
+  // Build combined pot list and draw order for cash pots
+  const _aidAllCashPots = [...(p.cashPots || []), ...(p.partner?.cashPots || [])];
+  const _aidCashDrawOrder = Array.from({ length: cashBals.length }, (_, ci) => {
+    const t = (_aidAllCashPots[ci]?.type) || 'cash';
+    return { ci, priority: t === 'lisa' ? 2 : t === 'ss_isa' ? 1 : 0 };
+  }).sort((a, b) => a.priority - b.priority).map(x => x.ci);
   // Per-person LSA tracking: 25% tax-free each year until £268,275 is used up
   const primaryPotFrac_ = r.primaryPotFrac ?? 1.0;
   let cumulPrimaryTaxFree = 0;
@@ -2538,7 +2544,10 @@ function buildAnnualIncomeData(r) {
       }
     }
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
-      cashBals[ci2] *= (1 + p.cashPots[ci2].interestPct / 100);
+      const _cpType = p.cashPots[ci2].type || 'cash';
+      cashBals[ci2] *= _cpType === 'ss_isa' || _cpType === 'lisa'
+        ? 1 + (r.returnPct ?? 5) / 100
+        : 1 + p.cashPots[ci2].interestPct / 100;
     }
 
     const ageCtxAID = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor };
@@ -2559,9 +2568,11 @@ function buildAnnualIncomeData(r) {
     const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
     let cashContrib = 0;
-    for (let ci2 = 0; ci2 < cashBals.length && cashContrib < netTargetAnn; ci2++) {
-      const take = Math.min(cashBals[ci2], netTargetAnn - cashContrib);
-      cashBals[ci2] -= take;
+    for (const _ci2 of _aidCashDrawOrder) {
+      if (cashContrib >= netTargetAnn) break;
+      if ((_aidAllCashPots[_ci2]?.type || 'cash') === 'lisa' && age < 60) continue;
+      const take = Math.min(cashBals[_ci2], netTargetAnn - cashContrib);
+      cashBals[_ci2] -= take;
       cashContrib += take;
     }
 
