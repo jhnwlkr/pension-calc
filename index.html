@@ -170,12 +170,13 @@
     .sidebar { border-right: none; border-bottom: 1px solid var(--border); display: none; padding: 16px; }
     .sidebar.open { display: block; }
     .sidebar.open ~ .right-panel { display: none; }
-    .header { position: sticky; top: 0; z-index: 11; flex-wrap: wrap; padding-bottom: 0; overflow: hidden; }
+    .header { position: sticky; top: 0; z-index: 11; }
     .layout { overflow: visible; }
     .right-panel { overflow: visible; height: auto; }
     .main { overflow: visible; padding: 12px 12px 16px 12px; }
     .top-bar { display: none; }
-    .mobile-top-strip { display: flex; flex: 0 0 100%; margin: 4px -16px 0; padding: 4px 16px; background: var(--bg); border-top: 1px solid var(--border); justify-content: flex-end; }
+    .header { flex-wrap: wrap; }
+    .mobile-top-strip { display: flex; width: 100%; padding: 6px 0 2px; margin-top: 4px; border-top: 1px solid var(--border); justify-content: flex-end; }
     #planning-disclaimer { border-top: none; margin: 16px 0 0; }
     .cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .card { padding: 12px; } .card-value { font-size: 1.3rem; }
