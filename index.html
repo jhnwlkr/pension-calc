@@ -135,7 +135,8 @@
   .ann-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
   .guardrail-row td:first-child { background: var(--surface); box-shadow: inset 3px 0 0 rgba(220,38,38,0.15); }
   .ann-sub { font-size: 0.65rem; color: var(--text2); display: block; margin-top: 1px; line-height: 1.2; }
-  .ann-tax { color: var(--red); cursor: help; }
+  .ann-tax { color: var(--red); }
+  body.today-prices-active .ann-tax { cursor: help; }
   #fiscal-drag-tip { position: fixed; z-index: 9999; max-width: 320px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,0.18); padding: 10px 13px; font-size: 0.78rem; line-height: 1.5; color: var(--text1); pointer-events: none; opacity: 0; transition: opacity 0.12s; }
   #fiscal-drag-tip.visible { opacity: 1; }
   .guardrail-row td:first-child::after { content: ' ⚡'; color: var(--red); font-size: 0.75rem; }

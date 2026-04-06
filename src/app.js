@@ -1240,6 +1240,7 @@ function isTodayMoney() {
 
 function setTodayMoney(checked, r) {
   todayPrices = checked;
+  document.body.classList.toggle('today-prices-active', checked);
   document.querySelectorAll('.today-money-toggle').forEach(cb => { cb.checked = checked; });
   if (r) {
     renderCards(r);
