@@ -514,17 +514,25 @@ function renderIncomesUI() {
         inc[field] = el.value;
       } else if (field === 'startAge' || field === 'endAge') {
         inc[field] = el.value !== '' ? +el.value : undefined;
-        if (field === 'endAge' && inc.endAge !== undefined && inc.startAge !== undefined && inc.endAge <= inc.startAge) {
-          inc.endAge = inc.startAge + 1;
-          el.value = inc.endAge;
-        }
-        if (field === 'startAge' && inc.startAge !== undefined && inc.endAge !== undefined && inc.startAge >= inc.endAge) {
-          inc.endAge = inc.startAge + 1;
-        }
       } else {
         inc[field] = +el.value;
       }
       persistParams();
+    });
+  });
+  container.querySelectorAll('.inc-age-input[data-inc-id]').forEach(el => {
+    el.addEventListener('blur', () => {
+      const inc = incomesData.find(i => i.id === +el.dataset.incId);
+      if (!inc) return;
+      const field = el.dataset.field;
+      if (field === 'endAge' && inc.endAge !== undefined && inc.startAge !== undefined && inc.endAge <= inc.startAge) {
+        inc.endAge = inc.startAge + 1;
+        el.value = inc.endAge;
+        persistParams();
+      } else if (field === 'startAge' && inc.startAge !== undefined && inc.endAge !== undefined && inc.startAge >= inc.endAge) {
+        inc.endAge = inc.startAge + 1;
+        persistParams();
+      }
     });
   });
 }
@@ -1005,17 +1013,25 @@ function renderPartnerIncomesUI() {
         inc[field] = el.value;
       } else if (field === 'startAge' || field === 'endAge') {
         inc[field] = el.value !== '' ? +el.value : undefined;
-        if (field === 'endAge' && inc.endAge !== undefined && inc.startAge !== undefined && inc.endAge <= inc.startAge) {
-          inc.endAge = inc.startAge + 1;
-          el.value = inc.endAge;
-        }
-        if (field === 'startAge' && inc.startAge !== undefined && inc.endAge !== undefined && inc.startAge >= inc.endAge) {
-          inc.endAge = inc.startAge + 1;
-        }
       } else {
         inc[field] = +el.value;
       }
       persistParams();
+    });
+  });
+  container.querySelectorAll('.inc-age-input[data-pinc-id]').forEach(el => {
+    el.addEventListener('blur', () => {
+      const inc = partnerIncomesData.find(i => i.id === +el.dataset.pincId);
+      if (!inc) return;
+      const field = el.dataset.field;
+      if (field === 'endAge' && inc.endAge !== undefined && inc.startAge !== undefined && inc.endAge <= inc.startAge) {
+        inc.endAge = inc.startAge + 1;
+        el.value = inc.endAge;
+        persistParams();
+      } else if (field === 'startAge' && inc.startAge !== undefined && inc.endAge !== undefined && inc.startAge >= inc.endAge) {
+        inc.endAge = inc.startAge + 1;
+        persistParams();
+      }
     });
   });
 }
