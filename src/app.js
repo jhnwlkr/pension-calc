@@ -3374,79 +3374,72 @@ function renderAccumulationCards(r) {
   const yearsToRetirement = Math.max(0, p.retirementAge - p.currentAge);
   const deflAtRet = useToday ? Math.pow(1 / baseInflFactor, yearsToRetirement) : 1;
 
-  // Projected total at retirement (pension + cash, base scenario)
-  const accLen = r.accPensionByYear ? r.accPensionByYear.length : 0;
-  const projPension = accLen > 0 ? r.accPensionByYear[accLen - 1] : (r.detPotByYear?.[0] ?? 0);
-  const projCash = accLen > 0 ? r.accCashByYear[accLen - 1] : (r.detCashBalByYear?.[0] ?? 0);
-  const projTotal = (projPension + projCash) * deflAtRet;
+  // Projected total at retirement — use the same deterministic arrays as the rest of the app
+  // (authoritative, consistent with main card). Nominal; deflated for display if toggle on.
+  const projPensionNom = r.detPotByYear?.[0] ?? 0;
+  const projCashNom = r.detCashBalByYear?.[0] ?? 0;
+  const projTotalNom = projPensionNom + projCashNom;
+  const projTotalDisp = projTotalNom * deflAtRet;
 
-  // Total contributions (pension annual + cash monthly)
+  // Current total pot values (already in today's money / nominal — same thing right now)
+  const currentPotTotal = (p.pots || []).reduce((s, pot) => s + (pot.value || 0), 0)
+    + (p.partner?.pots || []).reduce((s, pot) => s + (pot.value || 0), 0)
+    + (p.cashPots || []).reduce((s, cp) => s + (cp.value || 0), 0)
+    + (p.partner?.cashPots || []).reduce((s, cp) => s + (cp.value || 0), 0);
+
+  // Total contributions — raw nominal £ you will actually pay in (year-level for pension,
+  // month × 12 × years for cash; LISA bonus included)
   let totalContribs = 0;
   (p.pots || []).forEach(pot => { totalContribs += (pot.annualContrib || 0) * yearsToRetirement; });
   if (p.partner) {
     const ytp = Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge));
     (p.partner.pots || []).forEach(pot => { totalContribs += (pot.annualContrib || 0) * ytp; });
   }
-  (p.cashPots || []).forEach(cp => {
-    let delayYears = 0;
-    if (cp.contribStartMonth) {
-      const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
-      const now = new Date();
-      delayYears = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12;
-    }
-    const contribYears = Math.max(0, yearsToRetirement - delayYears);
-    totalContribs += (cp.monthlyContrib || 0) * 12 * contribYears;
-    if (cp.type === 'lisa' && (cp.monthlyContrib || 0) > 0 && p.currentAge < 50) {
-      const eligibleYears = Math.max(0, Math.min(contribYears, 50 - p.currentAge));
-      totalContribs += Math.min((cp.monthlyContrib || 0) * 12, 4000) * 0.25 * eligibleYears;
-    }
-  });
-  if (p.partner) {
-    const ytp = Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge));
-    (p.partner.cashPots || []).forEach(cp => {
+  const calcCashContribs = (cashPots, yrs, ownerCurrentAge) => {
+    (cashPots || []).forEach(cp => {
       let delayYears = 0;
       if (cp.contribStartMonth) {
         const [cy, cm] = cp.contribStartMonth.split('-').map(Number);
         const now = new Date();
         delayYears = Math.max(0, (cy - now.getFullYear()) * 12 + (cm - 1 - now.getMonth())) / 12;
       }
-      const contribYears = Math.max(0, ytp - delayYears);
+      const contribYears = Math.max(0, yrs - delayYears);
       totalContribs += (cp.monthlyContrib || 0) * 12 * contribYears;
-      if (cp.type === 'lisa' && (cp.monthlyContrib || 0) > 0 && p.partner.currentAge < 50) {
-        const eligibleYears = Math.max(0, Math.min(contribYears, 50 - p.partner.currentAge));
+      if (cp.type === 'lisa' && (cp.monthlyContrib || 0) > 0 && ownerCurrentAge < 50) {
+        const eligibleYears = Math.max(0, Math.min(contribYears, 50 - ownerCurrentAge));
         totalContribs += Math.min((cp.monthlyContrib || 0) * 12, 4000) * 0.25 * eligibleYears;
       }
     });
+  };
+  calcCashContribs(p.cashPots, yearsToRetirement, p.currentAge);
+  if (p.partner) {
+    const ytp = Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge));
+    calcCashContribs(p.partner.cashPots, ytp, p.partner.currentAge);
   }
-  // Contributions in today's money if toggle is on — use simple avg deflator at midpoint
-  const contribsDisp = useToday ? totalContribs * Math.pow(1 / baseInflFactor, yearsToRetirement / 2) : totalContribs;
 
-  // Current total pot value
-  const currentPotTotal = (p.pots || []).reduce((s, pot) => s + (pot.value || 0), 0)
-    + (p.partner?.pots || []).reduce((s, pot) => s + (pot.value || 0), 0)
-    + (p.cashPots || []).reduce((s, cp) => s + (cp.value || 0), 0)
-    + (p.partner?.cashPots || []).reduce((s, cp) => s + (cp.value || 0), 0);
-
-  // Total growth = projected - current values (deflated) - contributions (deflated)
-  const currentDisp = useToday ? currentPotTotal : currentPotTotal;
-  const totalGrowth = Math.max(0, projTotal - currentDisp - contribsDisp);
+  // Total growth = nominal_projected − current_pot_value − total_contributions_nominal
+  // All three are in comparable terms (nominal), so this isolates the investment return.
+  // Deflate for display using the same retirment deflator if today's money is on.
+  const totalGrowthNom = Math.max(0, projTotalNom - currentPotTotal - totalContribs);
+  const totalGrowthDisp = totalGrowthNom * deflAtRet;
+  const contribsDisp = totalContribs * deflAtRet;
 
   const yrs = Math.round(yearsToRetirement);
   container.innerHTML = `
     <div class="accum-card">
       <div class="accum-card-label">Projected pot at retirement</div>
-      <div class="accum-card-value">${fmtGBP(projTotal)}</div>
-      <div class="accum-card-sub">${yrs} year${yrs !== 1 ? 's' : ''} to go · pension ${fmtGBP(projPension * deflAtRet)} · cash ${fmtGBP(projCash * deflAtRet)}</div>
+      <div class="accum-card-value">${fmtGBP(projTotalDisp)}</div>
+      <div class="accum-card-sub">${yrs} year${yrs !== 1 ? 's' : ''} to go · pension ${fmtGBP(projPensionNom * deflAtRet)} · cash ${fmtGBP(projCashNom * deflAtRet)}</div>
     </div>
     <div class="accum-card">
       <div class="accum-card-label">Total contributions</div>
       <div class="accum-card-value">${fmtGBP(contribsDisp)}</div>
-      <div class="accum-card-sub">you add before retirement${useToday ? ' (approx. today\'s money)' : ''}</div>
+      <div class="accum-card-sub">you add before retirement${useToday ? ' (today\'s money equivalent)' : ' (nominal)'}</div>
     </div>
     <div class="accum-card">
       <div class="accum-card-label">Total growth</div>
-      <div class="accum-card-value">${fmtGBP(totalGrowth)}</div>
-      <div class="accum-card-sub">projected investment return${useToday ? ' (today\'s money)' : ''}</div>
+      <div class="accum-card-value">${fmtGBP(totalGrowthDisp)}</div>
+      <div class="accum-card-sub">projected investment return${useToday ? ' (today\'s money)' : ' (nominal)'}</div>
     </div>`;
 }
 
