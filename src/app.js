@@ -5230,7 +5230,7 @@ function restoreScrollState() {
     const { pageY, sidebarY } = JSON.parse(raw);
     if (pageY) window.scrollTo({ top: pageY, behavior: 'instant' });
     const sidebar = document.getElementById('sidebar');
-    if (sidebar && sidebarY) sidebar.scrollTop = sidebarY;
+    if (sidebar && sidebarY) requestAnimationFrame(() => requestAnimationFrame(() => { sidebar.scrollTop = sidebarY; }));
   } catch(e) {}
 }
 
@@ -5242,10 +5242,13 @@ function initApp() {
     toggleBtn.textContent = isOpen ? '✕' : '⚙';
     toggleBtn.setAttribute('aria-expanded', isOpen);
     if (isOpen) {
-      // Restore sidebar scroll when panel opens
+      // Restore sidebar scroll when panel opens — defer until after layout
       try {
         const raw = sessionStorage.getItem(SCROLL_KEY);
-        if (raw) { const { sidebarY } = JSON.parse(raw); if (sidebarY) sidebar.scrollTop = sidebarY; }
+        if (raw) {
+          const { sidebarY } = JSON.parse(raw);
+          if (sidebarY) requestAnimationFrame(() => requestAnimationFrame(() => { sidebar.scrollTop = sidebarY; }));
+        }
       } catch(e) {}
     } else {
       saveScrollState();
