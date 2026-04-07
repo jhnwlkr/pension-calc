@@ -725,6 +725,49 @@
       </div>
       <div class="ai-note" id="pot-chart-note">Projected at the selected nominal return rate. Amber dashed line = State Pension start age. Use the Monte Carlo tab for probability-based projections.</div>
       <div class="chart-wrap"><canvas id="chart-pot"></canvas></div>
+      <!-- Sequence of Returns Risk stress test panel -->
+      <div style="margin-top:14px;padding:14px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface2,var(--surface))">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:0">
+          <input type="checkbox" id="sorr-enabled" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+          <span>
+            <span class="slider-name" style="display:block">Sequence of Returns Risk stress test</span>
+            <span style="font-size:0.72rem;color:var(--text2)">Overlays a synthetic crash at the start of retirement to illustrate how poor early returns can derail an otherwise adequate portfolio</span>
+          </span>
+        </label>
+        <div id="sorr-controls" class="hidden" style="margin-top:12px">
+          <div class="slider-row" style="margin-bottom:10px">
+            <div class="slider-label">
+              <span class="slider-name" style="font-weight:400">Annual return during crash</span>
+              <span id="v-sorr-crash-pct" style="font-size:0.88rem;font-weight:600;color:var(--accent)">−25%</span>
+            </div>
+            <input type="range" id="sorr-crash-pct" min="-50" max="0" step="1" value="-25">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label">
+              <span class="slider-name" style="font-weight:400">Crash duration</span>
+              <span id="v-sorr-crash-years" style="font-size:0.88rem;font-weight:600;color:var(--accent)">3 years</span>
+            </div>
+            <input type="range" id="sorr-crash-years" min="1" max="10" step="1" value="3">
+          </div>
+          <div id="sorr-summary" style="margin-top:12px"></div>
+          <div style="margin-top:8px">
+            <button id="sorr-table-toggle" style="font-size:0.78rem;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline">Show year-by-year</button>
+          </div>
+          <div id="sorr-table-wrap" class="hidden" style="margin-top:10px;max-height:40vh;overflow-y:auto">
+            <table id="sorr-table" class="ann-table">
+              <thead style="position:sticky;top:0;z-index:2;background:var(--surface)">
+                <tr>
+                  <th style="text-align:left">Age</th>
+                  <th>Return</th>
+                  <th>Pot Balance</th>
+                  <th>Guardrail</th>
+                </tr>
+              </thead>
+              <tbody id="sorr-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
       <div id="accum-summary">
         <div id="accum-cards"></div>
       </div>

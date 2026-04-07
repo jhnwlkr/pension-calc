@@ -1668,6 +1668,9 @@ function buildExportPayload() {
   settings['partner-pcls-enabled']       = document.getElementById('partner-pcls-enabled')?.checked ? '1' : '0';
   settings['partner-pcls-pct']           = document.getElementById('partner-pcls-pct')?.value || '25';
   settings['income-reduction-enabled']   = document.getElementById('income-reduction-enabled')?.checked ? '1' : '0';
+  settings['sorr-enabled']               = document.getElementById('sorr-enabled')?.checked ? '1' : '0';
+  settings['sorr-crash-pct']             = document.getElementById('sorr-crash-pct')?.value ?? '-25';
+  settings['sorr-crash-years']           = document.getElementById('sorr-crash-years')?.value ?? '3';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) settings[id] = el.value; });
 
   // Actuals = all pot registries, income registries, groups, events
@@ -2089,6 +2092,9 @@ function persistParams() {
   obj['pcls-pct'] = document.getElementById('pcls-pct')?.value || '25';
   obj['partner-pcls-enabled'] = document.getElementById('partner-pcls-enabled')?.checked ? '1' : '0';
   obj['partner-pcls-pct'] = document.getElementById('partner-pcls-pct')?.value || '25';
+  obj['sorr-enabled'] = document.getElementById('sorr-enabled')?.checked ? '1' : '0';
+  obj['sorr-crash-pct'] = document.getElementById('sorr-crash-pct')?.value ?? '-25';
+  obj['sorr-crash-years'] = document.getElementById('sorr-crash-years')?.value ?? '3';
   obj['active-tab'] = document.querySelector('.tab.active')?.dataset.tab || 'pot';
   obj['mc-pctile'] = document.getElementById('mc-pctile').value;
   const taxYearEl = document.getElementById('tax-year-select');
@@ -2462,6 +2468,28 @@ function restoreParams(obj) {
       el.value = dob;
       if (el._flatpickr) el._flatpickr.setDate(dob, false);
       if (lbl) lbl.textContent = 'Age ' + age;
+    }
+  }
+  // Sequence of Returns Risk
+  if (obj['sorr-enabled'] !== undefined) {
+    const cb = document.getElementById('sorr-enabled');
+    const controls = document.getElementById('sorr-controls');
+    if (cb) {
+      cb.checked = obj['sorr-enabled'] !== '0';
+      if (controls) controls.classList.toggle('hidden', !cb.checked);
+    }
+  }
+  if (obj['sorr-crash-pct'] !== undefined) {
+    const el = document.getElementById('sorr-crash-pct');
+    const lbl = document.getElementById('v-sorr-crash-pct');
+    if (el) { el.value = obj['sorr-crash-pct']; if (lbl) lbl.textContent = obj['sorr-crash-pct'] + '%'; }
+  }
+  if (obj['sorr-crash-years'] !== undefined) {
+    const el = document.getElementById('sorr-crash-years');
+    const lbl = document.getElementById('v-sorr-crash-years');
+    if (el) {
+      el.value = obj['sorr-crash-years'];
+      if (lbl) lbl.textContent = obj['sorr-crash-years'] + (+obj['sorr-crash-years'] === 1 ? ' year' : ' years');
     }
   }
 }
@@ -3621,6 +3649,36 @@ function renderPotChart(r) {
     datasets.push({ label: 'Actual total pot', data: actualsValues, borderColor: '#16a34a', backgroundColor: '#16a34a', showLine: true, tension: 0.2, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2, spanGaps: false, fill: false });
   }
 
+  // Sequence of Returns Risk overlay
+  const sorrEnabled = document.getElementById('sorr-enabled')?.checked;
+  let sorrResult = null;
+  if (sorrEnabled && r.startPensionPot > 0) {
+    const crashPct = +(document.getElementById('sorr-crash-pct')?.value ?? -25);
+    const crashYears = +(document.getElementById('sorr-crash-years')?.value ?? 3);
+    sorrResult = runSorrProjection(r, crashPct, crashYears);
+    if (sorrResult) {
+      const sorrData = stitchSeries(
+        (r.accPensionByYear && r.accCashByYear)
+          ? Array.from(r.accPensionByYear).map((v, i) => v + (r.accCashByYear[i] || 0))
+          : null,
+        Array.from(sorrResult.detPotByYear).map((v, i) => v + ((sorrResult.detCashBalByYear || [])[i] || 0)),
+        0
+      );
+      datasets.push({
+        label: `Sequence of Returns Risk (${crashPct}%/yr × ${crashYears}yr)`,
+        data: sorrData,
+        borderColor: 'rgba(220,38,38,0.9)',
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 2,
+        borderDash: [6, 3],
+        spanGaps: false
+      });
+    }
+  }
+
   charts['pot'] = new Chart(ctx, {
     type: 'line',
     plugins: [overlayPlugin],
@@ -3635,6 +3693,9 @@ function renderPotChart(r) {
       }
     }
   });
+
+  // Render SORR summary callout + table if enabled
+  renderSorrSummary(sorrResult, r.p, r);
 }
 
 // ── Pot Chart (Monte Carlo Fan) ───────────────────────────────────────────
@@ -4435,8 +4496,177 @@ function runHistoricalReplayProjection(r, startYear) {
   return { detPotByYear, detCashBalByYear, hrReturnData };
 }
 
-function renderHistoricalReplayChart(hrResult) {
-  if (!chartAvailable()) return;
+// ── Sequence of Returns Risk projection ───────────────────────────────────
+// Runs the same deterministic annual loop as runHistoricalReplayProjection
+// but substitutes a synthetic return sequence: crashPct for the first
+// crashYears of retirement, then r.p.returnPct for the remainder.
+// Guardrail logic is honoured when p.guardrails is true.
+function runSorrProjection(r, crashPct, crashYears) {
+  const p = r.p;
+  const years = p.endAge - p.retirementAge;
+  if (years <= 0) return null;
+
+  const baseInflFactor = 1 + p.inflation / 100;
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
+
+  const allCashPots = p.cashPots || [];
+  const runCashBals = r.startCashPotVals ? Float64Array.from(r.startCashPotVals) : new Float64Array(0);
+
+  const detPotByYear = new Float64Array(years + 1);
+  const detCashBalByYear = new Float64Array(years + 1);
+  const sorrYearData = new Array(years + 1);
+
+  detPotByYear[0] = r.startPensionPot;
+  detCashBalByYear[0] = runCashBals.reduce((s, v) => s + v, 0);
+  sorrYearData[years] = { returnPct: null, guardrailFired: false };
+
+  const startPension = r.startPensionPot;
+  let guardrailCumFactor = 1.0;
+
+  for (let y = 0; y < years; y++) {
+    const annualReturnPct = y < crashYears ? crashPct : p.returnPct;
+    const ret = 1 + annualReturnPct / 100;
+
+    const age = p.retirementAge + y;
+    const ci = Math.pow(baseInflFactor, y);
+    const ciFromNow = Math.pow(baseInflFactor, yearsToRetirement + y);
+
+    // Cash pot growth
+    for (let ci2 = 0; ci2 < runCashBals.length; ci2++) {
+      runCashBals[ci2] *= (1 + allCashPots[ci2].interestPct / 100);
+    }
+
+    const combined = detPotByYear[y] + runCashBals.reduce((s, v) => s + v, 0);
+    if (combined <= 0) {
+      detPotByYear[y + 1] = 0;
+      detCashBalByYear[y + 1] = 0;
+      sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired: false };
+      continue;
+    }
+
+    const pensionAfterGrowth = detPotByYear[y] * ret;
+
+    // Guardrail: pot dropped >20% below retirement value
+    const guardrailFired = p.guardrails && y > 0 && detPotByYear[y] < startPension * 0.80;
+    if (guardrailFired) guardrailCumFactor *= 0.90;
+
+    sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired };
+
+    const hasSP = age >= p.spAge;
+    const spNom = hasSP ? p.sp * ci : 0;
+    const partnerAge = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+    const partnerSpNom = (p.partner && partnerAge >= p.partner.spAge) ? p.partner.sp * ci : 0;
+    const partnerRetired = !!(p.partner && partnerAge >= p.partner.retirementAge);
+    const ageCtx = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor };
+    const otherGross = calcOtherIncomesNet(p.incomes || [], ciFromNow, ageCtx).grossTotal;
+    const partnerOtherGross = (p.partner?.incomes?.length && partnerRetired)
+      ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge)), baseInflFactor }).grossTotal : 0;
+    const totalOtherGross = otherGross + partnerOtherGross;
+
+    const inflFactor = p.drawdownInflation ? ci : 1.0;
+    const baseTarget = p.drawdown * inflFactor * guardrailCumFactor;
+    const targetNominal = age >= p.reductionAge
+      ? Math.max(0, (baseTarget + totalOtherGross) * (1 - p.reductionPct / 100) - totalOtherGross)
+      : baseTarget;
+    const grossNeeded = Math.max(0, targetNominal - spNom - partnerSpNom);
+
+    const notionalTc = calcPensionTax(grossNeeded, spNom, hasSP, r.taxFreeFrac || 0.25);
+    const netTarget = notionalTc.pensionNet;
+
+    let cashRemaining = netTarget;
+    for (let ci2 = 0; ci2 < runCashBals.length && cashRemaining > 0; ci2++) {
+      const take = Math.min(runCashBals[ci2], cashRemaining);
+      runCashBals[ci2] -= take;
+      cashRemaining -= take;
+    }
+    const cashTaken = netTarget - cashRemaining;
+    const remainingNet = Math.max(0, netTarget - cashTaken);
+    const pensionWithdrawal = netTarget > 0 ? remainingNet * (grossNeeded / netTarget) : 0;
+
+    detPotByYear[y + 1] = Math.max(0, pensionAfterGrowth - pensionWithdrawal);
+    detCashBalByYear[y + 1] = runCashBals.reduce((s, v) => s + v, 0);
+  }
+
+  return { detPotByYear, detCashBalByYear, sorrYearData };
+}
+
+function renderSorrSummary(sorrResult, p, r) {
+  const summaryEl = document.getElementById('sorr-summary');
+  const tbodyEl = document.getElementById('sorr-tbody');
+  const controlsEl = document.getElementById('sorr-controls');
+  if (!summaryEl) return;
+
+  if (!sorrResult) {
+    summaryEl.innerHTML = '';
+    if (tbodyEl) tbodyEl.innerHTML = '';
+    return;
+  }
+
+  const useToday = isTodayMoney();
+  const baseInflFactor = 1 + (p?.inflation || 0) / 100;
+  const yearsToRetirement = Math.max(0, p.retirementAge - (p.currentAgeFrac ?? p.currentAge));
+  const deflator = y => Math.pow(1 / baseInflFactor, yearsToRetirement + y);
+  const years = p.endAge - p.retirementAge;
+
+  // Find when/if pot is depleted
+  let depletedAge = null;
+  for (let y = 0; y <= years; y++) {
+    const combined = (sorrResult.detPotByYear[y] || 0) + (sorrResult.detCashBalByYear[y] || 0);
+    if (combined <= 0 && y > 0) {
+      depletedAge = p.retirementAge + y;
+      break;
+    }
+  }
+
+  // Find first guardrail fire year
+  let firstGuardrailAge = null;
+  for (let y = 0; y < years; y++) {
+    if (sorrResult.sorrYearData[y]?.guardrailFired) {
+      firstGuardrailAge = p.retirementAge + y;
+      break;
+    }
+  }
+
+  // Final surviving balance
+  const finalPot = (sorrResult.detPotByYear[years] || 0) + (sorrResult.detCashBalByYear[years] || 0);
+  const finalVal = useToday ? finalPot * deflator(years) : finalPot;
+
+  let summaryHtml = '<div style="display:flex;flex-wrap:wrap;gap:10px">';
+  if (depletedAge) {
+    summaryHtml += `<div style="padding:8px 12px;border-radius:6px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);font-size:0.82rem"><strong style="color:#dc2626">Pot depleted at age ${depletedAge}</strong><br><span style="color:var(--text2)">${depletedAge - p.retirementAge} years into retirement — ${p.endAge - depletedAge} years before target end age</span></div>`;
+  } else {
+    summaryHtml += `<div style="padding:8px 12px;border-radius:6px;background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);font-size:0.82rem"><strong style="color:#16a34a">Pot survives to age ${p.endAge}</strong><br><span style="color:var(--text2)">Final balance: ${fmtGBP(finalVal)}${useToday ? ' (today\'s money)' : ''}</span></div>`;
+  }
+  if (firstGuardrailAge) {
+    summaryHtml += `<div style="padding:8px 12px;border-radius:6px;background:rgba(217,119,6,0.1);border:1px solid rgba(217,119,6,0.3);font-size:0.82rem"><strong style="color:#d97706">Guardrail fires at age ${firstGuardrailAge}</strong><br><span style="color:var(--text2)">10% income reduction applied</span></div>`;
+  } else if (p.guardrails) {
+    summaryHtml += `<div style="padding:8px 12px;border-radius:6px;background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.2);font-size:0.82rem"><span style="color:var(--text2)">Guardrails not triggered</span></div>`;
+  }
+  summaryHtml += '</div>';
+  summaryEl.innerHTML = summaryHtml;
+
+  // Year-by-year table
+  if (!tbodyEl) return;
+  let rows = '';
+  for (let y = 0; y <= years; y++) {
+    const age = p.retirementAge + y;
+    const combined = (sorrResult.detPotByYear[y] || 0) + (sorrResult.detCashBalByYear[y] || 0);
+    const dispVal = useToday ? combined * deflator(y) : combined;
+    const yd = sorrResult.sorrYearData[y];
+    const retPct = yd?.returnPct != null ? (yd.returnPct > 0 ? '+' : '') + yd.returnPct.toFixed(1) + '%' : '—';
+    const grFlag = yd?.guardrailFired ? '<span style="color:#d97706;font-weight:600">⚠ −10%</span>' : '';
+    const depleted = combined <= 0 && y > 0;
+    rows += `<tr${depleted ? ' style="color:rgba(220,38,38,0.8)"' : ''}>
+      <td style="text-align:left">${age}</td>
+      <td>${retPct}</td>
+      <td>${depleted ? '£0 (depleted)' : fmtGBP(dispVal)}</td>
+      <td>${grFlag}</td>
+    </tr>`;
+  }
+  tbodyEl.innerHTML = rows;
+}
+
+function renderHistoricalReplayChart(hrResult) {  if (!chartAvailable()) return;
   destroyChart('historicalreplay');
   const chartEl = document.getElementById('chart-historicalreplay');
   if (!chartEl) return;
@@ -4985,6 +5215,36 @@ function initApp() {
   document.getElementById('guardrails').addEventListener('change', persistParams);
   document.getElementById('always-taxfree').addEventListener('change', persistParams);
   document.getElementById('drawdown-inflation').addEventListener('change', persistParams);
+
+  // Sequence of Returns Risk stress test
+  document.getElementById('sorr-enabled')?.addEventListener('change', () => {
+    const enabled = document.getElementById('sorr-enabled').checked;
+    const controls = document.getElementById('sorr-controls');
+    if (controls) controls.classList.toggle('hidden', !enabled);
+    persistParams();
+    if (lastResults) renderPotChart(lastResults);
+  });
+  document.getElementById('sorr-crash-pct')?.addEventListener('input', () => {
+    const val = +document.getElementById('sorr-crash-pct').value;
+    const lbl = document.getElementById('v-sorr-crash-pct');
+    if (lbl) lbl.textContent = val + '%';
+    persistParams();
+    if (lastResults) renderPotChart(lastResults);
+  });
+  document.getElementById('sorr-crash-years')?.addEventListener('input', () => {
+    const val = +document.getElementById('sorr-crash-years').value;
+    const lbl = document.getElementById('v-sorr-crash-years');
+    if (lbl) lbl.textContent = val + (val === 1 ? ' year' : ' years');
+    persistParams();
+    if (lastResults) renderPotChart(lastResults);
+  });
+  document.getElementById('sorr-table-toggle')?.addEventListener('click', () => {
+    const wrap = document.getElementById('sorr-table-wrap');
+    const btn = document.getElementById('sorr-table-toggle');
+    if (!wrap) return;
+    const hidden = wrap.classList.toggle('hidden');
+    if (btn) btn.textContent = hidden ? 'Show year-by-year' : 'Hide year-by-year';
+  });
   document.getElementById('income-reduction-enabled')?.addEventListener('change', () => {
     const enabled = document.getElementById('income-reduction-enabled').checked;
     const slidersDiv = document.getElementById('income-reduction-sliders');
