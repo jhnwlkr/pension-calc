@@ -4551,6 +4551,10 @@ function runSorrProjection(r, crashPct, crashYears) {
     if (guardrailFired) guardrailCumFactor *= 0.90;
 
     sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired };
+    const hasSP = age >= p.spAge;
+    const spNom = hasSP ? p.sp * ci : 0;
+    const partnerAge = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
+    const partnerSpNom = (p.partner && partnerAge >= p.partner.spAge) ? p.partner.sp * ci : 0;
     const partnerRetired = !!(p.partner && partnerAge >= p.partner.retirementAge);
     const ageCtx = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor };
     const otherGross = calcOtherIncomesNet(p.incomes || [], ciFromNow, ageCtx).grossTotal;
