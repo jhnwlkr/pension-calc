@@ -4521,7 +4521,6 @@ function runSorrProjection(r, crashPct, crashYears) {
   sorrYearData[years] = { returnPct: null, guardrailFired: false };
 
   const startPension = r.startPensionPot;
-  let guardrailCumFactor = 1.0;
 
   for (let y = 0; y < years; y++) {
     const annualReturnPct = y < crashYears ? crashPct : p.returnPct;
@@ -4546,9 +4545,9 @@ function runSorrProjection(r, crashPct, crashYears) {
 
     const pensionAfterGrowth = detPotByYear[y] * ret;
 
-    // Guardrail: pot dropped >20% below retirement value
+    // Guardrail: pot dropped >20% below retirement value — apply 10% reduction this year
     const guardrailFired = p.guardrails && y > 0 && detPotByYear[y] < startPension * 0.80;
-    if (guardrailFired) guardrailCumFactor *= 0.90;
+    const guardrailFactor = guardrailFired ? 0.90 : 1.0;
 
     sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired };
     const hasSP = age >= p.spAge;
@@ -4563,7 +4562,7 @@ function runSorrProjection(r, crashPct, crashYears) {
     const totalOtherGross = otherGross + partnerOtherGross;
 
     const inflFactor = p.drawdownInflation ? ci : 1.0;
-    const baseTarget = p.drawdown * inflFactor * guardrailCumFactor;
+    const baseTarget = p.drawdown * inflFactor * guardrailFactor;
     const targetNominal = age >= p.reductionAge
       ? Math.max(0, (baseTarget + totalOtherGross) * (1 - p.reductionPct / 100) - totalOtherGross)
       : baseTarget;
