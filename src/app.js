@@ -4009,7 +4009,7 @@ function renderTaxBreakdown(r) {
 
   const selectedIdx = Number.isFinite(prevIdx) ? Math.max(0, Math.min(rows.length - 1, prevIdx)) : 0;
   selectEl.value = String(selectedIdx);
-  localStorage.setItem('taxYearIdx', String(selectedIdx));
+  try { localStorage.setItem('taxYearIdx', String(selectedIdx)); } catch(e) {}
 
   const d = rows[selectedIdx];
   const useToday = isTodayMoney();
