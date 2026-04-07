@@ -4540,7 +4540,7 @@ function runSorrProjection(r, crashPct, crashYears) {
     if (combined <= 0) {
       detPotByYear[y + 1] = 0;
       detCashBalByYear[y + 1] = 0;
-      sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired: false };
+      sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired: false, pensionWithdrawal: 0 };
       continue;
     }
 
@@ -4551,11 +4551,6 @@ function runSorrProjection(r, crashPct, crashYears) {
     if (guardrailFired) guardrailCumFactor *= 0.90;
 
     sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired };
-
-    const hasSP = age >= p.spAge;
-    const spNom = hasSP ? p.sp * ci : 0;
-    const partnerAge = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
-    const partnerSpNom = (p.partner && partnerAge >= p.partner.spAge) ? p.partner.sp * ci : 0;
     const partnerRetired = !!(p.partner && partnerAge >= p.partner.retirementAge);
     const ageCtx = { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor };
     const otherGross = calcOtherIncomesNet(p.incomes || [], ciFromNow, ageCtx).grossTotal;
@@ -4585,6 +4580,7 @@ function runSorrProjection(r, crashPct, crashYears) {
 
     detPotByYear[y + 1] = Math.max(0, pensionAfterGrowth - pensionWithdrawal);
     detCashBalByYear[y + 1] = runCashBals.reduce((s, v) => s + v, 0);
+    sorrYearData[y].pensionWithdrawal = pensionWithdrawal;
   }
 
   return { detPotByYear, detCashBalByYear, sorrYearData };
@@ -4656,10 +4652,13 @@ function renderSorrSummary(sorrResult, p, r) {
     const retPct = yd?.returnPct != null ? (yd.returnPct > 0 ? '+' : '') + yd.returnPct.toFixed(1) + '%' : '—';
     const grFlag = yd?.guardrailFired ? '<span style="color:#d97706;font-weight:600">⚠ −10%</span>' : '';
     const depleted = combined <= 0 && y > 0;
+    const drawdown = yd?.pensionWithdrawal != null ? (useToday ? yd.pensionWithdrawal * deflator(y) : yd.pensionWithdrawal) : null;
+    const drawdownCell = drawdown != null && drawdown > 0 ? fmtGBP(drawdown) : (y === years ? '—' : '£0');
     rows += `<tr${depleted ? ' style="color:rgba(220,38,38,0.8)"' : ''}>
       <td style="text-align:left">${age}</td>
       <td>${retPct}</td>
       <td>${depleted ? '£0 (depleted)' : fmtGBP(dispVal)}</td>
+      <td>${drawdownCell}</td>
       <td>${grFlag}</td>
     </tr>`;
   }
