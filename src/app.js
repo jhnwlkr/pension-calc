@@ -1671,6 +1671,7 @@ function buildExportPayload() {
   settings['sorr-enabled']               = document.getElementById('sorr-enabled')?.checked ? '1' : '0';
   settings['sorr-crash-pct']             = document.getElementById('sorr-crash-pct')?.value ?? '-25';
   settings['sorr-crash-years']           = document.getElementById('sorr-crash-years')?.value ?? '3';
+  settings['sorr-table-open']            = document.getElementById('sorr-table-wrap')?.classList.contains('hidden') ? '0' : '1';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) settings[id] = el.value; });
 
   // Actuals = all pot registries, income registries, groups, events
@@ -2095,6 +2096,7 @@ function persistParams() {
   obj['sorr-enabled'] = document.getElementById('sorr-enabled')?.checked ? '1' : '0';
   obj['sorr-crash-pct'] = document.getElementById('sorr-crash-pct')?.value ?? '-25';
   obj['sorr-crash-years'] = document.getElementById('sorr-crash-years')?.value ?? '3';
+  obj['sorr-table-open'] = document.getElementById('sorr-table-wrap')?.classList.contains('hidden') ? '0' : '1';
   obj['active-tab'] = document.querySelector('.tab.active')?.dataset.tab || 'pot';
   obj['mc-pctile'] = document.getElementById('mc-pctile').value;
   const taxYearEl = document.getElementById('tax-year-select');
@@ -2492,7 +2494,13 @@ function restoreParams(obj) {
       if (lbl) lbl.textContent = obj['sorr-crash-years'] + (+obj['sorr-crash-years'] === 1 ? ' year' : ' years');
     }
   }
-}
+  if (obj['sorr-table-open'] !== undefined) {
+    const wrap = document.getElementById('sorr-table-wrap');
+    const btn = document.getElementById('sorr-table-toggle');
+    const open = obj['sorr-table-open'] !== '0';
+    if (wrap) wrap.classList.toggle('hidden', !open);
+    if (btn) btn.textContent = open ? 'Hide year-by-year' : 'Show year-by-year';
+  }
 
 // ── Drawdown mode UI toggle ────────────────────────────────────────────────
 function updateDrawdownMode(mode) {
@@ -5250,6 +5258,7 @@ function initApp() {
     if (!wrap) return;
     const hidden = wrap.classList.toggle('hidden');
     if (btn) btn.textContent = hidden ? 'Show year-by-year' : 'Hide year-by-year';
+    persistParams();
   });
   document.getElementById('income-reduction-enabled')?.addEventListener('change', () => {
     const enabled = document.getElementById('income-reduction-enabled').checked;
