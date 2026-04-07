@@ -3,7 +3,7 @@ import {
   DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD,
   PROP_SAV_BR_RATE, PROP_SAV_HR_RATE, PROP_SAV_AR_RATE,
   DIV_RATE_CHANGE_YEAR, PROP_SAV_RATE_CHANGE_YEAR,
-} from './constants.js';
+} from './constants.js?v=38';
 
 export function incomeTax(taxable) {
   if (taxable <= 0) return 0;

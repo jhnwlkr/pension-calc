@@ -1,11 +1,11 @@
-import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js';
+import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js?v=38';
 import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS,
   PA, BR_LIMIT, HR_LIMIT, BR_RATE, HR_RATE, AR_RATE,
   PROP_SAV_BR_RATE, PROP_SAV_HR_RATE, PROP_SAV_AR_RATE, PROP_SAV_RATE_CHANGE_YEAR,
   DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD, DIV_RATE_CHANGE_YEAR,
-} from './constants.js';
-import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js';
-import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js';
+} from './constants.js?v=38';
+import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=38';
+import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js?v=38';
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
 let nextPotId = 1;
