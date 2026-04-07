@@ -5322,6 +5322,28 @@ function restoreScrollState() {
 }
 
 function initApp() {
+  // Hidden reset: triple-click the app title to wipe all settings and reload
+  (function() {
+    const h1 = document.querySelector('.header h1');
+    if (!h1) return;
+    let clicks = 0, timer;
+    h1.addEventListener('click', () => {
+      clicks++;
+      clearTimeout(timer);
+      timer = setTimeout(() => { clicks = 0; }, 600);
+      if (clicks >= 3) {
+        clicks = 0;
+        if (confirm('Reset all settings to defaults?')) {
+          try { localStorage.removeItem(LS_KEY); } catch(e) {}
+          try { localStorage.removeItem(ACTUALS_KEY); } catch(e) {}
+          try { localStorage.removeItem('pension-forecast-last-export'); } catch(e) {}
+          try { sessionStorage.clear(); } catch(e) {}
+          location.replace(location.pathname);
+        }
+      }
+    });
+  })();
+
   const toggleBtn = document.getElementById('sidebar-toggle');
   const sidebar = document.getElementById('sidebar');
   toggleBtn.addEventListener('click', () => {
