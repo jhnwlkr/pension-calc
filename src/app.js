@@ -1626,6 +1626,11 @@ function setTodayMoney(checked, r) {
     else if (tab === 'netmonthly') { renderNetMonthlyChart(r); renderIncomeTable(r); }
     else if (tab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
     else if (tab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); renderSurvivalChart(r); }
+    else if (tab === 'historicalreplay') renderHistoricalReplayTab(r);
+  }
+}
+
+const sliders = [
   ['retirement-age', v => v, ''],
   ['end-age', v => v, ''], ['sp-age', v => v, ''],
   ['reduction-age', v => v, ''], ['reduction-pct', v => fmtPct(v), ''],
@@ -3245,6 +3250,7 @@ function renderComparisonPanel(r) {
     if (saveBtn) saveBtn.textContent = '📌 Save as Baseline';
   });
 }
+function cloneParams(p) {
   if (typeof structuredClone === 'function') return structuredClone(p);
   return JSON.parse(JSON.stringify(p));
 }
