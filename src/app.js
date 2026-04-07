@@ -2242,7 +2242,7 @@ function restoreParams(obj) {
     el.dispatchEvent(new Event('input'));
   });
   if (obj['guardrails'] !== undefined) {
-    document.getElementById('guardrails').checked = obj['guardrails'] !== '0';
+    const _gr = obj['guardrails']; document.getElementById('guardrails').checked = _gr !== '0' && _gr !== false && _gr !== 0;
   }
   if (obj['always-taxfree'] !== undefined) {
     document.getElementById('always-taxfree').checked = obj['always-taxfree'] !== '0';
@@ -2252,7 +2252,7 @@ function restoreParams(obj) {
     if (modeEl) { modeEl.checked = true; updateDrawdownMode(obj['drawdown-mode']); }
   }
   if (obj['drawdown-inflation'] !== undefined) {
-    document.getElementById('drawdown-inflation').checked = obj['drawdown-inflation'] !== '0';
+    const _di = obj['drawdown-inflation']; document.getElementById('drawdown-inflation').checked = _di !== '0' && _di !== false && _di !== 0;
   }
   if (obj['income-reduction-enabled'] !== undefined) {
     const reductionEnabled = obj['income-reduction-enabled'] !== '0';
@@ -2355,7 +2355,8 @@ function restoreParams(obj) {
   }
   // Restore partner
   if (obj['partner-enabled'] !== undefined) {
-    const enabled = obj['partner-enabled'] !== '0';
+    const raw = obj['partner-enabled'];
+    const enabled = raw !== '0' && raw !== false && raw !== 0;
     const cb = document.getElementById('partner-enabled');
     if (cb) {
       cb.checked = enabled;
