@@ -5606,10 +5606,16 @@ function initApp() {
 
   // ── Flatpickr DOB pickers ─────────────────────────────────────────────
   // Initialised here so defaultDate picks up the already-restored value.
-  function _initDobPicker(inputId, labelId) {
+  function _initDobPicker(inputId, labelId, defaultYearsAgo) {
     const el = document.getElementById(inputId);
     const lbl = document.getElementById(labelId);
     if (!el || !window.flatpickr) return;
+    if (!el.value && defaultYearsAgo) {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - defaultYearsAgo);
+      el.value = d.toISOString().slice(0, 10);
+      if (lbl) lbl.textContent = 'Age ' + defaultYearsAgo;
+    }
     flatpickr(el, {
       dateFormat: 'Y-m-d',
       maxDate: 'today',
@@ -5627,7 +5633,7 @@ function initApp() {
       }
     });
   }
-  _initDobPicker('current-dob', 'v-current-age');
+  _initDobPicker('current-dob', 'v-current-age', 50);
   _initDobPicker('partner-dob', 'v-partner-age');
 
   _restoreScrollOnNextRun = true;
