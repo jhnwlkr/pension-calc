@@ -2897,10 +2897,11 @@ function isActualsEnabled() {
 }
 
 function applyActualsEnabled(enabled) {
+  // Actuals Journal hidden (feature incomplete) — keep tab and section hidden regardless
   document.getElementById('journal-body')?.classList.toggle('hidden', !enabled);
   const tabBtn = document.querySelector('.tab[data-tab="actuals"]');
   if (tabBtn) {
-    tabBtn.style.display = enabled ? '' : 'none';
+    tabBtn.style.display = 'none'; // always hidden
     // If currently on actuals tab and disabling, switch to pot
     if (!enabled && tabBtn.classList.contains('active')) {
       setActiveTab('pot');
