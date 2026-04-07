@@ -1563,10 +1563,10 @@ function setTodayMoney(checked, r) {
     renderCards(r);
     // re-render current active view immediately
     const tab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
-    if (tab === 'pot') { renderPotChart(r); renderAccumulationCards(r); renderIncomeTable(r); }
+    if (tab === 'pot') { renderPotChart(r); renderAccumulationCards(r); }
     else if (tab === 'taxbreakdown') renderTaxBreakdown(r);
     else if (tab === 'realincome') renderRealIncomeChart(r);
-    else if (tab === 'netmonthly') renderNetMonthlyChart(r);
+    else if (tab === 'netmonthly') { renderNetMonthlyChart(r); renderIncomeTable(r); }
     else if (tab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
     else if (tab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
     else if (tab === 'historicalreplay') renderHistoricalReplayTab(r);
@@ -5137,7 +5137,7 @@ document.querySelectorAll('.tab').forEach(btn => {
       if (tab === 'pot') renderPotChart(lastResults);
       else if (tab === 'taxbreakdown') renderTaxBreakdown(lastResults);
       else if (tab === 'realincome') renderRealIncomeChart(lastResults);
-      else if (tab === 'netmonthly') renderNetMonthlyChart(lastResults);
+      else if (tab === 'netmonthly') { renderNetMonthlyChart(lastResults); renderIncomeTable(lastResults); }
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
       else if (tab === 'montecarlo') { renderMonteCarloChart(lastResults); renderMonteCarloTable(lastResults, +document.getElementById('mc-pctile').value); }
       else if (tab === 'historicalreplay') renderHistoricalReplayTab(lastResults);
