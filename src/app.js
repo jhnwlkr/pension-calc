@@ -5203,9 +5203,14 @@ document.getElementById('run-btn').addEventListener('click', () => {
       console.error('Run simulation failed', err);
     } finally {
       btn.disabled = false;
+      if (_restoreScrollOnNextRun) {
+        _restoreScrollOnNextRun = false;
+        requestAnimationFrame(() => restoreScrollState());
+      }
     }
   }, 10);
 });
+let _restoreScrollOnNextRun = false;
 
 // ── Init ───────────────────────────────────────────────────────────────────
 const SCROLL_KEY = 'rc-scroll';
@@ -5506,9 +5511,8 @@ function initApp() {
   _initDobPicker('current-dob', 'v-current-age');
   _initDobPicker('partner-dob', 'v-partner-age');
 
+  _restoreScrollOnNextRun = true;
   document.getElementById('run-btn').click();
-  // Restore page scroll after simulation renders
-  requestAnimationFrame(() => restoreScrollState());
   updateMobileHeaderOffset();
 }
 
