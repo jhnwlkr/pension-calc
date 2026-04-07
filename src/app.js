@@ -701,6 +701,7 @@ function renderCashPotsUI() {
 
   const curAge = dobToAge(document.getElementById('current-dob').value) || 18;
   const endAge = +document.getElementById('end-age').value || 100;
+  const retirementAge = +document.getElementById('retirement-age').value || 65;
 
   cashPotsData.forEach((pot, idx) => {
     const type = pot.type || 'cash';
@@ -729,8 +730,11 @@ function renderCashPotsUI() {
           </div>
         </div>`;
 
+    const lisaAgeWarn = (type === 'lisa' && retirementAge < 60)
+      ? `<div style="font-size:0.72rem;color:#dc2626;margin-top:4px;padding:4px 6px;background:#fef2f2;border:1px solid #fca5a5;border-radius:3px">⚠ Your retirement age (${retirementAge}) is below 60 — LISA withdrawals before age 60 incur a 25% government penalty unless you are terminally ill or buying your first home.</div>`
+      : '';
     const lisaNote = type === 'lisa'
-      ? `<div style="font-size:0.72rem;color:var(--text2);margin-top:4px;padding:4px 6px;background:var(--surface2);border-radius:3px">25% govt bonus on contributions up to £4,000/yr (until age 50). Accessible penalty-free from age 60.</div>`
+      ? `<div style="font-size:0.72rem;color:var(--text2);margin-top:4px;padding:4px 6px;background:var(--surface2);border-radius:3px">25% govt bonus on contributions up to £4,000/yr (until age 50). Accessible penalty-free from age 60.</div>${lisaAgeWarn}`
       : '';
 
     const div = document.createElement('div');
@@ -1075,6 +1079,7 @@ function renderPartnerCashPotsUI() {
 
   const partnerCurAge = dobToAge(document.getElementById('partner-dob')?.value) || 18;
   const endAge = +document.getElementById('end-age').value || 100;
+  const partnerRetAge = +document.getElementById('partner-retirement-age')?.value || 65;
 
   partnerCashPotsData.forEach((pot, idx) => {
     const type = pot.type || 'cash';
@@ -1103,8 +1108,11 @@ function renderPartnerCashPotsUI() {
           </div>
         </div>`;
 
+    const lisaAgeWarn = (type === 'lisa' && partnerRetAge < 60)
+      ? `<div style="font-size:0.72rem;color:#dc2626;margin-top:4px;padding:4px 6px;background:#fef2f2;border:1px solid #fca5a5;border-radius:3px">⚠ Partner's retirement age (${partnerRetAge}) is below 60 — LISA withdrawals before age 60 incur a 25% government penalty unless terminally ill or buying their first home.</div>`
+      : '';
     const lisaNote = type === 'lisa'
-      ? `<div style="font-size:0.72rem;color:var(--text2);margin-top:4px;padding:4px 6px;background:var(--surface2);border-radius:3px">25% govt bonus on contributions up to £4,000/yr (until age 50). Accessible penalty-free from age 60.</div>`
+      ? `<div style="font-size:0.72rem;color:var(--text2);margin-top:4px;padding:4px 6px;background:var(--surface2);border-radius:3px">25% govt bonus on contributions up to £4,000/yr (until age 50). Accessible penalty-free from age 60.</div>${lisaAgeWarn}`
       : '';
 
     const div = document.createElement('div');
@@ -4956,7 +4964,7 @@ function renderActualsTab(r) {
       const pct   = forecastVal > 0 ? ((divergence / forecastVal) * 100).toFixed(1) : '—';
       divEl.textContent = (divergence >= 0 ? '+' : '') + fmtGBP(divergence);
       divEl.className   = 'card-value ' + (divergence >= 0 ? 'green' : 'red');
-      subEl.textContent = `${divergence >= 0 ? '+' : ''}${pct}% vs original forecast`;
+      subEl.textContent = `${Math.abs(+pct)}% ${divergence >= 0 ? 'ahead of' : 'behind'} original forecast`;
     } else {
       document.getElementById('ac-forecast-val').textContent = r._recalibrated ? '(recalibrated)' : '—';
       document.getElementById('ac-divergence').textContent   = '—';
