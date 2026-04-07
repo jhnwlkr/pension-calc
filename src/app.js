@@ -5208,6 +5208,27 @@ document.getElementById('run-btn').addEventListener('click', () => {
 });
 
 // ── Init ───────────────────────────────────────────────────────────────────
+const SCROLL_KEY = 'rc-scroll';
+function saveScrollState() {
+  try {
+    const sidebar = document.getElementById('sidebar');
+    sessionStorage.setItem(SCROLL_KEY, JSON.stringify({
+      pageY: window.scrollY,
+      sidebarY: sidebar ? sidebar.scrollTop : 0
+    }));
+  } catch(e) {}
+}
+function restoreScrollState() {
+  try {
+    const raw = sessionStorage.getItem(SCROLL_KEY);
+    if (!raw) return;
+    const { pageY, sidebarY } = JSON.parse(raw);
+    if (pageY) window.scrollTo({ top: pageY, behavior: 'instant' });
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && sidebarY) sidebar.scrollTop = sidebarY;
+  } catch(e) {}
+}
+
 function initApp() {
   const toggleBtn = document.getElementById('sidebar-toggle');
   const sidebar = document.getElementById('sidebar');
@@ -5215,9 +5236,19 @@ function initApp() {
     const isOpen = sidebar.classList.toggle('open');
     toggleBtn.textContent = isOpen ? '✕' : '⚙';
     toggleBtn.setAttribute('aria-expanded', isOpen);
+    if (isOpen) {
+      // Restore sidebar scroll when panel opens
+      try {
+        const raw = sessionStorage.getItem(SCROLL_KEY);
+        if (raw) { const { sidebarY } = JSON.parse(raw); if (sidebarY) sidebar.scrollTop = sidebarY; }
+      } catch(e) {}
+    } else {
+      saveScrollState();
+    }
   });
   document.getElementById('run-btn').addEventListener('click', () => {
     if (window.innerWidth <= 768) {
+      saveScrollState();
       sidebar.classList.remove('open');
       toggleBtn.textContent = '⚙';
       toggleBtn.setAttribute('aria-expanded', false);
@@ -5476,8 +5507,17 @@ function initApp() {
   _initDobPicker('partner-dob', 'v-partner-age');
 
   document.getElementById('run-btn').click();
+  // Restore page scroll after simulation renders
+  requestAnimationFrame(() => restoreScrollState());
   updateMobileHeaderOffset();
 }
+
+// Persist window scroll position (debounced)
+let _scrollSaveTimer = null;
+window.addEventListener('scroll', () => {
+  clearTimeout(_scrollSaveTimer);
+  _scrollSaveTimer = setTimeout(saveScrollState, 300);
+}, { passive: true });
 
 function updateMobileHeaderOffset() {
   const stg = document.querySelector('.sticky-top-group');
