@@ -1,11 +1,11 @@
-import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js';
+import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js?v=38';
 import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS,
   PA, BR_LIMIT, HR_LIMIT, BR_RATE, HR_RATE, AR_RATE,
   PROP_SAV_BR_RATE, PROP_SAV_HR_RATE, PROP_SAV_AR_RATE, PROP_SAV_RATE_CHANGE_YEAR,
   DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD, DIV_RATE_CHANGE_YEAR,
-} from './constants.js';
-import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js';
-import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js';
+} from './constants.js?v=38';
+import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=38';
+import { runSimulation as runSimulationImpl, runDeterministicProjection } from './simulation.js?v=38';
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
 let nextPotId = 1;
@@ -13,6 +13,9 @@ let potsData = [];
 let todayPrices = false; // Shared today’s-prices toggle state
 let groupsData = [];         // Pension pot groups: [{ uuid, name }]
 let partnerGroupsData = [];  // Partner pension pot groups
+let spendingGoalsData = [];  // Spending goals: [{ id, label, startAge, endAge, extraAnnual }]
+let nextGoalId = 1;
+let baselineSnapshot = null; // Saved scenario for comparison
 
 
 function addPot(value, annualContrib, equityPct, name) {
@@ -24,6 +27,9 @@ function addPot(value, annualContrib, equityPct, name) {
     value: (value !== undefined && value !== null) ? +value : 0,
     annualContrib: (annualContrib !== undefined && annualContrib !== null) ? +annualContrib : 0,
     equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
+    glideEnabled: false,
+    glideTargetPct: 40,
+    glideTargetAge: 75,
     groupUuid: null,
     groupAllocationPct: null,
     archived: false,
@@ -83,6 +89,22 @@ function renderPotsUI() {
           <span class="slider-val" id="v-pot-equity-${pot.id}">${pot.equityPct}% / ${100 - pot.equityPct}%</span>
         </div>
         <input type="range" min="0" max="100" step="5" value="${pot.equityPct}" data-pot-id="${pot.id}" data-field="equityPct" class="pot-equity-slider">
+      </div>
+      <div style="margin-top:8px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;font-weight:500">
+          <input type="checkbox" class="pot-glide-toggle" data-pot-id="${pot.id}" ${pot.glideEnabled ? 'checked' : ''} style="accent-color:var(--accent)">
+          Glide path (reduce equity over time)
+        </label>
+        <div class="pot-glide-fields" style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;${pot.glideEnabled ? '' : 'display:none'}">
+          <div style="${pot.glideEnabled ? '' : 'display:none'}">
+            <span class="field-label">Target equity %</span>
+            <input class="dyn-input" type="number" min="0" max="100" step="5" value="${pot.glideTargetPct ?? 40}" data-pot-id="${pot.id}" data-field="glideTargetPct" style="width:70px">
+          </div>
+          <div style="${pot.glideEnabled ? '' : 'display:none'}">
+            <span class="field-label">By age</span>
+            <input class="dyn-input" type="number" min="50" max="95" value="${pot.glideTargetAge ?? 75}" data-pot-id="${pot.id}" data-field="glideTargetAge" style="width:70px">
+          </div>
+        </div>
       </div>`;
     container.appendChild(div);
   });
@@ -172,6 +194,28 @@ function renderPotsUI() {
         const lbl = document.getElementById('v-pot-equity-' + potId);
         if (lbl) lbl.textContent = pot.equityPct + '% / ' + (100 - pot.equityPct) + '%';
       }
+      persistParams();
+    });
+  });
+
+  // Wire glide path toggles and fields
+  container.querySelectorAll('.pot-glide-toggle').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const potId = +cb.dataset.potId;
+      const pot = potsData.find(p => p.id === potId);
+      if (pot) {
+        pot.glideEnabled = cb.checked;
+        const fields = cb.closest('div').nextElementSibling;
+        if (fields) fields.querySelectorAll('div').forEach(d => { d.style.display = cb.checked ? '' : 'none'; });
+      }
+      persistParams();
+    });
+  });
+  container.querySelectorAll('.dyn-input[data-field="glideTargetPct"], .dyn-input[data-field="glideTargetAge"]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const potId = +inp.dataset.potId;
+      const pot = potsData.find(p => p.id === potId);
+      if (pot) pot[inp.dataset.field] = +inp.value;
       persistParams();
     });
   });
@@ -1531,6 +1575,11 @@ function getParams() {
     drawdownMode: document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount',
     drawdownPct: +document.getElementById('drawdown-pct').value,
     drawdownInflation: document.getElementById('drawdown-inflation').checked,
+    annuityEnabled: document.getElementById('annuity-enabled')?.checked ?? false,
+    annuityAge: +document.getElementById('annuity-age')?.value || 75,
+    annuityPremium: +document.getElementById('annuity-premium')?.value || 0,
+    annuityIncome: +document.getElementById('annuity-income')?.value || 0,
+    spendingGoals: spendingGoalsData.map(g => Object.assign({}, g)),
     pots: potsData.map(p => Object.assign({}, p)),
     incomes: incomesData.map(i => Object.assign({}, i)),
     dbPensions: dbPensionsData.map(d => Object.assign({}, d)),
@@ -1576,7 +1625,7 @@ function setTodayMoney(checked, r) {
     else if (tab === 'realincome') renderRealIncomeChart(r);
     else if (tab === 'netmonthly') { renderNetMonthlyChart(r); renderIncomeTable(r); }
     else if (tab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
-    else if (tab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
+    else if (tab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); renderSurvivalChart(r); }
     else if (tab === 'historicalreplay') renderHistoricalReplayTab(r);
   }
 }
@@ -2105,6 +2154,11 @@ function persistParams() {
   obj['sorr-crash-pct'] = document.getElementById('sorr-crash-pct')?.value ?? '-25';
   obj['sorr-crash-years'] = document.getElementById('sorr-crash-years')?.value ?? '3';
   obj['sorr-table-open'] = document.getElementById('sorr-table-wrap')?.classList.contains('hidden') ? '0' : '1';
+  obj['annuity-enabled'] = document.getElementById('annuity-enabled')?.checked ? '1' : '0';
+  obj['annuity-age'] = document.getElementById('annuity-age')?.value || '75';
+  obj['annuity-premium'] = document.getElementById('annuity-premium')?.value || '0';
+  obj['annuity-income'] = document.getElementById('annuity-income')?.value || '0';
+  obj['spending-goals'] = JSON.stringify(spendingGoalsData);
   obj['active-tab'] = document.querySelector('.tab.active')?.dataset.tab || 'pot';
   obj['mc-pctile'] = document.getElementById('mc-pctile').value;
   const taxYearEl = document.getElementById('tax-year-select');
@@ -2211,6 +2265,9 @@ function restoreParams(obj) {
             value: +p.value || 0,
             annualContrib: +p.annualContrib || 0,
             equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+            glideEnabled: p.glideEnabled === true,
+            glideTargetPct: p.glideTargetPct !== undefined ? +p.glideTargetPct : 40,
+            glideTargetAge: p.glideTargetAge !== undefined ? +p.glideTargetAge : 75,
             groupUuid: p.groupUuid || null,
             groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
             archived: p.archived === true,
@@ -2411,6 +2468,41 @@ function restoreParams(obj) {
     const cb = document.getElementById('actuals-enabled');
     if (cb) cb.checked = enabled;
     applyActualsEnabled(enabled);
+  }
+  // Restore annuity settings
+  if (obj['annuity-enabled'] !== undefined) {
+    const cb = document.getElementById('annuity-enabled');
+    if (cb) {
+      cb.checked = obj['annuity-enabled'] !== '0';
+      const fields = document.getElementById('annuity-fields');
+      if (fields) fields.classList.toggle('hidden', !cb.checked);
+    }
+  }
+  if (obj['annuity-age'] !== undefined) {
+    const el = document.getElementById('annuity-age');
+    const lbl = document.getElementById('v-annuity-age');
+    if (el) { el.value = obj['annuity-age']; if (lbl) lbl.textContent = obj['annuity-age']; }
+  }
+  if (obj['annuity-premium'] !== undefined) {
+    const el = document.getElementById('annuity-premium');
+    if (el) el.value = obj['annuity-premium'];
+  }
+  if (obj['annuity-income'] !== undefined) {
+    const el = document.getElementById('annuity-income');
+    if (el) el.value = obj['annuity-income'];
+  }
+  // Restore spending goals
+  if (obj['spending-goals']) {
+    try {
+      const saved = JSON.parse(obj['spending-goals']);
+      if (Array.isArray(saved)) {
+        spendingGoalsData = [];
+        saved.forEach(g => {
+          spendingGoalsData.push({ id: nextGoalId++, label: g.label || '', startAge: +g.startAge || 65, endAge: +g.endAge || 70, extraAnnual: +g.extraAnnual || 0 });
+        });
+        renderSpendingGoalsUI();
+      }
+    } catch(e) {}
   }
   if (obj['recalibrate-toggle'] !== undefined) {
     const cb = document.getElementById('recalibrate-toggle');
@@ -3012,8 +3104,152 @@ function renderCards(r) {
 
   const lsaAlert = document.getElementById('lsa-alert');
   lsaAlert.classList.toggle('hidden', r.startPot <= FORMER_LTA);
+
+  // Show save-baseline button and re-render comparison if one exists
+  const saveBtn = document.getElementById('save-baseline-btn');
+  if (saveBtn) saveBtn.style.display = '';
+  if (baselineSnapshot) renderComparisonPanel(r);
 }
 
+// ── Spending Goals ─────────────────────────────────────────────────────────
+function addSpendingGoal(label, startAge, endAge, extraAnnual) {
+  const retAge = +document.getElementById('retirement-age')?.value || 65;
+  spendingGoalsData.push({
+    id: nextGoalId++,
+    label: label || '',
+    startAge: startAge !== undefined ? +startAge : retAge,
+    endAge: endAge !== undefined ? +endAge : retAge + 5,
+    extraAnnual: extraAnnual !== undefined ? +extraAnnual : 5000,
+  });
+}
+
+function renderSpendingGoalsUI() {
+  const container = document.getElementById('spending-goals-container');
+  if (!container) return;
+  if (spendingGoalsData.length === 0) {
+    container.innerHTML = '<div style="font-size:0.78rem;color:var(--text2);padding:4px 0">No goals added yet.</div>';
+    return;
+  }
+  container.innerHTML = spendingGoalsData.map(g => `
+    <div class="pot-card" style="margin-bottom:8px" data-goal-id="${g.id}">
+      <div class="pot-card-header">
+        <input class="dyn-input goal-label" type="text" placeholder="Label (e.g. World cruise)" value="${(g.label || '').replace(/"/g,'&quot;')}" data-goal-id="${g.id}" style="font-size:0.82rem;font-weight:600;flex:1;min-width:0">
+        <button class="remove-btn goal-remove-btn" data-goal-id="${g.id}">✕</button>
+      </div>
+      <div class="two-col" style="margin-top:6px">
+        <div>
+          <span class="field-label">From age</span>
+          <input class="dyn-input goal-field" type="number" min="18" max="100" value="${g.startAge}" data-goal-id="${g.id}" data-field="startAge" style="width:70px">
+        </div>
+        <div>
+          <span class="field-label">To age</span>
+          <input class="dyn-input goal-field" type="number" min="18" max="100" value="${g.endAge}" data-goal-id="${g.id}" data-field="endAge" style="width:70px">
+        </div>
+        <div>
+          <span class="field-label">Extra £/yr</span>
+          <div class="input-group" style="width:110px"><span class="input-prefix">£</span>
+          <input class="dyn-input goal-field" type="number" min="0" step="500" value="${g.extraAnnual}" data-goal-id="${g.id}" data-field="extraAnnual"></div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  container.querySelectorAll('.goal-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      spendingGoalsData = spendingGoalsData.filter(g => g.id !== +btn.dataset.goalId);
+      renderSpendingGoalsUI();
+      persistParams();
+    });
+  });
+  container.querySelectorAll('.goal-label').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const g = spendingGoalsData.find(g => g.id === +inp.dataset.goalId);
+      if (g) g.label = inp.value;
+      persistParams();
+    });
+  });
+  container.querySelectorAll('.goal-field').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const g = spendingGoalsData.find(g => g.id === +inp.dataset.goalId);
+      if (g) g[inp.dataset.field] = +inp.value;
+      persistParams();
+    });
+  });
+}
+
+// ── Scenario Comparison ────────────────────────────────────────────────────
+function saveBaseline(r) {
+  const useToday = isTodayMoney();
+  const baseInflFactor = 1 + (r.p.inflation || 0) / 100;
+  const yearsToRet = Math.max(0, r.p.retirementAge - (r.p.currentAgeFrac ?? r.p.currentAge));
+  const realDeflRet = Math.pow(1 / baseInflFactor, yearsToRet);
+  const detPension = r.detPotByYear?.[0] ?? 0;
+  const detCash = r.detCashBalByYear?.[0] ?? 0;
+  const detRetPot = detPension + detCash;
+  const aid0 = r.annualIncomeData?.[0];
+  baselineSnapshot = {
+    prob: r.prob,
+    potAtRet: useToday ? detRetPot * realDeflRet : detRetPot,
+    swrPct: detRetPot > 0 ? (r.swr / detRetPot) * 100 : 0,
+    netMonthly: aid0 ? (useToday ? aid0.netReal : aid0.netNom) : r.netMonthly,
+    label: `Baseline (${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})`,
+  };
+  const saveBtn = document.getElementById('save-baseline-btn');
+  if (saveBtn) saveBtn.textContent = '📌 Baseline saved';
+  renderComparisonPanel(r);
+}
+
+function renderComparisonPanel(r) {
+  const panel = document.getElementById('comparison-panel');
+  if (!panel || !baselineSnapshot) { if (panel) panel.style.display = 'none'; return; }
+  const useToday = isTodayMoney();
+  const baseInflFactor = 1 + (r.p.inflation || 0) / 100;
+  const yearsToRet = Math.max(0, r.p.retirementAge - (r.p.currentAgeFrac ?? r.p.currentAge));
+  const realDeflRet = Math.pow(1 / baseInflFactor, yearsToRet);
+  const detPension = r.detPotByYear?.[0] ?? 0;
+  const detCash = r.detCashBalByYear?.[0] ?? 0;
+  const detRetPot = detPension + detCash;
+  const aid0 = r.annualIncomeData?.[0];
+  const cur = {
+    prob: r.prob,
+    potAtRet: useToday ? detRetPot * realDeflRet : detRetPot,
+    swrPct: detRetPot > 0 ? (r.swr / detRetPot) * 100 : 0,
+    netMonthly: aid0 ? (useToday ? aid0.netReal : aid0.netNom) : r.netMonthly,
+  };
+  const b = baselineSnapshot;
+  function diffCell(curVal, baseVal, fmtFn) {
+    const delta = curVal - baseVal;
+    if (Math.abs(delta) < 0.01) return `<strong>${fmtFn(curVal)}</strong>`;
+    const better = delta > 0;
+    const cls = better ? 'green' : 'red';
+    const sign = delta > 0 ? '+' : '';
+    return `<strong style="color:var(--${cls})">${fmtFn(curVal)}</strong> <small style="color:var(--${cls})">(${sign}${fmtFn(delta)})</small>`;
+  }
+  panel.style.display = '';
+  panel.innerHTML = `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <span style="font-size:0.78rem;font-weight:700;color:var(--text2);letter-spacing:0.04em;text-transform:uppercase">Scenario Comparison</span>
+      <button id="clear-baseline-btn" style="font-size:0.75rem;color:var(--text2);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px">✕ Clear</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:0.82rem">
+      <div style="color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);padding-bottom:4px">${b.label}</div>
+      <div style="color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);padding-bottom:4px">Current</div>
+      <div><span style="color:var(--text2)">P(success)</span><br><strong>${b.prob.toFixed(1)}%</strong></div>
+      <div><span style="color:var(--text2)">P(success)</span><br>${diffCell(cur.prob, b.prob, v => v.toFixed(1) + '%')}</div>
+      <div><span style="color:var(--text2)">Pot at retirement</span><br><strong>${fmtGBP(b.potAtRet)}</strong></div>
+      <div><span style="color:var(--text2)">Pot at retirement</span><br>${diffCell(cur.potAtRet, b.potAtRet, fmtGBP)}</div>
+      <div><span style="color:var(--text2)">SWR</span><br><strong>${b.swrPct.toFixed(2)}%</strong></div>
+      <div><span style="color:var(--text2)">SWR</span><br>${diffCell(cur.swrPct, b.swrPct, v => v.toFixed(2) + '%')}</div>
+      <div><span style="color:var(--text2)">Net monthly</span><br><strong>${fmtGBP(b.netMonthly)}/mo</strong></div>
+      <div><span style="color:var(--text2)">Net monthly</span><br>${diffCell(cur.netMonthly, b.netMonthly, v => fmtGBP(v) + '/mo')}</div>
+    </div>
+  </div>`;
+  document.getElementById('clear-baseline-btn')?.addEventListener('click', () => {
+    baselineSnapshot = null;
+    panel.style.display = 'none';
+    const saveBtn = document.getElementById('save-baseline-btn');
+    if (saveBtn) saveBtn.textContent = '📌 Save as Baseline';
+  });
+}
 function cloneParams(p) {
   if (typeof structuredClone === 'function') return structuredClone(p);
   return JSON.parse(JSON.stringify(p));
@@ -3281,6 +3517,45 @@ function renderIncomeTable(r) {
       inc.inflationLinked ? 'CPI-linked' : 'Fixed');
   });
 
+  // DB pension rows — primary person
+  if (p.dbPensions?.length) {
+    const snapshotAges = [p.retirementAge, p.spAge, p.reductionAge];
+    p.dbPensions.forEach(db => {
+      const dbSnaps = cols.map((y, col) => {
+        const age = snapshotAges[col];
+        if (db.startAge != null && age < db.startAge) return { g: 0, t: 0, n: 0 };
+        const annual = age < p.spAge ? (db.preSpAnnual || 0) : (db.postSpAnnual || 0);
+        const snapRow = snap[col];
+        const d = todayDef(y);
+        const g = annual * ciFromNow(y) * d;
+        const aggGross = snapRow && snapRow.otherGrossNom > 0 ? snapRow.otherGrossNom * 12 : 0;
+        const effRate = aggGross > 0 ? (snapRow.otherTaxNom * 12) / aggGross : 0;
+        const t = g * effRate;
+        return { g, t, n: g - t };
+      });
+      rows += row3(db.name || 'DB Pension', dbSnaps[0], dbSnaps[1], dbSnaps[2],
+        `Employment income · from age ${db.startAge ?? p.retirementAge}`);
+    });
+  }
+
+  // DB pension rows — partner
+  if (p.partner && p.partner.dbPensions?.length) {
+    const snapshotAges = [p.retirementAge, p.spAge, p.reductionAge];
+    p.partner.dbPensions.forEach(db => {
+      const dbSnaps = cols.map((y, col) => {
+        const age = snapshotAges[col];
+        const partnerAge = p.partner.currentAge + (age - p.currentAge);
+        if (db.startAge != null && partnerAge < db.startAge) return { g: 0, t: 0, n: 0 };
+        const annual = partnerAge < p.partner.spAge ? (db.preSpAnnual || 0) : (db.postSpAnnual || 0);
+        const d = todayDef(y);
+        const g = annual * ciFromNow(y) * d;
+        return { g, t: 0, n: g };
+      });
+      rows += row3(db.name || 'Partner DB Pension', dbSnaps[0], dbSnaps[1], dbSnaps[2],
+        `Partner employment income · from age ${db.startAge ?? p.partner.retirementAge}`);
+    });
+  }
+
   rows += `<tr>
     <td><strong>Total</strong></td>
     <td>${cell(totS[0].g, totS[0].t, totS[0].n)}</td>
@@ -3298,11 +3573,15 @@ function renderAnnualIncomeTable(r) {
   const isToday = isTodayMoney();
   const hasPartner = !!r.p?.partner;
 
-  // Show/hide partner columns based on hasPartner
+  const hasDbPensions = !!(r.p?.dbPensions?.length || r.p?.partner?.dbPensions?.length);
+
+  // Show/hide partner and DB columns
   ['ann-th-partner-sp', 'ann-th-partner-other'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = hasPartner ? '' : 'none';
   });
+  const dbTh = document.getElementById('ann-th-db');
+  if (dbTh) dbTh.style.display = hasDbPensions ? '' : 'none';
 
   // Single-value cell — picks nominal or today's money based on toggle
   function cell(nom, real) {
@@ -3340,6 +3619,7 @@ function renderAnnualIncomeTable(r) {
       <td>${ageLabel}</td>
       ${cell(d.cashNom, d.cashReal)}
       ${incomeCell(d.pensionNom, d.pensionReal, d.pensionGrossNom, d.pensionGrossReal, d.pensionTaxNom, d.pensionTaxReal)}
+      ${incomeCell(d.dbNom || 0, d.dbReal || 0, d.dbGrossNom || 0, d.dbGrossReal || 0, d.dbTaxNom || 0, d.dbTaxReal || 0, !hasDbPensions)}
       ${incomeCell(d.spNom, d.spReal, d.spGrossNom, d.spGrossReal, d.spTaxNom, d.spTaxReal)}
       ${incomeCell(d.partnerSpNom || 0, d.partnerSpReal || 0, d.partnerSpGrossNom || 0, d.partnerSpGrossReal || 0, 0, 0, !hasPartner)}
       ${incomeCell(d.otherNom, d.otherReal, d.otherGrossNom, d.otherGrossReal, d.otherTaxNom, d.otherTaxReal)}
@@ -3872,15 +4152,46 @@ function renderSurvivalChart(r) {
   const chartEl = document.getElementById('chart-survival');
   if (!chartEl) return;
   const ctx = chartEl.getContext('2d');
+  const ruinData = r.survivalByAge.map(v => +(100 - v).toFixed(1));
+  const bgColors = ruinData.map(v => v <= 10 ? 'rgba(22,163,74,0.15)' : v <= 25 ? 'rgba(217,119,6,0.15)' : 'rgba(220,38,38,0.18)');
+  const lineColors = ruinData.map(v => v <= 10 ? '#16a34a' : v <= 25 ? '#d97706' : '#dc2626');
+  const thresholdPlugin = {
+    id: 'ruinThreshold',
+    afterDraw(chart) {
+      const { ctx: c, scales: { x, y } } = chart;
+      const yPx = y.getPixelForValue(10);
+      c.save(); c.strokeStyle = '#dc2626'; c.lineWidth = 1.2; c.setLineDash([5, 4]);
+      c.beginPath(); c.moveTo(x.left, yPx); c.lineTo(x.right, yPx); c.stroke();
+      c.fillStyle = '#dc2626'; c.font = '10px system-ui,sans-serif';
+      c.textAlign = 'right'; c.fillText('10% risk threshold', x.right - 4, yPx - 4); c.restore();
+    }
+  };
+  const gradColors = ruinData.map((_, i) => lineColors[i]);
   charts['survival'] = new Chart(ctx, {
     type: 'line',
-    data: { labels: r.ages, datasets: [{ label: 'Pot Survival Probability', data: r.survivalByAge, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }] },
+    plugins: [thresholdPlugin],
+    data: {
+      labels: r.ages,
+      datasets: [{
+        label: 'P(Ruin)',
+        data: ruinData,
+        borderColor: '#dc2626',
+        backgroundColor: ctx => {
+          const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
+          g.addColorStop(0, 'rgba(220,38,38,0.25)');
+          g.addColorStop(1, 'rgba(220,38,38,0.02)');
+          return g;
+        },
+        fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2,
+      }]
+    },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: textColor() } } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `P(Ruin): ${ctx.parsed.y.toFixed(1)}%` } } },
       scales: {
         x: { ticks: { color: textColor() }, grid: { color: gridColor() }, title: { display: true, text: 'Age', color: textColor() } },
-        y: { ticks: { color: textColor(), callback: v => v + '%' }, grid: { color: gridColor() }, min: 0, max: 100, title: { display: true, text: 'Probability (%)', color: textColor() } }
+        y: { min: 0, max: 100, ticks: { color: textColor(), callback: v => v + '%' }, grid: { color: gridColor() }, title: { display: true, text: 'Probability of Ruin (%)', color: textColor() } }
       }
     }
   });
@@ -4303,9 +4614,10 @@ function renderNetMonthlyChart(r) {
       datasets: [
         { label: 'Cash Pots', data: makeSeries('cash'), backgroundColor: '#0891b2', stack: 'a' },
         { label: 'Pension', data: makeSeries('pension'), backgroundColor: '#2563eb', stack: 'a' },
+        ...(r.p?.dbPensions?.length || r.p?.partner?.dbPensions?.length ? [{ label: 'DB Pension', data: makeSeries('db'), backgroundColor: '#7c3aed', stack: 'a' }] : []),
         { label: 'State Pension', data: makeSeries('sp'), backgroundColor: '#16a34a', stack: 'a' },
         ...(r.p?.partner ? [{ label: 'Partner SP', data: makeSeries('partnerSp'), backgroundColor: '#86efac', stack: 'a' }] : []),
-        ...(r.p?.partner?.incomes?.length ? [{ label: 'Partner Income', data: makeSeries('partnerOther'), backgroundColor: '#f59e0b', stack: 'a' }] : []),
+        ...(r.p?.partner && (r.p.partner.incomes?.length || r.p.partner.dbPensions?.length) ? [{ label: 'Partner Income', data: makeSeries('partnerOther'), backgroundColor: '#f59e0b', stack: 'a' }] : []),
         { label: 'Other Income', data: makeSeries('other'), backgroundColor: '#d97706', stack: 'a' },
       ]
     },
@@ -5161,7 +5473,7 @@ document.querySelectorAll('.tab').forEach(btn => {
       else if (tab === 'realincome') renderRealIncomeChart(lastResults);
       else if (tab === 'netmonthly') { renderNetMonthlyChart(lastResults); renderIncomeTable(lastResults); }
       else if (tab === 'annualincome') { renderAnnualIncomeChart(lastResults); renderAnnualIncomeTable(lastResults); }
-      else if (tab === 'montecarlo') { renderMonteCarloChart(lastResults); renderMonteCarloTable(lastResults, +document.getElementById('mc-pctile').value); }
+      else if (tab === 'montecarlo') { renderMonteCarloChart(lastResults); renderMonteCarloTable(lastResults, +document.getElementById('mc-pctile').value); renderSurvivalChart(lastResults); }
       else if (tab === 'historicalreplay') renderHistoricalReplayTab(lastResults);
       else if (tab === 'actuals') renderActualsTab(lastResults);
     }
@@ -5203,7 +5515,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
       else if (activeTab === 'realincome') renderRealIncomeChart(r);
       else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
       else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
-      else if (activeTab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
+      else if (activeTab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); renderSurvivalChart(r); }
       else if (activeTab === 'historicalreplay') renderHistoricalReplayTab(r);
       else if (activeTab === 'actuals') renderActualsTab(r);
 
@@ -5317,6 +5629,35 @@ function initApp() {
     document.getElementById('run-btn').click();
   });
 
+  // Annuity toggle
+  document.getElementById('annuity-enabled')?.addEventListener('change', () => {
+    const enabled = document.getElementById('annuity-enabled').checked;
+    const fields = document.getElementById('annuity-fields');
+    if (fields) fields.classList.toggle('hidden', !enabled);
+    persistParams();
+    document.getElementById('run-btn').click();
+  });
+  document.getElementById('annuity-age')?.addEventListener('input', () => {
+    const val = document.getElementById('annuity-age').value;
+    const lbl = document.getElementById('v-annuity-age');
+    if (lbl) lbl.textContent = val;
+    persistParams();
+  });
+  document.getElementById('annuity-premium')?.addEventListener('input', persistParams);
+  document.getElementById('annuity-income')?.addEventListener('input', persistParams);
+
+  // Spending goals
+  document.getElementById('add-goal-btn')?.addEventListener('click', () => {
+    addSpendingGoal();
+    renderSpendingGoalsUI();
+    persistParams();
+  });
+
+  // Save as Baseline button
+  document.getElementById('save-baseline-btn')?.addEventListener('click', () => {
+    if (lastResults) saveBaseline(lastResults);
+  });
+
   // Tax-free cash mode (primary + partner)
   document.getElementById('pcls-enabled')?.addEventListener('change', () => { updateTfMode('primary'); persistParams(); document.getElementById('run-btn').click(); });
   document.getElementById('pcls-pct')?.addEventListener('input', () => {
@@ -5389,7 +5730,7 @@ function initApp() {
         else if (activeTab === 'realincome') renderRealIncomeChart(r);
         else if (activeTab === 'netmonthly') renderNetMonthlyChart(r);
         else if (activeTab === 'annualincome') { renderAnnualIncomeChart(r); renderAnnualIncomeTable(r); }
-        else if (activeTab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); }
+        else if (activeTab === 'montecarlo') { renderMonteCarloChart(r); renderMonteCarloTable(r, +document.getElementById('mc-pctile').value); renderSurvivalChart(r); }
         else if (activeTab === 'historicalreplay') renderHistoricalReplayTab(r);
         else if (activeTab === 'actuals') renderActualsTab(r);
       }

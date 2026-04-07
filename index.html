@@ -403,6 +403,16 @@
     <div id="incomes-container"></div>
   </div>
 
+  <!-- Spending Goals -->
+  <div class="section">
+    <div class="section-header">
+      <h3>Spending Goals</h3>
+      <button class="add-btn" id="add-goal-btn">+ Add Goal</button>
+    </div>
+    <div style="font-size:0.72rem;color:var(--text2);margin-bottom:6px">Temporary extra spending on top of your base income — e.g. holidays, a car, or care costs. Inflation-linked if drawdown is set to inflation-linked.</div>
+    <div id="spending-goals-container"><div style="font-size:0.78rem;color:var(--text2);padding:4px 0">No goals added yet.</div></div>
+  </div>
+
   <!-- State Pension -->
   <div class="section">
     <h3 class="section-title">State Pension</h3>
@@ -568,6 +578,32 @@
         </span>
       </label>
     </div>
+    <!-- Annuity (hidden - feature incomplete) -->
+    <div class="slider-row" style="margin-top:4px;display:none">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="annuity-enabled" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        <span>
+          <span class="slider-name" style="display:block">Purchase an annuity</span>
+          <span style="font-size:0.72rem;color:var(--text2)">Deducts a premium from your pot at a chosen age, then adds guaranteed inflation-linked income</span>
+        </span>
+      </label>
+      <div id="annuity-fields" class="hidden" style="margin-top:8px">
+        <div class="slider-row">
+          <div class="slider-label"><span class="slider-name">Annuity purchase age</span><span class="slider-val" id="v-annuity-age">75</span></div>
+          <input type="range" id="annuity-age" min="60" max="90" value="75">
+        </div>
+        <div class="two-col" style="margin-top:4px">
+          <div>
+            <span class="field-label">Premium (£)</span>
+            <div class="input-group"><span class="input-prefix">£</span><input class="dyn-input" type="number" min="0" step="1000" id="annuity-premium" value="100000"></div>
+          </div>
+          <div>
+            <span class="field-label">Income (£/yr)</span>
+            <div class="input-group"><span class="input-prefix">£</span><input class="dyn-input" type="number" min="0" step="500" id="annuity-income" value="5000"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Actuals Journal (hidden - feature incomplete) -->
@@ -696,6 +732,11 @@
     </div>
   </div>
 
+  <div style="display:flex;justify-content:flex-end;margin:4px 0 0">
+    <button id="save-baseline-btn" style="display:none;font-size:0.75rem;padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer">📌 Save as Baseline</button>
+  </div>
+  <div id="comparison-panel" style="display:none"></div>
+
   <div class="lsa-alert hidden" id="lsa-alert">
     ⚠️ <span><strong>Former LTA Warning:</strong> Your projected pot at retirement exceeds the £1,073,100 former Lifetime Allowance. While the LTA was abolished in April 2024, complexity remains around protections and transitional tax-free cash rules. We recommend taking specialist advice.</span>
   </div>
@@ -782,6 +823,11 @@
       </div>
       <div class="ai-note">Historical return bootstrapping (1900–2025 data). Shaded bands = 5th–25th–75th–95th percentiles. Amber dashed line = State Pension start age.</div>
       <div class="chart-wrap"><canvas id="chart-montecarlo"></canvas></div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <h3 style="margin:0 0 6px;font-size:1rem">Probability of Ruin by Age</h3>
+        <div class="ai-note" style="margin-bottom:8px">Percentage of simulation runs where the pot reaches zero before each age. Lower is better. The dashed line marks the 10% risk threshold.</div>
+        <div class="chart-wrap" style="height:220px"><canvas id="chart-survival"></canvas></div>
+      </div>
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
         <h3 style="margin:0 0 6px;font-size:1rem">Year-by-Year Pot Analysis</h3>
         <div class="ai-note" style="margin-bottom:10px">Tracks a representative simulation run at the selected percentile. Year Change reflects the combined effect of investment returns and income drawn that year — use the slider to see how sequence of returns luck shapes outcomes.</div>
@@ -866,6 +912,7 @@
             <th style="text-align:left">Age</th>
             <th>Cash Pots /mo<br><small style="font-weight:400;color:var(--text2)">tax-free</small></th>
             <th>Pension Pots /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
+            <th id="ann-th-db" style="display:none">DB Pension /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
             <th>State Pension /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
             <th id="ann-th-partner-sp" style="display:none">Partner SP /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
             <th>Other Income /mo<br><small style="font-weight:400;color:var(--text2)">net · gross · tax</small></th>
@@ -880,7 +927,7 @@
           </tr>
         </thead>
         <tbody id="annual-income-tbody">
-          <tr><td colspan="14" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
+          <tr><td colspan="15" style="text-align:center;color:var(--text2);padding:20px">Run simulation to see results</td></tr>
         </tbody>
       </table>
       </div>
@@ -988,7 +1035,7 @@
 <div id="planning-disclaimer"><strong>Important:</strong> This calculator is for planning and education only and is <strong>not regulated financial advice</strong>. It is not authorised or regulated by the Financial Conduct Authority (FCA). Results are model-based estimates, not guarantees. Tax figures use England &amp; Wales rates — Scottish taxpayers should note that rates differ. National Insurance is not modelled. Tax rules and outcomes vary by individual circumstances. Always consult a qualified financial adviser before making retirement decisions.</div>
 
 <div id="fiscal-drag-tip"></div>
-<script type="module" src="./src/app.js?v=35"></script>
+<script type="module" src="./src/app.js?v=38"></script>
 
 </body>
 </html>
