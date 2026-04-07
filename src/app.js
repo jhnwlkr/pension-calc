@@ -1,11 +1,11 @@
-import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js?v=40';
+import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js?v=41';
 import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS,
   PA, BR_LIMIT, HR_LIMIT, BR_RATE, HR_RATE, AR_RATE,
   PROP_SAV_BR_RATE, PROP_SAV_HR_RATE, PROP_SAV_AR_RATE, PROP_SAV_RATE_CHANGE_YEAR,
   DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD, DIV_RATE_CHANGE_YEAR,
-} from './constants.js?v=40';
-import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=40';
-import { runSimulation as runSimulationImpl, runDeterministicProjection, buildAnnualIncomeData } from './simulation.js?v=40';
+} from './constants.js?v=41';
+import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=41';
+import { runSimulation as runSimulationImpl, runDeterministicProjection, buildAnnualIncomeData } from './simulation.js?v=41';
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
 let nextPotId = 1;
@@ -1729,6 +1729,12 @@ function buildExportPayload() {
   settings['sorr-crash-pct']             = document.getElementById('sorr-crash-pct')?.value ?? '-25';
   settings['sorr-crash-years']           = document.getElementById('sorr-crash-years')?.value ?? '3';
   settings['sorr-table-open']            = document.getElementById('sorr-table-wrap')?.classList.contains('hidden') ? '0' : '1';
+  settings['annuity-enabled']            = document.getElementById('annuity-enabled')?.checked ? '1' : '0';
+  settings['annuity-age']                = document.getElementById('annuity-age')?.value || '75';
+  settings['annuity-premium']            = document.getElementById('annuity-premium')?.value || '0';
+  settings['annuity-income']             = document.getElementById('annuity-income')?.value || '0';
+  settings['spending-goals']             = JSON.stringify(spendingGoalsData);
+  settings['mc-pctile']                  = document.getElementById('mc-pctile')?.value || '2';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) settings[id] = el.value; });
 
   // Actuals = all pot registries, income registries, groups, events
@@ -1789,6 +1795,9 @@ function importBackup(payload, mode) {
         value: +p.value || 0,
         annualContrib: +p.annualContrib || 0,
         equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+        glideEnabled: p.glideEnabled === true,
+        glideTargetPct: p.glideTargetPct !== undefined ? +p.glideTargetPct : 40,
+        glideTargetAge: p.glideTargetAge !== undefined ? +p.glideTargetAge : 75,
         groupUuid: p.groupUuid || null,
         groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
         archived: p.archived === true,
@@ -1817,6 +1826,9 @@ function importBackup(payload, mode) {
         value: +p.value || 0,
         annualContrib: +p.annualContrib || 0,
         equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
+        glideEnabled: p.glideEnabled === true,
+        glideTargetPct: p.glideTargetPct !== undefined ? +p.glideTargetPct : 40,
+        glideTargetAge: p.glideTargetAge !== undefined ? +p.glideTargetAge : 75,
         groupUuid: p.groupUuid || null,
         groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
         archived: p.archived === true,
