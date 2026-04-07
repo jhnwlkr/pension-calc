@@ -404,7 +404,8 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       ? calcOtherIncomesNet(p.partner.incomes, ciFromNow, { currentAge: partnerAge, retirementAge: p.partner.retirementAge, yearsToRetirement: Math.max(0, p.partner.retirementAge - (p.partner.currentAgeFrac ?? p.partner.currentAge)), baseInflFactor }) : { grossTotal: 0, taxTotal: 0, netTotal: 0 };
     // Add DB pension income to other net totals (employment type, inflated from today)
     const dbIncAID = calcDbIncome(p.dbPensions, p.spAge, age, ciFromNow);
-    otherNet.grossTotal += dbIncAID.grossTotal;
+    const dbGrossAID = dbIncAID.grossTotal;
+    otherNet.grossTotal += dbGrossAID;
     otherNet.byType.employment = (otherNet.byType.employment || 0) + dbIncAID.byType.employment;
     const partnerDbIncAID = p.partner ? calcDbIncome(p.partner.dbPensions, p.partner.spAge, partnerAge, ciFromNow) : { grossTotal: 0 };
     partnerOtherAID.grossTotal = (partnerOtherAID.grossTotal || 0) + partnerDbIncAID.grossTotal;
@@ -504,6 +505,12 @@ export function buildAnnualIncomeData(r, pctileIdx) {
 
     const netPotChangeNom = potDepleted ? 0 : yi === 0 ? 0 : pensionAtPctile - prevPension;
     const netPotChangeReal = netPotChangeNom * todayDeflator;
+    // Split DB from non-DB other income for separate display column
+    const _dbTaxAID = otherNet.grossTotal > 0 ? tc.otherTax * (dbGrossAID / otherNet.grossTotal) : 0;
+    const _dbNetAID = dbGrossAID - _dbTaxAID;
+    const _nonDbOtherGrossAID = otherNet.grossTotal - dbGrossAID;
+    const _nonDbOtherTaxAID = tc.otherTax - _dbTaxAID;
+    const _nonDbOtherNetAID = tc.otherNet - _dbNetAID;
 
     result.push({
       age,
@@ -514,10 +521,12 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       // SP: show gross as headline so both SP columns are directly comparable
       spNom: spInflated / 12,
       spReal: (spInflated * todayDeflator) / 12,
-      otherNom: tc.otherNet / 12,
+      otherNom: _nonDbOtherNetAID / 12,
+      dbNom: _dbNetAID / 12,
       netNom: totalNetNominal / 12,
       pensionReal: (tc.pensionNet * todayDeflator) / 12,
-      otherReal: (tc.otherNet * todayDeflator) / 12,
+      otherReal: (_nonDbOtherNetAID * todayDeflator) / 12,
+      dbReal: (_dbNetAID * todayDeflator) / 12,
       netReal: (totalNetNominal * todayDeflator) / 12,
       // Gross/tax breakdown for income column sub-lines
       pensionGrossNom: potWithdrawNominal / 12,
@@ -538,10 +547,14 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       partnerOtherGrossReal: (partnerOtherAID.grossTotal * todayDeflator) / 12,
       partnerOtherTaxNom: (partnerOtherAID.taxTotal || 0) / 12,
       partnerOtherTaxReal: ((partnerOtherAID.taxTotal || 0) * todayDeflator) / 12,
-      otherGrossNom: otherNet.grossTotal / 12,
-      otherTaxNom: tc.otherTax / 12,
-      otherGrossReal: (otherNet.grossTotal * todayDeflator) / 12,
-      otherTaxReal: (tc.otherTax * todayDeflator) / 12,
+      otherGrossNom: _nonDbOtherGrossAID / 12,
+      otherTaxNom: _nonDbOtherTaxAID / 12,
+      otherGrossReal: (_nonDbOtherGrossAID * todayDeflator) / 12,
+      otherTaxReal: (_nonDbOtherTaxAID * todayDeflator) / 12,
+      dbGrossNom: dbGrossAID / 12,
+      dbTaxNom: _dbTaxAID / 12,
+      dbGrossReal: (dbGrossAID * todayDeflator) / 12,
+      dbTaxReal: (_dbTaxAID * todayDeflator) / 12,
       netGrossNom: (cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal + partnerOtherAID.grossTotal) / 12,
       netTaxNom: (tc.pensionTax + (hasStatePension ? tc.spTax : 0) + tc.otherTax + partnerOtherAID.taxTotal) / 12,
       netGrossReal: ((cashContrib + potWithdrawNominal + spInflated + partnerSpInflated + otherNet.grossTotal + partnerOtherAID.grossTotal) * todayDeflator) / 12,
@@ -1200,7 +1213,8 @@ export function runSimulation(p) {
     const spInfl = hasStatePension ? p.sp * ci : 0;
     const otherNet = calcOtherIncomesNet(p.incomes, ciFromNow, { currentAge: age, retirementAge: p.retirementAge, yearsToRetirement, baseInflFactor });
     const dbIncNM = calcDbIncome(p.dbPensions, p.spAge, age, ciFromNow);
-    otherNet.grossTotal += dbIncNM.grossTotal;
+    const dbGrossNM = dbIncNM.grossTotal;
+    otherNet.grossTotal += dbGrossNM;
     otherNet.byType.employment = (otherNet.byType.employment || 0) + dbIncNM.byType.employment;
     const cashC = det.detCashContribByYear[yi] || 0;
     // Use deterministic projection to check whether the pension pot is depleted at this year
@@ -1217,6 +1231,8 @@ export function runSimulation(p) {
       const partnerDbNM = calcDbIncome(p.partner.dbPensions, p.partner.spAge, partnerAgeNM, ciFromNow);
       partnerOtherNM.netTotal = (partnerOtherNM.netTotal || 0) + partnerDbNM.grossTotal;
     }
+    const _dbTaxNM = otherNet.grossTotal > 0 ? tc.otherTax * (dbGrossNM / otherNet.grossTotal) : 0;
+    const _dbNetNM = dbGrossNM - _dbTaxNM;
     return {
       age,
       cash: (cashC * realF) / 12,
@@ -1224,7 +1240,8 @@ export function runSimulation(p) {
       sp: hasStatePension ? (tc.spNet * realF) / 12 : 0,
       partnerSp: (partnerSpInflNM * realF) / 12,
       partnerOther: (partnerOtherNM.netTotal * realF) / 12,
-      other: (tc.otherNet * realF) / 12
+      db: (_dbNetNM * realF) / 12,
+      other: ((tc.otherNet - _dbNetNM) * realF) / 12
     };
   });
 

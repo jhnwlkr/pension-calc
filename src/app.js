@@ -3573,11 +3573,15 @@ function renderAnnualIncomeTable(r) {
   const isToday = isTodayMoney();
   const hasPartner = !!r.p?.partner;
 
-  // Show/hide partner columns based on hasPartner
+  const hasDbPensions = !!(r.p?.dbPensions?.length || r.p?.partner?.dbPensions?.length);
+
+  // Show/hide partner and DB columns
   ['ann-th-partner-sp', 'ann-th-partner-other'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = hasPartner ? '' : 'none';
   });
+  const dbTh = document.getElementById('ann-th-db');
+  if (dbTh) dbTh.style.display = hasDbPensions ? '' : 'none';
 
   // Single-value cell — picks nominal or today's money based on toggle
   function cell(nom, real) {
@@ -3615,6 +3619,7 @@ function renderAnnualIncomeTable(r) {
       <td>${ageLabel}</td>
       ${cell(d.cashNom, d.cashReal)}
       ${incomeCell(d.pensionNom, d.pensionReal, d.pensionGrossNom, d.pensionGrossReal, d.pensionTaxNom, d.pensionTaxReal)}
+      ${incomeCell(d.dbNom || 0, d.dbReal || 0, d.dbGrossNom || 0, d.dbGrossReal || 0, d.dbTaxNom || 0, d.dbTaxReal || 0, !hasDbPensions)}
       ${incomeCell(d.spNom, d.spReal, d.spGrossNom, d.spGrossReal, d.spTaxNom, d.spTaxReal)}
       ${incomeCell(d.partnerSpNom || 0, d.partnerSpReal || 0, d.partnerSpGrossNom || 0, d.partnerSpGrossReal || 0, 0, 0, !hasPartner)}
       ${incomeCell(d.otherNom, d.otherReal, d.otherGrossNom, d.otherGrossReal, d.otherTaxNom, d.otherTaxReal)}
@@ -4609,6 +4614,7 @@ function renderNetMonthlyChart(r) {
       datasets: [
         { label: 'Cash Pots', data: makeSeries('cash'), backgroundColor: '#0891b2', stack: 'a' },
         { label: 'Pension', data: makeSeries('pension'), backgroundColor: '#2563eb', stack: 'a' },
+        ...(r.p?.dbPensions?.length || r.p?.partner?.dbPensions?.length ? [{ label: 'DB Pension', data: makeSeries('db'), backgroundColor: '#7c3aed', stack: 'a' }] : []),
         { label: 'State Pension', data: makeSeries('sp'), backgroundColor: '#16a34a', stack: 'a' },
         ...(r.p?.partner ? [{ label: 'Partner SP', data: makeSeries('partnerSp'), backgroundColor: '#86efac', stack: 'a' }] : []),
         ...(r.p?.partner && (r.p.partner.incomes?.length || r.p.partner.dbPensions?.length) ? [{ label: 'Partner Income', data: makeSeries('partnerOther'), backgroundColor: '#f59e0b', stack: 'a' }] : []),
