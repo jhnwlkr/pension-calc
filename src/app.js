@@ -4539,17 +4539,18 @@ function runSorrProjection(r, crashPct, crashYears) {
     if (combined <= 0) {
       detPotByYear[y + 1] = 0;
       detCashBalByYear[y + 1] = 0;
-      sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired: false, pensionWithdrawal: 0 };
+      sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired: false, pensionWithdrawal: 0, potReturn: 0 };
       continue;
     }
 
     const pensionAfterGrowth = detPotByYear[y] * ret;
+    const potReturn = detPotByYear[y] * annualReturnPct / 100;
 
     // Guardrail: pot dropped >20% below retirement value — apply 10% reduction this year
     const guardrailFired = p.guardrails && y > 0 && detPotByYear[y] < startPension * 0.80;
     const guardrailFactor = guardrailFired ? 0.90 : 1.0;
 
-    sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired };
+    sorrYearData[y] = { returnPct: annualReturnPct, guardrailFired, potReturn };
     const hasSP = age >= p.spAge;
     const spNom = hasSP ? p.sp * ci : 0;
     const partnerAge = p.partner ? p.partner.currentAge + (age - p.currentAge) : null;
@@ -4657,9 +4658,12 @@ function renderSorrSummary(sorrResult, p, r) {
     const depleted = combined <= 0 && y > 0;
     const drawdown = yd?.pensionWithdrawal != null ? (useToday ? yd.pensionWithdrawal * deflator(y) : yd.pensionWithdrawal) : null;
     const drawdownCell = drawdown != null && drawdown > 0 ? fmtGBP(drawdown) : (y === years ? '—' : '£0');
+    const potReturnRaw = yd?.potReturn != null ? (useToday ? yd.potReturn * deflator(y) : yd.potReturn) : null;
+    const potReturnCell = potReturnRaw != null ? `<span style="color:${potReturnRaw >= 0 ? '#16a34a' : '#dc2626'}">${potReturnRaw >= 0 ? '+' : ''}${fmtGBP(potReturnRaw)}</span>` : '—';
     rows += `<tr${depleted ? ' style="color:rgba(220,38,38,0.8)"' : ''}>
       <td style="text-align:left">${age}</td>
       <td>${retPct}</td>
+      <td>${potReturnCell}</td>
       <td>${depleted ? '£0 (depleted)' : fmtGBP(dispVal)}</td>
       <td>${drawdownCell}</td>
       <td>${grFlag}</td>
