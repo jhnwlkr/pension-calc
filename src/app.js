@@ -4990,23 +4990,23 @@ function initApp() {
     const slidersDiv = document.getElementById('income-reduction-sliders');
     if (slidersDiv) slidersDiv.style.display = enabled ? '' : 'none';
     persistParams();
-    recalcAndRender();
+    document.getElementById('run-btn').click();
   });
 
   // Tax-free cash mode (primary + partner)
-  document.getElementById('pcls-enabled')?.addEventListener('change', () => { updateTfMode('primary'); recalcAndRender(); persistParams(); });
+  document.getElementById('pcls-enabled')?.addEventListener('change', () => { updateTfMode('primary'); persistParams(); document.getElementById('run-btn').click(); });
   document.getElementById('pcls-pct')?.addEventListener('input', () => {
     const el = document.getElementById('pcls-pct');
     const lbl = document.getElementById('v-pcls-pct');
     if (lbl) lbl.textContent = el.value + '%';
-    recalcAndRender(); persistParams();
+    persistParams(); document.getElementById('run-btn').click();
   });
-  document.getElementById('partner-pcls-enabled')?.addEventListener('change', () => { updateTfMode('partner'); recalcAndRender(); persistParams(); });
+  document.getElementById('partner-pcls-enabled')?.addEventListener('change', () => { updateTfMode('partner'); persistParams(); document.getElementById('run-btn').click(); });
   document.getElementById('partner-pcls-pct')?.addEventListener('input', () => {
     const el = document.getElementById('partner-pcls-pct');
     const lbl = document.getElementById('v-partner-pcls-pct');
     if (lbl) lbl.textContent = el.value + '%';
-    recalcAndRender(); persistParams();
+    persistParams(); document.getElementById('run-btn').click();
   });
 
   // Preset buttons for return rate (and any future preset buttons)
