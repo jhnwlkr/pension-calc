@@ -3517,6 +3517,45 @@ function renderIncomeTable(r) {
       inc.inflationLinked ? 'CPI-linked' : 'Fixed');
   });
 
+  // DB pension rows — primary person
+  if (p.dbPensions?.length) {
+    const snapshotAges = [p.retirementAge, p.spAge, p.reductionAge];
+    p.dbPensions.forEach(db => {
+      const dbSnaps = cols.map((y, col) => {
+        const age = snapshotAges[col];
+        if (db.startAge != null && age < db.startAge) return { g: 0, t: 0, n: 0 };
+        const annual = age < p.spAge ? (db.preSpAnnual || 0) : (db.postSpAnnual || 0);
+        const snapRow = snap[col];
+        const d = todayDef(y);
+        const g = annual * ciFromNow(y) * d;
+        const aggGross = snapRow && snapRow.otherGrossNom > 0 ? snapRow.otherGrossNom * 12 : 0;
+        const effRate = aggGross > 0 ? (snapRow.otherTaxNom * 12) / aggGross : 0;
+        const t = g * effRate;
+        return { g, t, n: g - t };
+      });
+      rows += row3(db.name || 'DB Pension', dbSnaps[0], dbSnaps[1], dbSnaps[2],
+        `Employment income · from age ${db.startAge ?? p.retirementAge}`);
+    });
+  }
+
+  // DB pension rows — partner
+  if (p.partner && p.partner.dbPensions?.length) {
+    const snapshotAges = [p.retirementAge, p.spAge, p.reductionAge];
+    p.partner.dbPensions.forEach(db => {
+      const dbSnaps = cols.map((y, col) => {
+        const age = snapshotAges[col];
+        const partnerAge = p.partner.currentAge + (age - p.currentAge);
+        if (db.startAge != null && partnerAge < db.startAge) return { g: 0, t: 0, n: 0 };
+        const annual = partnerAge < p.partner.spAge ? (db.preSpAnnual || 0) : (db.postSpAnnual || 0);
+        const d = todayDef(y);
+        const g = annual * ciFromNow(y) * d;
+        return { g, t: 0, n: g };
+      });
+      rows += row3(db.name || 'Partner DB Pension', dbSnaps[0], dbSnaps[1], dbSnaps[2],
+        `Partner employment income · from age ${db.startAge ?? p.partner.retirementAge}`);
+    });
+  }
+
   rows += `<tr>
     <td><strong>Total</strong></td>
     <td>${cell(totS[0].g, totS[0].t, totS[0].n)}</td>
@@ -4572,7 +4611,7 @@ function renderNetMonthlyChart(r) {
         { label: 'Pension', data: makeSeries('pension'), backgroundColor: '#2563eb', stack: 'a' },
         { label: 'State Pension', data: makeSeries('sp'), backgroundColor: '#16a34a', stack: 'a' },
         ...(r.p?.partner ? [{ label: 'Partner SP', data: makeSeries('partnerSp'), backgroundColor: '#86efac', stack: 'a' }] : []),
-        ...(r.p?.partner?.incomes?.length ? [{ label: 'Partner Income', data: makeSeries('partnerOther'), backgroundColor: '#f59e0b', stack: 'a' }] : []),
+        ...(r.p?.partner && (r.p.partner.incomes?.length || r.p.partner.dbPensions?.length) ? [{ label: 'Partner Income', data: makeSeries('partnerOther'), backgroundColor: '#f59e0b', stack: 'a' }] : []),
         { label: 'Other Income', data: makeSeries('other'), backgroundColor: '#d97706', stack: 'a' },
       ]
     },

@@ -408,6 +408,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     otherNet.byType.employment = (otherNet.byType.employment || 0) + dbIncAID.byType.employment;
     const partnerDbIncAID = p.partner ? calcDbIncome(p.partner.dbPensions, p.partner.spAge, partnerAge, ciFromNow) : { grossTotal: 0 };
     partnerOtherAID.grossTotal = (partnerOtherAID.grossTotal || 0) + partnerDbIncAID.grossTotal;
+    partnerOtherAID.netTotal = (partnerOtherAID.netTotal || 0) + partnerDbIncAID.grossTotal;
     // Reduction applies to total gross income (drawdown target + other incomes combined).
     // Only the drawdown target can be cut; other incomes are fixed. Floor at 0.
     const inflFactor = p.drawdownInflation ? ci : 1.0;
@@ -531,6 +532,12 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       partnerSpReal: (partnerSpInflated * todayDeflator) / 12,
       partnerSpGrossNom: partnerSpInflated / 12,
       partnerSpGrossReal: (partnerSpInflated * todayDeflator) / 12,
+      partnerOtherNom: partnerOtherAID.netTotal / 12,
+      partnerOtherReal: (partnerOtherAID.netTotal * todayDeflator) / 12,
+      partnerOtherGrossNom: partnerOtherAID.grossTotal / 12,
+      partnerOtherGrossReal: (partnerOtherAID.grossTotal * todayDeflator) / 12,
+      partnerOtherTaxNom: (partnerOtherAID.taxTotal || 0) / 12,
+      partnerOtherTaxReal: ((partnerOtherAID.taxTotal || 0) * todayDeflator) / 12,
       otherGrossNom: otherNet.grossTotal / 12,
       otherTaxNom: tc.otherTax / 12,
       otherGrossReal: (otherNet.grossTotal * todayDeflator) / 12,
