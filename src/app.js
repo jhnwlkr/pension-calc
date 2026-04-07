@@ -1,11 +1,11 @@
-import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js?v=41';
+import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js?v=42';
 import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS,
   PA, BR_LIMIT, HR_LIMIT, BR_RATE, HR_RATE, AR_RATE,
   PROP_SAV_BR_RATE, PROP_SAV_HR_RATE, PROP_SAV_AR_RATE, PROP_SAV_RATE_CHANGE_YEAR,
   DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD, DIV_RATE_CHANGE_YEAR,
-} from './constants.js?v=41';
-import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=41';
-import { runSimulation as runSimulationImpl, runDeterministicProjection, buildAnnualIncomeData } from './simulation.js?v=41';
+} from './constants.js?v=42';
+import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=42';
+import { runSimulation as runSimulationImpl, runDeterministicProjection, buildAnnualIncomeData } from './simulation.js?v=42';
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
 let nextPotId = 1;
@@ -27,9 +27,6 @@ function addPot(value, annualContrib, equityPct, name) {
     value: (value !== undefined && value !== null) ? +value : 0,
     annualContrib: (annualContrib !== undefined && annualContrib !== null) ? +annualContrib : 0,
     equityPct: (equityPct !== undefined && equityPct !== null) ? +equityPct : 80,
-    glideEnabled: false,
-    glideTargetPct: 40,
-    glideTargetAge: 75,
     groupUuid: null,
     groupAllocationPct: null,
     archived: false,
@@ -90,22 +87,7 @@ function renderPotsUI() {
         </div>
         <input type="range" min="0" max="100" step="5" value="${pot.equityPct}" data-pot-id="${pot.id}" data-field="equityPct" class="pot-equity-slider">
       </div>
-      <div style="margin-top:8px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;font-weight:500">
-          <input type="checkbox" class="pot-glide-toggle" data-pot-id="${pot.id}" ${pot.glideEnabled ? 'checked' : ''} style="accent-color:var(--accent)">
-          Glide path (reduce equity over time)
-        </label>
-        <div class="pot-glide-fields" style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;${pot.glideEnabled ? '' : 'display:none'}">
-          <div style="${pot.glideEnabled ? '' : 'display:none'}">
-            <span class="field-label">Target equity %</span>
-            <input class="dyn-input" type="number" min="0" max="100" step="5" value="${pot.glideTargetPct ?? 40}" data-pot-id="${pot.id}" data-field="glideTargetPct" style="width:70px">
-          </div>
-          <div style="${pot.glideEnabled ? '' : 'display:none'}">
-            <span class="field-label">By age</span>
-            <input class="dyn-input" type="number" min="50" max="95" value="${pot.glideTargetAge ?? 75}" data-pot-id="${pot.id}" data-field="glideTargetAge" style="width:70px">
-          </div>
-        </div>
-      </div>`;
+      `;
     container.appendChild(div);
   });
 
@@ -198,27 +180,6 @@ function renderPotsUI() {
     });
   });
 
-  // Wire glide path toggles and fields
-  container.querySelectorAll('.pot-glide-toggle').forEach(cb => {
-    cb.addEventListener('change', () => {
-      const potId = +cb.dataset.potId;
-      const pot = potsData.find(p => p.id === potId);
-      if (pot) {
-        pot.glideEnabled = cb.checked;
-        const fields = cb.closest('div').nextElementSibling;
-        if (fields) fields.querySelectorAll('div').forEach(d => { d.style.display = cb.checked ? '' : 'none'; });
-      }
-      persistParams();
-    });
-  });
-  container.querySelectorAll('.dyn-input[data-field="glideTargetPct"], .dyn-input[data-field="glideTargetAge"]').forEach(inp => {
-    inp.addEventListener('input', () => {
-      const potId = +inp.dataset.potId;
-      const pot = potsData.find(p => p.id === potId);
-      if (pot) pot[inp.dataset.field] = +inp.value;
-      persistParams();
-    });
-  });
 }
 
 // Dynamic control wiring is done in initApp() to avoid DOM timing issues when the script is loaded.
@@ -1795,9 +1756,6 @@ function importBackup(payload, mode) {
         value: +p.value || 0,
         annualContrib: +p.annualContrib || 0,
         equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
-        glideEnabled: p.glideEnabled === true,
-        glideTargetPct: p.glideTargetPct !== undefined ? +p.glideTargetPct : 40,
-        glideTargetAge: p.glideTargetAge !== undefined ? +p.glideTargetAge : 75,
         groupUuid: p.groupUuid || null,
         groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
         archived: p.archived === true,
@@ -1826,9 +1784,6 @@ function importBackup(payload, mode) {
         value: +p.value || 0,
         annualContrib: +p.annualContrib || 0,
         equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
-        glideEnabled: p.glideEnabled === true,
-        glideTargetPct: p.glideTargetPct !== undefined ? +p.glideTargetPct : 40,
-        glideTargetAge: p.glideTargetAge !== undefined ? +p.glideTargetAge : 75,
         groupUuid: p.groupUuid || null,
         groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
         archived: p.archived === true,
@@ -2301,9 +2256,6 @@ function restoreParams(obj) {
             value: +p.value || 0,
             annualContrib: +p.annualContrib || 0,
             equityPct: p.equityPct !== undefined ? +p.equityPct : 80,
-            glideEnabled: p.glideEnabled === true,
-            glideTargetPct: p.glideTargetPct !== undefined ? +p.glideTargetPct : 40,
-            glideTargetAge: p.glideTargetAge !== undefined ? +p.glideTargetAge : 75,
             groupUuid: p.groupUuid || null,
             groupAllocationPct: p.groupAllocationPct != null ? +p.groupAllocationPct : null,
             archived: p.archived === true,

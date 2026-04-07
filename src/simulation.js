@@ -1,6 +1,6 @@
-import { HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS, LSA, FORMER_LTA, PA } from './constants.js?v=41';
-import { incomeTax, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=41';
-import { randn } from './utils.js?v=41';
+import { HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS, LSA, FORMER_LTA, PA } from './constants.js?v=42';
+import { incomeTax, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=42';
+import { randn } from './utils.js?v=42';
 
 export function historicalReturn(equityWeight) {
   const idx = Math.floor(Math.random() * HIST_EQUITY_RETURNS.length);
@@ -30,11 +30,8 @@ export function potWithdrawal(age, p, cumulInfl) {
   return Math.max(0, targetIncome(age, p, cumulInfl) - stateP - partnerSP);
 }
 
-function effectiveEquityPct(pot, age, retirementAge) {
-  if (!pot.glideEnabled || !(pot.glideTargetAge > retirementAge)) return pot.equityPct ?? 80;
-  if (age >= pot.glideTargetAge) return pot.glideTargetPct ?? 40;
-  const t = Math.max(0, (age - retirementAge) / (pot.glideTargetAge - retirementAge));
-  return (pot.equityPct ?? 80) * (1 - t) + (pot.glideTargetPct ?? 40) * t;
+function effectiveEquityPct(pot) {
+  return pot.equityPct ?? 80;
 }
 
 export const PCT_LABELS = ['5th', '25th', '50th (Median)', '75th', '95th'];
@@ -875,7 +872,7 @@ export function runSimulation(p) {
       const totalForBlend = runPots.reduce((s, v) => s + v, 0);
       for (let rank = 0; rank < numPots; rank++) {
         const origIdx = potsOrder[rank];
-        const eq = effectiveEquityPct(allPotsConfig[origIdx], age, p.retirementAge) / 100;
+        const eq = effectiveEquityPct(allPotsConfig[origIdx]) / 100;
         const ret = 1 + (eq * eqRetYear + (1 - eq) * bdRetYear) / 100;
         const w = totalForBlend > 0 ? runPots[rank] / totalForBlend : 1 / numPots;
         blendedRet += w * ret;
