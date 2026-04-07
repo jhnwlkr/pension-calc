@@ -1881,6 +1881,7 @@ function importBackup(payload, mode) {
   }
 
   persistParams();
+  setTimeout(() => document.getElementById('run-btn')?.click(), 50);
   return true;
 }
 
