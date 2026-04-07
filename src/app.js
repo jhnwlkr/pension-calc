@@ -1654,7 +1654,7 @@ function buildExportPayload() {
   const settings = {};
   SLIDER_IDS.forEach(id => { settings[id] = document.getElementById(id)?.value; });
   settings['guardrails']          = document.getElementById('guardrails')?.checked;
-  settings['always-taxfree']       = document.getElementById('always-taxfree')?.checked;
+  settings['always-taxfree']       = document.getElementById('always-taxfree')?.checked ? '1' : '0';
   settings['drawdown-mode']       = document.querySelector('input[name="drawdown-mode"]:checked')?.value || 'amount';
   settings['drawdown-inflation']  = document.getElementById('drawdown-inflation')?.checked;
   settings['partner-enabled']     = getPartnerEnabled();
@@ -1665,8 +1665,9 @@ function buildExportPayload() {
   settings['recalibrate-toggle']  = document.getElementById('recalibrate-toggle')?.checked ? '1' : '0';
   settings['pcls-enabled']         = document.getElementById('pcls-enabled')?.checked ? '1' : '0';
   settings['pcls-pct']             = document.getElementById('pcls-pct')?.value || '25';
-  settings['partner-pcls-enabled'] = document.getElementById('partner-pcls-enabled')?.checked ? '1' : '0';
-  settings['partner-pcls-pct']     = document.getElementById('partner-pcls-pct')?.value || '25';
+  settings['partner-pcls-enabled']       = document.getElementById('partner-pcls-enabled')?.checked ? '1' : '0';
+  settings['partner-pcls-pct']           = document.getElementById('partner-pcls-pct')?.value || '25';
+  settings['income-reduction-enabled']   = document.getElementById('income-reduction-enabled')?.checked ? '1' : '0';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) settings[id] = el.value; });
 
   // Actuals = all pot registries, income registries, groups, events
