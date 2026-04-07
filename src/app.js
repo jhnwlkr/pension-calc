@@ -2501,6 +2501,7 @@ function restoreParams(obj) {
     if (wrap) wrap.classList.toggle('hidden', !open);
     if (btn) btn.textContent = open ? 'Hide year-by-year' : 'Show year-by-year';
   }
+}
 
 // ── Drawdown mode UI toggle ────────────────────────────────────────────────
 function updateDrawdownMode(mode) {
