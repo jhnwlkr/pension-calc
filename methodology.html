@@ -268,13 +268,14 @@
       <li><a href="#s2">Historical Return Data</a></li>
       <li><a href="#s3">Stochastic Inflation</a></li>
       <li><a href="#s4">Guyton-Klinger Guardrails</a></li>
-      <li><a href="#s5">UK Income Tax Modelling</a></li>
-      <li><a href="#s6">Tax-Free Cash: PCLS &amp; UFPLS</a></li>
-      <li><a href="#s7">State Pension</a></li>
-      <li><a href="#s8">ISA &amp; LISA</a></li>
-      <li><a href="#s9">Accumulation Phase</a></li>
-      <li><a href="#s10">DB Pensions &amp; Other Income</a></li>
-      <li><a href="#s11">Assumptions &amp; Limitations</a></li>
+      <li><a href="#s5">Sequence of Returns Risk Stress Test</a></li>
+      <li><a href="#s6">UK Income Tax Modelling</a></li>
+      <li><a href="#s7">Tax-Free Cash: PCLS &amp; UFPLS</a></li>
+      <li><a href="#s8">State Pension</a></li>
+      <li><a href="#s9">ISA &amp; LISA</a></li>
+      <li><a href="#s10">Accumulation Phase</a></li>
+      <li><a href="#s11">DB Pensions &amp; Other Income</a></li>
+      <li><a href="#s12">Assumptions &amp; Limitations</a></li>
     </ol>
   </nav>
 
@@ -398,9 +399,42 @@
     </p>
   </section>
 
-  <!-- 5. UK Tax -->
+  <!-- 5. SORR Stress Test -->
   <section class="method-section" id="s5">
-    <h2><span class="section-num">5</span> UK Income Tax Modelling</h2>
+    <h2><span class="section-num">5</span> Sequence of Returns Risk Stress Test</h2>
+    <p>
+      The <strong>Sequence of Returns Risk (SORR) stress test</strong> overlays a synthetic market crash at the
+      start of retirement on top of the deterministic projection, to illustrate how poor early returns can
+      permanently damage a portfolio even when long-run averages are adequate.
+    </p>
+    <p>
+      When enabled, the stress test replaces the first <em>N</em> years of retirement (configurable, 1–10
+      years) with a user-specified annual return (e.g. −25%), then reverts to your selected nominal return
+      rate for the remainder of retirement. The accumulation phase is unchanged — the crash starts at
+      retirement age.
+    </p>
+    <div class="callout amber">
+      <strong>How to read the results:</strong> The red dashed line on the Pot Balance chart shows the SORR
+      scenario pot balance. The year-by-year table shows, for each year of retirement: the return rate
+      applied, the £ gain or loss on the pot from that return, the resulting pot balance, the annual
+      pension withdrawal drawn, and whether the Guyton-Klinger guardrail fired that year.
+    </div>
+    <p>
+      The guardrail in the SORR scenario works identically to the main simulation: if the pot falls below
+      80% of its retirement-date value in a given year, a flat 10% reduction is applied to the pension
+      withdrawal target <em>for that year only</em>. The reduction does not compound — each year is
+      assessed independently.
+    </p>
+    <p>
+      This is a <strong>deterministic scenario</strong>, not a probability estimate. It answers the question
+      <em>"what would happen to my specific plan under this specific crash?"</em> rather than providing a
+      probability distribution. Use the Monte Carlo tab for probabilistic outcomes.
+    </p>
+  </section>
+
+  <!-- 6. UK Tax -->
+  <section class="method-section" id="s6">
+    <h2><span class="section-num">6</span> UK Income Tax Modelling</h2>
     <p>
       All income is taxed using <strong>England/Wales/Northern Ireland rates</strong> (Scottish rates are not
       currently modelled). Tax is computed annually within each simulation using the parameters below.
@@ -442,8 +476,8 @@
   </section>
 
   <!-- 6. PCLS / UFPLS -->
-  <section class="method-section" id="s6">
-    <h2><span class="section-num">6</span> Tax-Free Cash: PCLS &amp; UFPLS</h2>
+  <section class="method-section" id="s7">
+    <h2><span class="section-num">7</span> Tax-Free Cash: PCLS &amp; UFPLS</h2>
     <p>
       Two tax-efficient withdrawal strategies are supported:
     </p>
@@ -457,8 +491,8 @@
   </section>
 
   <!-- 7. State Pension -->
-  <section class="method-section" id="s7">
-    <h2><span class="section-num">7</span> State Pension</h2>
+  <section class="method-section" id="s8">
+    <h2><span class="section-num">8</span> State Pension</h2>
     <p>
       The State Pension is entered as a <strong>fixed annual amount in today's money</strong>. Within each simulation,
       it is uplifted each year by that simulation's cumulative inflation factor (i.e. it is modelled as
@@ -483,8 +517,8 @@
   </section>
 
   <!-- 8. ISA / LISA -->
-  <section class="method-section" id="s8">
-    <h2><span class="section-num">8</span> ISA &amp; Lifetime ISA</h2>
+  <section class="method-section" id="s9">
+    <h2><span class="section-num">9</span> ISA &amp; Lifetime ISA</h2>
     <p>
       Two types of tax-advantaged savings accounts are modelled in addition to pension pots:
     </p>
@@ -513,8 +547,8 @@
   </section>
 
   <!-- 9. Accumulation Phase -->
-  <section class="method-section" id="s9">
-    <h2><span class="section-num">9</span> Accumulation Phase Projections</h2>
+  <section class="method-section" id="s10">
+    <h2><span class="section-num">10</span> Accumulation Phase Projections</h2>
     <p>
       The <strong>Pot Balance chart</strong> extends backwards from your retirement date to today, showing how your
       combined pension + cash pots are projected to grow during the pre-retirement accumulation phase.
@@ -543,8 +577,8 @@
   </section>
 
   <!-- 10. DB / Other Income -->
-  <section class="method-section" id="s10">
-    <h2><span class="section-num">10</span> DB Pensions &amp; Other Income</h2>
+  <section class="method-section" id="s11">
+    <h2><span class="section-num">11</span> DB Pensions &amp; Other Income</h2>
     <p>
       <strong>Defined Benefit (DB) pensions</strong> are modelled as a fixed annual income in today's money, starting
       at a specified age. Within each simulation, the DB income is uplifted annually by that year's
@@ -580,8 +614,8 @@
   </section>
 
   <!-- 11. Assumptions & Limitations -->
-  <section class="method-section" id="s11">
-    <h2><span class="section-num">11</span> Assumptions &amp; Limitations</h2>
+  <section class="method-section" id="s12">
+    <h2><span class="section-num">12</span> Assumptions &amp; Limitations</h2>
     <p>
       The following simplifications and assumptions apply to all projections:
     </p>
