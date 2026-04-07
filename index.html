@@ -35,6 +35,7 @@
   .sidebar-toggle { display: none; align-items: center; gap: 6px; padding: 8px 14px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
   .help-btn { display: flex; width: 36px; height: 36px; align-items: center; justify-content: center; background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: 6px; font-size: 1rem; font-weight: 700; text-decoration: none; flex-shrink: 0; }
   .help-btn:hover { background: var(--border); color: var(--text); }
+  body.drop-target::after { content: 'Drop backup file to import'; position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--bg) 85%, transparent); border: 3px dashed var(--accent); border-radius: 12px; margin: 16px; pointer-events: none; }
   .layout { display: grid; grid-template-columns: 340px 1fr; gap: 0; flex: 1; min-height: 0; overflow: hidden; }
   .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px; overflow-y: auto; height: 100%; }
   .top-bar { flex-shrink: 0; padding: 4px 20px; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; }

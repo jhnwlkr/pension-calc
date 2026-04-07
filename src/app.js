@@ -1911,17 +1911,13 @@ function initImportDialog() {
   const fullWarn   = document.getElementById('import-full-warning');
   let _pendingPayload = null;
 
-  document.getElementById('import-backup-btn').addEventListener('click', () => fileInput.click());
-
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files[0];
-    if (!file) return;
+  function _readBackupFile(file) {
+    if (!file || !file.name.endsWith('.json')) { alert('Please drop a .json backup file.'); return; }
     const reader = new FileReader();
     reader.onload = e => {
       try {
         _pendingPayload = JSON.parse(e.target.result);
         if (!_pendingPayload?.actuals) { alert('Invalid backup file.'); _pendingPayload = null; return; }
-        // Show full-restore warning only if settings block is present
         if (fullWarn) fullWarn.style.display = _pendingPayload.settings ? '' : 'none';
         if (btnFull)  btnFull.style.display   = _pendingPayload.settings ? '' : 'none';
         dialog.classList.remove('hidden');
@@ -1929,6 +1925,33 @@ function initImportDialog() {
       fileInput.value = '';
     };
     reader.readAsText(file);
+  }
+
+  document.getElementById('import-backup-btn').addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (file) _readBackupFile(file);
+  });
+
+  // Drag-and-drop anywhere on the page
+  let _dragCounter = 0;
+  document.addEventListener('dragenter', e => {
+    if ([...e.dataTransfer.items].some(i => i.kind === 'file')) {
+      _dragCounter++;
+      document.body.classList.add('drop-target');
+    }
+  });
+  document.addEventListener('dragleave', () => {
+    if (--_dragCounter <= 0) { _dragCounter = 0; document.body.classList.remove('drop-target'); }
+  });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    _dragCounter = 0;
+    document.body.classList.remove('drop-target');
+    const file = e.dataTransfer.files[0];
+    if (file) _readBackupFile(file);
   });
 
   btnActuals?.addEventListener('click', () => {
