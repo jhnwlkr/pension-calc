@@ -570,8 +570,8 @@
     </div>
   </div>
 
-  <!-- Actuals Journal -->
-  <div class="section" id="journal-section">
+  <!-- Actuals Journal (hidden - feature incomplete) -->
+  <div class="section" id="journal-section" style="display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)">
       <h3 style="margin:0">Actuals Journal</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text2);cursor:pointer;font-weight:400">
@@ -716,7 +716,7 @@
     <button class="tab" data-tab="netmonthly">Net Monthly Income</button>
     <button class="tab" data-tab="montecarlo">Monte Carlo</button>
     <button class="tab" data-tab="historicalreplay">Historical Replay</button>
-    <button class="tab" data-tab="actuals">Actuals</button>
+    <button class="tab" data-tab="actuals" style="display:none">Actuals</button>
   </div>
 
   <div class="chart-panel">
@@ -886,7 +886,7 @@
       </div>
     </div>
 
-    <div id="tab-actuals" class="hidden">
+    <div id="tab-actuals" class="hidden" style="display:none!important">
       <h2 style="margin:0 0 6px;font-size:1.14rem">Actuals vs Forecast <span id="recalibrated-badge" style="display:none;font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(22,163,74,0.12);color:var(--green);border:1px solid rgba(22,163,74,0.3);vertical-align:middle;margin-left:8px">✦ Recalibrated</span></h2>
       <div class="ai-note" id="actuals-empty-note">No actuals logged yet. Use the <strong>Actuals Journal</strong> in the settings panel to log pot valuations, contributions, and income received.</div>
 
