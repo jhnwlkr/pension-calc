@@ -96,7 +96,7 @@
   .preset-btn:hover, .preset-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .hidden { display: none !important; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
-  #planning-disclaimer { flex-shrink: 0; font-size: 0.75rem; color: var(--text2); padding: 6px 20px; background: var(--surface2); border-top: 1px solid var(--border); }
+  #planning-disclaimer { flex-shrink: 0; font-size: 0.78rem; color: var(--text); padding: 8px 20px; background: var(--surface2); border-top: 2px solid var(--border); }
   .explain-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
   .explain-title { font-size: 0.86rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
   .explain-sub { font-size: 0.78rem; color: var(--text2); margin-bottom: 8px; }
@@ -313,7 +313,7 @@
       </svg>
       <h1>UK Retirement Calculator</h1>
     </div>
-    <div class="header-sub">Historical bootstrapping · Guyton-Klinger guardrails · Stochastic inflation · UK tax rules</div>
+    <div class="header-sub">Historical bootstrapping · Guyton-Klinger guardrails · Stochastic inflation · UK tax rules · England &amp; Wales only · Not financial advice</div>
   </div>
   <div class="header-btns">
     <a href="./methodology.html" target="_blank" rel="noopener" class="help-btn" title="How it works">?</a>
@@ -370,6 +370,7 @@
       <h3>Pension Pots</h3>
       <button class="add-btn" id="add-pot-btn">+ Add Pot</button>
     </div>
+    <div style="font-size:0.72rem;color:var(--text2);margin-bottom:6px">Pension pots are modelled as outside your estate for inheritance tax purposes in most drawdown scenarios. Seek specialist advice for estate planning.</div>
     <div id="pots-container"></div>
   </div>
 
@@ -405,6 +406,7 @@
   <!-- State Pension -->
   <div class="section">
     <h3 class="section-title">State Pension</h3>
+    <div style="font-size:0.72rem;color:var(--text2);margin-bottom:6px">Age 67 applies to those born after 5 April 1960 under current legislation — <a href="https://www.gov.uk/state-pension-age" target="_blank" rel="noopener" style="color:var(--accent)">check gov.uk for your cohort</a>. National Insurance is not modelled.</div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">State pension from age</span><span class="slider-val" id="v-sp-age">67</span></div>
       <input type="range" id="sp-age" min="60" max="70" value="67">
@@ -983,7 +985,7 @@
 </div>
 </div>
 
-<div id="planning-disclaimer">This calculator is for planning and education only and is not regulated financial advice. Results are model-based estimates, not guarantees. Tax rules and outcomes vary by individual circumstances, so consider professional advice before making decisions.</div>
+<div id="planning-disclaimer"><strong>Important:</strong> This calculator is for planning and education only and is <strong>not regulated financial advice</strong>. It is not authorised or regulated by the Financial Conduct Authority (FCA). Results are model-based estimates, not guarantees. Tax figures use England &amp; Wales rates — Scottish taxpayers should note that rates differ. National Insurance is not modelled. Tax rules and outcomes vary by individual circumstances. Always consult a qualified financial adviser before making retirement decisions.</div>
 
 <div id="fiscal-drag-tip"></div>
 <script type="module" src="./src/app.js?v=34"></script>
