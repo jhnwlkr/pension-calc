@@ -40,6 +40,11 @@ DATASET="calc_events"
 
 case "${1:-all}" in
 
+  report)
+    echo "=== User report ==="
+    query "SELECT blob1 AS client_id, argMax(blob2, timestamp) AS country, argMax(blob3, timestamp) AS device, SUM(_sample_interval) AS calc_runs, MAX(timestamp) AS last_visit, max(if(blob6 LIKE '%pot%', 1, 0)) AS tab_pot, max(if(blob6 LIKE '%annualincome%', 1, 0)) AS tab_annual_income, max(if(blob6 LIKE '%taxbreakdown%', 1, 0)) AS tab_tax, max(if(blob6 LIKE '%realincome%', 1, 0)) AS tab_real_income, max(if(blob6 LIKE '%netmonthly%', 1, 0)) AS tab_net_monthly, max(if(blob6 LIKE '%montecarlo%', 1, 0)) AS tab_monte_carlo, max(if(blob6 LIKE '%historicalreplay%', 1, 0)) AS tab_historical_replay, max(if(blob6 LIKE '%actuals%', 1, 0)) AS tab_actuals FROM $DATASET GROUP BY client_id ORDER BY calc_runs DESC"
+    ;;
+
   total)
     echo "=== Total Calculate clicks ==="
     query "SELECT SUM(_sample_interval) AS total_clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET"
@@ -123,7 +128,7 @@ case "${1:-all}" in
     ;;
 
   *)
-    echo "Usage: $0 [total|countries|devices|referrers|tabs|features|users|returning|today|week|month]"
+    echo "Usage: $0 [report|total|countries|devices|referrers|tabs|features|users|returning|today|week|month]"
     echo "       $0          (runs all summaries)"
     exit 1
     ;;
