@@ -1,6 +1,0 @@
-name = "pension-calc"
-pages_build_output_dir = "."
-
-[[kv_namespaces]]
-binding = "CALC_EVENTS"
-id = "cb0571ded9fd4314a3d8d0dbeca8a898"

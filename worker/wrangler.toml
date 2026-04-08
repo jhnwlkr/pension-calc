@@ -1,0 +1,11 @@
+name = "pension-calc-api"
+main = "index.js"
+compatibility_date = "2024-09-23"
+
+[[routes]]
+pattern = "www.retirecalc.uk/api/*"
+zone_name = "retirecalc.uk"
+
+[[kv_namespaces]]
+binding = "CALC_EVENTS"
+id = "cb0571ded9fd4314a3d8d0dbeca8a898"
