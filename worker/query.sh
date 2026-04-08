@@ -5,13 +5,20 @@
 # Default (no argument): shows all summaries
 
 ACCOUNT="bdedf0872e3d2938693f73171a53fcf7"
-TOKEN=$(grep -o 'oauth_token = "[^"]*"' ~/Library/Preferences/.wrangler/config/default.toml | grep -o '"[^"]*"$' | tr -d '"')
+
+# Load token from worker/.env if present, otherwise fall back to wrangler OAuth token
+SCRIPT_DIR="${0:a:h}"
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+  TOKEN=$(grep '^CF_TOKEN=' "$SCRIPT_DIR/.env" | cut -d= -f2-)
+else
+  TOKEN=$(grep -o 'oauth_token = "[^"]*"' ~/Library/Preferences/.wrangler/config/default.toml 2>/dev/null | grep -o '"[^"]*"$' | tr -d '"')
+fi
 
 # GUIDs to exclude from all queries (test entries, own devices, etc.)
 EXCLUDE="blob1 NOT IN ('f0b3634f-152a-42b4-bdab-97059d63f275','test-ae-check')"
 
 if [[ -z "$TOKEN" ]]; then
-  echo "Error: could not read wrangler OAuth token. Run 'npx wrangler login' first."
+  echo "Error: no API token found. Add CF_TOKEN=... to worker/.env"
   exit 1
 fi
 
