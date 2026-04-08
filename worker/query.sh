@@ -7,15 +7,31 @@
 ACCOUNT="bdedf0872e3d2938693f73171a53fcf7"
 TOKEN=$(grep -o 'oauth_token = "[^"]*"' ~/Library/Preferences/.wrangler/config/default.toml | grep -o '"[^"]*"$' | tr -d '"')
 
+# GUIDs to exclude from all queries (test entries, own devices, etc.)
+EXCLUDE="blob1 NOT IN ('f0b3634f-152a-42b4-bdab-97059d63f275','test-ae-check')"
+
 if [[ -z "$TOKEN" ]]; then
   echo "Error: could not read wrangler OAuth token. Run 'npx wrangler login' first."
   exit 1
 fi
 
 query() {
+  # Inject EXCLUDE filter before GROUP BY / ORDER BY / LIMIT, or after FROM clause
+  local sql="$1"
+  if [[ "$sql" == *" WHERE "* ]]; then
+    sql="${sql/ WHERE / WHERE $EXCLUDE AND }"
+  elif [[ "$sql" == *" GROUP BY"* ]]; then
+    sql="${sql/ GROUP BY/ WHERE $EXCLUDE GROUP BY}"
+  elif [[ "$sql" == *" ORDER BY"* ]]; then
+    sql="${sql/ ORDER BY/ WHERE $EXCLUDE ORDER BY}"
+  elif [[ "$sql" == *" LIMIT"* ]]; then
+    sql="${sql/ LIMIT/ WHERE $EXCLUDE LIMIT}"
+  else
+    sql="$sql WHERE $EXCLUDE"
+  fi
   curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/analytics_engine/sql" \
     -H "Authorization: Bearer $TOKEN" \
-    --data "$1" | python3 -c "
+    --data "$sql" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
 if not d.get('success', True) or 'errors' in d and d['errors']:
