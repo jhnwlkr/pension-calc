@@ -6,6 +6,6 @@ compatibility_date = "2024-09-23"
 pattern = "www.retirecalc.uk/api/*"
 zone_name = "retirecalc.uk"
 
-[[kv_namespaces]]
-binding = "CALC_EVENTS"
-id = "cb0571ded9fd4314a3d8d0dbeca8a898"
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "calc_events"

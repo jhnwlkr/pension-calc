@@ -1,15 +1,21 @@
 /**
  * Cloudflare Worker — POST /api/calc-event
  *
- * Records a Calculate button click to KV.
- *   calc:count:<clientId>       — total lifetime click count
- *   calc:last:<clientId>        — ISO timestamp of most recent click (date also used for day dedup)
- *   calc:days:<clientId>        — unique calendar days used
- *   calc:userCountry:<clientId> — ISO country code for this user
- *   calc:total                  — global total across all clients
- *   calc:country:<code>         — global click total per country
+ * Writes one data point to Analytics Engine per Calculate click.
+ * Fields stored per event:
+ *   indexes[0] = clientId   (for per-user filtering)
+ *   blobs[0]   = clientId
+ *   blobs[1]   = country    (ISO code from Cloudflare, e.g. "GB")
  *
- * KV binding: CALC_EVENTS
+ * Useful SQL queries (via CF Analytics Engine SQL API):
+ *   Total clicks:          SELECT SUM(_sample_interval) FROM calc_events
+ *   Clicks by country:     SELECT blob2 AS country, SUM(_sample_interval) AS clicks FROM calc_events GROUP BY country ORDER BY clicks DESC
+ *   Unique users:          SELECT COUNT(DISTINCT blob1) FROM calc_events
+ *   Clicks per user:       SELECT blob1, SUM(_sample_interval) AS clicks FROM calc_events GROUP BY blob1 ORDER BY clicks DESC
+ *   Return users (days):   SELECT blob1, COUNT(DISTINCT toStartOfDay(timestamp)) AS days FROM calc_events GROUP BY blob1 ORDER BY days DESC
+ *   Last 7 days:           add WHERE timestamp > NOW() - INTERVAL '7' DAY to any query
+ *
+ * Analytics Engine binding: ANALYTICS (dataset: calc_events)
  */
 export default {
   async fetch(request, env) {
@@ -43,46 +49,16 @@ export default {
       return new Response(null, { status: 400 });
     }
 
-    const kv = env.CALC_EVENTS;
-    if (!kv) {
+    if (!env.ANALYTICS) {
       return new Response(null, { status: 204 });
     }
 
-    const country   = request.cf?.country || 'XX';
-    const now       = new Date();
-    const nowIso    = now.toISOString();
-    const today     = nowIso.slice(0, 10); // YYYY-MM-DD
+    const country = request.cf?.country || 'XX';
 
-    const countKey      = `calc:count:${clientId}`;
-    const lastKey       = `calc:last:${clientId}`;
-    const countryKey    = `calc:userCountry:${clientId}`;
-    const daysKey       = `calc:days:${clientId}`;
-    const totalKey      = 'calc:total';
-    const countryTotKey = `calc:country:${country}`;
-
-    const [rawCount, rawTotal, rawCountryTot, rawLast, rawDays] = await Promise.all([
-      kv.get(countKey),
-      kv.get(totalKey),
-      kv.get(countryTotKey),
-      kv.get(lastKey),
-      kv.get(daysKey),
-    ]);
-
-    const newCount      = (parseInt(rawCount      || '0', 10) || 0) + 1;
-    const newTotal      = (parseInt(rawTotal      || '0', 10) || 0) + 1;
-    const newCountryTot = (parseInt(rawCountryTot || '0', 10) || 0) + 1;
-    const lastDay       = rawLast ? rawLast.slice(0, 10) : null;
-    const isNewDay      = lastDay !== today;
-    const newDays       = (parseInt(rawDays || '0', 10) || 0) + (isNewDay ? 1 : 0);
-
-    await Promise.all([
-      kv.put(countKey,      String(newCount)),
-      kv.put(lastKey,       nowIso),
-      kv.put(totalKey,      String(newTotal)),
-      kv.put(countryTotKey, String(newCountryTot)),
-      kv.put(countryKey,    country),
-      kv.put(daysKey,       String(newDays)),
-    ]);
+    env.ANALYTICS.writeDataPoint({
+      indexes: [clientId],
+      blobs:   [clientId, country],
+    });
 
     return new Response(null, {
       status: 204,
