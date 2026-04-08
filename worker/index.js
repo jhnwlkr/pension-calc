@@ -45,24 +45,44 @@ export default {
       return new Response(null, { status: 204 });
     }
 
-    const countKey = `calc:${clientId}:count`;
-    const lastKey  = `calc:${clientId}:last`;
-    const totalKey = 'calc:total';
+    const country   = request.cf?.country || 'XX';
+    const now       = new Date();
+    const nowIso    = now.toISOString();
+    const today     = nowIso.slice(0, 10); // YYYY-MM-DD
 
-    const [rawCount, rawTotal] = await Promise.all([
+    const countKey      = `calc:${clientId}:count`;
+    const lastKey       = `calc:${clientId}:last`;
+    const countryKey    = `calc:${clientId}:country`;
+    const daysKey       = `calc:${clientId}:days`;
+    const lastDayKey    = `calc:${clientId}:lastDay`;
+    const totalKey      = 'calc:total';
+    const countryTotKey = `calc:country:${country}`;
+
+    const [rawCount, rawTotal, rawCountryTot, rawLastDay, rawDays] = await Promise.all([
       kv.get(countKey),
       kv.get(totalKey),
+      kv.get(countryTotKey),
+      kv.get(lastDayKey),
+      kv.get(daysKey),
     ]);
 
-    const newCount = (parseInt(rawCount || '0', 10) || 0) + 1;
-    const newTotal = (parseInt(rawTotal || '0', 10) || 0) + 1;
-    const now = new Date().toISOString();
+    const newCount      = (parseInt(rawCount      || '0', 10) || 0) + 1;
+    const newTotal      = (parseInt(rawTotal      || '0', 10) || 0) + 1;
+    const newCountryTot = (parseInt(rawCountryTot || '0', 10) || 0) + 1;
+    const isNewDay      = rawLastDay !== today;
+    const newDays       = (parseInt(rawDays || '0', 10) || 0) + (isNewDay ? 1 : 0);
 
-    await Promise.all([
-      kv.put(countKey, String(newCount)),
-      kv.put(lastKey, now),
-      kv.put(totalKey, String(newTotal)),
-    ]);
+    const writes = [
+      kv.put(countKey,      String(newCount)),
+      kv.put(lastKey,       nowIso),
+      kv.put(totalKey,      String(newTotal)),
+      kv.put(countryTotKey, String(newCountryTot)),
+      kv.put(countryKey,    country),
+      kv.put(daysKey,       String(newDays)),
+    ];
+    if (isNewDay) writes.push(kv.put(lastDayKey, today));
+
+    await Promise.all(writes);
 
     return new Response(null, {
       status: 204,
