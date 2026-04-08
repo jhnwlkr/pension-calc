@@ -10,6 +10,20 @@
 <meta name="description" content="Free UK retirement calculator using Monte Carlo simulation, 125+ years of historical returns, Guyton-Klinger guardrails, stochastic inflation and UK income tax modelling. Includes state pension, PCLS/UFPLS, ISA/LISA and DB pensions.">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="apple-touch-icon" href="./favicon.svg">
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://www.retirecalc.uk/">
+<meta property="og:title" content="UK Retirement Calculator">
+<meta property="og:description" content="Free UK retirement calculator using Monte Carlo simulation, 125+ years of historical returns, Guyton-Klinger guardrails and UK income tax modelling.">
+<meta property="og:image" content="https://www.retirecalc.uk/og-card.svg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="UK Retirement Calculator">
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="UK Retirement Calculator">
+<meta name="twitter:description" content="Free UK retirement calculator using Monte Carlo simulation, 125+ years of historical returns, Guyton-Klinger guardrails and UK income tax modelling.">
+<meta name="twitter:image" content="https://www.retirecalc.uk/og-card.svg">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -1039,7 +1053,22 @@
 <div id="planning-disclaimer"><strong>Important:</strong> This calculator is for planning and education only and is <strong>not regulated financial advice</strong>. It is not authorised or regulated by the Financial Conduct Authority (FCA). Results are model-based estimates, not guarantees. Tax figures use England &amp; Wales rates — Scottish taxpayers should note that rates differ. National Insurance is not modelled. Tax rules and outcomes vary by individual circumstances. Always consult a qualified financial adviser before making retirement decisions.</div>
 
 <div id="fiscal-drag-tip"></div>
-<script type="module" src="./src/app.js?v=45"></script>
+<script type="module" src="./src/app.js?v=46"></script>
+
+<!-- Storage/analytics notice bar -->
+<style>
+#storage-notice{position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#94a3b8;font-size:0.76rem;padding:9px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:9999;border-top:1px solid #334155;line-height:1.4}
+#storage-notice a{color:#60a5fa;text-decoration:underline}
+#storage-notice-dismiss{background:none;border:none;color:#475569;cursor:pointer;font-size:1rem;padding:0 4px;flex-shrink:0;line-height:1}
+#storage-notice-dismiss:hover{color:#94a3b8}
+</style>
+<div id="storage-notice" role="status" style="display:none">
+  <span>We save your inputs in your local browser only — a small amount of anonymous usage analytics is captured but absolutely no selected settings or financial data leaves your device. <a href="./methodology.html#privacy">Learn more</a></span>
+  <button id="storage-notice-dismiss" aria-label="Dismiss privacy notice">✕</button>
+</div>
+<script>
+(function(){try{if(!localStorage.getItem('pension-notice-dismissed')){var b=document.getElementById('storage-notice');b.style.display='flex';document.getElementById('storage-notice-dismiss').addEventListener('click',function(){b.style.display='none';try{localStorage.setItem('pension-notice-dismissed','1')}catch(e){}})}}catch(e){}})();
+</script>
 
 </body>
 </html>
