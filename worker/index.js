@@ -2,9 +2,13 @@
  * Cloudflare Worker — POST /api/calc-event
  *
  * Records a Calculate button click to KV.
- *   calc:<clientId>:count  — total lifetime click count
- *   calc:<clientId>:last   — ISO timestamp of most recent click
- *   calc:total             — global total across all clients
+ *   calc:count:<clientId>     — total lifetime click count
+ *   calc:last:<clientId>      — ISO timestamp of most recent click
+ *   calc:days:<clientId>      — unique calendar days used
+ *   calc:lastDay:<clientId>   — last YYYY-MM-DD seen
+ *   calc:userCountry:<clientId> — ISO country code for this user
+ *   calc:total                — global total across all clients
+ *   calc:country:<code>       — global click total per country
  *
  * KV binding: CALC_EVENTS
  */
@@ -50,11 +54,11 @@ export default {
     const nowIso    = now.toISOString();
     const today     = nowIso.slice(0, 10); // YYYY-MM-DD
 
-    const countKey      = `calc:${clientId}:count`;
-    const lastKey       = `calc:${clientId}:last`;
-    const countryKey    = `calc:${clientId}:country`;
-    const daysKey       = `calc:${clientId}:days`;
-    const lastDayKey    = `calc:${clientId}:lastDay`;
+    const countKey      = `calc:count:${clientId}`;
+    const lastKey       = `calc:last:${clientId}`;
+    const countryKey    = `calc:userCountry:${clientId}`;
+    const daysKey       = `calc:days:${clientId}`;
+    const lastDayKey    = `calc:lastDay:${clientId}`;
     const totalKey      = 'calc:total';
     const countryTotKey = `calc:country:${country}`;
 
