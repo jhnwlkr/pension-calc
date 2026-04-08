@@ -1,11 +1,34 @@
-import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js?v=42';
+import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js?v=43';
 import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS,
   PA, BR_LIMIT, HR_LIMIT, BR_RATE, HR_RATE, AR_RATE,
   PROP_SAV_BR_RATE, PROP_SAV_HR_RATE, PROP_SAV_AR_RATE, PROP_SAV_RATE_CHANGE_YEAR,
   DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD, DIV_RATE_CHANGE_YEAR,
-} from './constants.js?v=42';
-import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=42';
-import { runSimulation as runSimulationImpl, runDeterministicProjection, buildAnnualIncomeData } from './simulation.js?v=42';
+} from './constants.js?v=43';
+import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=43';
+import { runSimulation as runSimulationImpl, runDeterministicProjection, buildAnnualIncomeData } from './simulation.js?v=43';
+
+// ── Dev mode: visit /#dev once to set; never overwritten by imports ────────
+(function() {
+  if (location.hash === '#dev') {
+    try { localStorage.setItem('pension-dev-mode', '1'); } catch(e) {}
+    history.replaceState(null, '', location.pathname);
+  }
+})();
+const _isDevMode = (() => { try { return localStorage.getItem('pension-dev-mode') === '1'; } catch(e) { return false; } })();
+
+// ── Analytics: stable per-browser client ID ───────────────────────────────
+const _clientId = (() => {
+  try {
+    let id = localStorage.getItem('pension-client-id');
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem('pension-client-id', id); }
+    return id;
+  } catch(e) { return 'anon'; }
+})();
+
+function trackCalcEvent() {
+  if (_isDevMode) return;
+  try { navigator.sendBeacon('/api/calc-event', JSON.stringify({ clientId: _clientId, t: Date.now() })); } catch(e) {}
+}
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
 let nextPotId = 1;
@@ -1696,6 +1719,7 @@ function buildExportPayload() {
   settings['annuity-income']             = document.getElementById('annuity-income')?.value || '0';
   settings['spending-goals']             = JSON.stringify(spendingGoalsData);
   settings['mc-pctile']                  = document.getElementById('mc-pctile')?.value || '2';
+  settings['dev-mode']                   = _isDevMode ? '1' : '0';
   partnerSliders.forEach(([id]) => { const el = document.getElementById(id); if (el) settings[id] = el.value; });
 
   // Actuals = all pot registries, income registries, groups, events
@@ -2529,6 +2553,10 @@ function restoreParams(obj) {
   if (obj['hist-replay-year'] !== undefined) {
     const el = document.getElementById('hist-replay-year');
     if (el && el.querySelector(`option[value="${obj['hist-replay-year']}"]`)) el.value = obj['hist-replay-year'];
+  }
+  // dev-mode is one-way: an import can set it but never clear it
+  if (obj['dev-mode'] === '1' && !_isDevMode) {
+    try { localStorage.setItem('pension-dev-mode', '1'); } catch(e) {}
   }
   // Restore DOB inputs (with migration from old integer current-age saves)
   {
@@ -5240,6 +5268,7 @@ document.querySelectorAll('.tab').forEach(btn => {
 // ── Run button ─────────────────────────────────────────────────────────────
 document.getElementById('run-btn').addEventListener('click', () => {
   sanitizeParams();
+  trackCalcEvent();
   const btn = document.getElementById('run-btn');
   btn.disabled = true;
   setTimeout(() => {

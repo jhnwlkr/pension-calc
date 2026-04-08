@@ -1,6 +1,6 @@
-import { HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS, LSA, FORMER_LTA, PA } from './constants.js?v=42';
-import { incomeTax, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=42';
-import { randn } from './utils.js?v=42';
+import { HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS, LSA, FORMER_LTA, PA } from './constants.js?v=43';
+import { incomeTax, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=43';
+import { randn } from './utils.js?v=43';
 
 export function historicalReturn(equityWeight) {
   const idx = Math.floor(Math.random() * HIST_EQUITY_RETURNS.length);
