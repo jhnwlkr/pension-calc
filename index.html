@@ -1050,14 +1050,9 @@
 </div>
 </div>
 
-<div id="planning-disclaimer"><strong>Important:</strong> This calculator is for planning and education only and is <strong>not regulated financial advice</strong>. It is not authorised or regulated by the Financial Conduct Authority (FCA). Results are model-based estimates, not guarantees. Tax figures use England &amp; Wales rates — Scottish taxpayers should note that rates differ. National Insurance is not modelled. Tax rules and outcomes vary by individual circumstances. Always consult a qualified financial adviser before making retirement decisions.</div>
-
-<div id="fiscal-drag-tip"></div>
-<script type="module" src="./src/app.js?v=46"></script>
-
 <!-- Storage/analytics notice bar -->
 <style>
-#storage-notice{position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#94a3b8;font-size:0.76rem;padding:9px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:9999;border-top:1px solid #334155;line-height:1.4}
+#storage-notice{background:#1e293b;color:#94a3b8;font-size:0.76rem;padding:9px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;border-top:1px solid #334155;line-height:1.4}
 #storage-notice a{color:#60a5fa;text-decoration:underline}
 #storage-notice-dismiss{background:none;border:none;color:#475569;cursor:pointer;font-size:1rem;padding:0 4px;flex-shrink:0;line-height:1}
 #storage-notice-dismiss:hover{color:#94a3b8}
@@ -1069,6 +1064,11 @@
 <script>
 (function(){try{if(!localStorage.getItem('pension-notice-dismissed')){var b=document.getElementById('storage-notice');b.style.display='flex';document.getElementById('storage-notice-dismiss').addEventListener('click',function(){b.style.display='none';try{localStorage.setItem('pension-notice-dismissed','1')}catch(e){}})}}catch(e){}})();
 </script>
+<div id="planning-disclaimer"><strong>Important:</strong> This calculator is for planning and education only and is <strong>not regulated financial advice</strong>. It is not authorised or regulated by the Financial Conduct Authority (FCA). Results are model-based estimates, not guarantees. Tax figures use England &amp; Wales rates — Scottish taxpayers should note that rates differ. National Insurance is not modelled. Tax rules and outcomes vary by individual circumstances. Always consult a qualified financial adviser before making retirement decisions.</div>
+
+<div id="fiscal-drag-tip"></div>
+<script type="module" src="./src/app.js?v=46"></script>
+
 
 </body>
 </html>
