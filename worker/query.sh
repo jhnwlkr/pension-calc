@@ -88,6 +88,11 @@ case "${1:-all}" in
     query "SELECT blob1 AS client_id, COUNT(DISTINCT toStartOfDay(timestamp)) AS active_days, SUM(_sample_interval) AS total_clicks FROM $DATASET GROUP BY client_id HAVING active_days > 1 ORDER BY active_days DESC"
     ;;
 
+  repeats)
+    echo "=== Repeat visitors (≥15 min between first & last click) ==="
+    query "SELECT blob1 AS client_id, SUM(_sample_interval) AS clicks, MIN(timestamp) AS first_click, MAX(timestamp) AS last_click, round(dateDiff('second', MIN(timestamp), MAX(timestamp)) / 60.0, 1) AS gap_minutes FROM $DATASET GROUP BY client_id HAVING clicks >= 2 AND dateDiff('second', MIN(timestamp), MAX(timestamp)) >= 900 ORDER BY gap_minutes DESC"
+    ;;
+
   devices)
     echo "=== Clicks by device ==="
     query "SELECT blob3 AS device, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET GROUP BY device ORDER BY clicks DESC"
@@ -148,10 +153,13 @@ case "${1:-all}" in
     echo ""
     echo "=== Returning users (>1 active day) ==="
     query "SELECT blob1 AS client_id, COUNT(DISTINCT toStartOfDay(timestamp)) AS active_days, SUM(_sample_interval) AS total_clicks FROM $DATASET GROUP BY client_id HAVING active_days > 1 ORDER BY active_days DESC"
+    echo ""
+    echo "=== Repeat visitors (≥15 min between first & last click) ==="
+    query "SELECT blob1 AS client_id, SUM(_sample_interval) AS clicks, MIN(timestamp) AS first_click, MAX(timestamp) AS last_click, round(dateDiff('second', MIN(timestamp), MAX(timestamp)) / 60.0, 1) AS gap_minutes FROM $DATASET GROUP BY client_id HAVING clicks >= 2 AND dateDiff('second', MIN(timestamp), MAX(timestamp)) >= 900 ORDER BY gap_minutes DESC"
     ;;
 
   *)
-    echo "Usage: $0 [report|total|countries|devices|referrers|tabs|features|users|returning|today|week|month]"
+    echo "Usage: $0 [report|total|countries|devices|referrers|tabs|features|users|returning|repeats|today|week|month]"
     echo "       $0          (runs all summaries)"
     exit 1
     ;;
