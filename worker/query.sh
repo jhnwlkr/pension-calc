@@ -82,7 +82,7 @@ case "${1:-all}" in
 
   features)
     echo "=== Feature tab usage (tabs visited per session) ==="
-    query "SELECT arrayJoin(splitByChar(',', blob6)) AS tab, SUM(_sample_interval) AS sessions FROM $DATASET WHERE length(blob6) > 0 GROUP BY tab ORDER BY sessions DESC"
+    query "SELECT blob5 AS active_tab, SUM(_sample_interval) AS calc_clicks FROM $DATASET WHERE blob5 != '' GROUP BY active_tab ORDER BY calc_clicks DESC"
     ;;
 
   today)
@@ -124,7 +124,7 @@ case "${1:-all}" in
     query "SELECT toStartOfDay(timestamp) AS day, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY day ORDER BY day DESC"
     echo ""
     echo "=== Returning users (>1 active day) ==="
-    query "SELECT COUNT(DISTINCT blob1) AS returning_users FROM $DATASET WHERE blob1 IN (SELECT blob1 FROM $DATASET GROUP BY blob1 HAVING COUNT(DISTINCT toStartOfDay(timestamp)) > 1)"
+    query "SELECT blob1 AS client_id, COUNT(DISTINCT toStartOfDay(timestamp)) AS active_days, SUM(_sample_interval) AS total_clicks FROM $DATASET GROUP BY client_id HAVING active_days > 1 ORDER BY active_days DESC"
     ;;
 
   *)
