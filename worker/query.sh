@@ -60,6 +60,26 @@ case "${1:-all}" in
     query "SELECT blob1 AS client_id, COUNT(DISTINCT toStartOfDay(timestamp)) AS active_days, SUM(_sample_interval) AS total_clicks FROM $DATASET GROUP BY client_id HAVING active_days > 1 ORDER BY active_days DESC"
     ;;
 
+  devices)
+    echo "=== Clicks by device ==="
+    query "SELECT blob3 AS device, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET GROUP BY device ORDER BY clicks DESC"
+    ;;
+
+  referrers)
+    echo "=== Clicks by referrer ==="
+    query "SELECT blob4 AS referrer, SUM(_sample_interval) AS clicks FROM $DATASET GROUP BY referrer ORDER BY clicks DESC"
+    ;;
+
+  tabs)
+    echo "=== Active tab when Calculate was clicked ==="
+    query "SELECT blob5 AS active_tab, SUM(_sample_interval) AS clicks FROM $DATASET GROUP BY active_tab ORDER BY clicks DESC"
+    ;;
+
+  features)
+    echo "=== Feature tab usage (tabs visited per session) ==="
+    query "SELECT arrayJoin(splitByChar(',', blob6)) AS tab, SUM(_sample_interval) AS sessions FROM $DATASET WHERE length(blob6) > 0 GROUP BY tab ORDER BY sessions DESC"
+    ;;
+
   today)
     echo "=== Today's activity ==="
     query "SELECT SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET WHERE timestamp > NOW() - INTERVAL '1' DAY"
@@ -86,6 +106,15 @@ case "${1:-all}" in
     echo "=== Clicks by country ==="
     query "SELECT blob2 AS country, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET GROUP BY country ORDER BY clicks DESC"
     echo ""
+    echo "=== Clicks by device ==="
+    query "SELECT blob3 AS device, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET GROUP BY device ORDER BY clicks DESC"
+    echo ""
+    echo "=== Clicks by referrer ==="
+    query "SELECT blob4 AS referrer, SUM(_sample_interval) AS clicks FROM $DATASET GROUP BY referrer ORDER BY clicks DESC"
+    echo ""
+    echo "=== Active tab at Calculate ==="
+    query "SELECT blob5 AS active_tab, SUM(_sample_interval) AS clicks FROM $DATASET GROUP BY active_tab ORDER BY clicks DESC"
+    echo ""
     echo "=== Last 7 days (daily) ==="
     query "SELECT toStartOfDay(timestamp) AS day, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY day ORDER BY day DESC"
     echo ""
@@ -94,7 +123,7 @@ case "${1:-all}" in
     ;;
 
   *)
-    echo "Usage: $0 [total|countries|users|returning|today|week|month]"
+    echo "Usage: $0 [total|countries|devices|referrers|tabs|features|users|returning|today|week|month]"
     echo "       $0          (runs all summaries)"
     exit 1
     ;;

@@ -25,10 +25,22 @@ const _clientId = (() => {
   } catch(e) { return 'anon'; }
 })();
 
+const _visitedTabs = new Set();
+
 function trackCalcEvent() {
   if (_isDevMode) return;
   try {
-    const blob = new Blob([JSON.stringify({ clientId: _clientId, t: Date.now() })], { type: 'application/json' });
+    const activeTab = document.querySelector('.tab.active')?.dataset.tab || 'pot';
+    const device    = window.innerWidth < 768 ? 'mobile' : 'desktop';
+    const referrer  = document.referrer ? (() => { try { return new URL(document.referrer).hostname; } catch(e) { return 'other'; } })() : 'direct';
+    const blob = new Blob([JSON.stringify({
+      clientId:    _clientId,
+      t:           Date.now(),
+      activeTab,
+      tabsVisited: [..._visitedTabs].join(','),
+      device,
+      referrer,
+    })], { type: 'application/json' });
     navigator.sendBeacon('/api/calc-event', blob);
   } catch(e) {}
 }
@@ -5251,6 +5263,7 @@ function setActiveTab(tab) {
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     const tab = btn.dataset.tab;
+    _visitedTabs.add(tab);
     setActiveTab(tab);
     persistParams();
     if (lastResults) {
