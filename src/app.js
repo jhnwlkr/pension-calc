@@ -27,7 +27,10 @@ const _clientId = (() => {
 
 function trackCalcEvent() {
   if (_isDevMode) return;
-  try { navigator.sendBeacon('/api/calc-event', JSON.stringify({ clientId: _clientId, t: Date.now() })); } catch(e) {}
+  try {
+    const blob = new Blob([JSON.stringify({ clientId: _clientId, t: Date.now() })], { type: 'application/json' });
+    navigator.sendBeacon('/api/calc-event', blob);
+  } catch(e) {}
 }
 
 // ── Dynamic Pots State ─────────────────────────────────────────────────────
