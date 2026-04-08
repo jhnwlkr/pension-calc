@@ -90,7 +90,7 @@ case "${1:-all}" in
 
   repeats)
     echo "=== Repeat visitors (≥15 min between first & last click) ==="
-    query "SELECT blob1 AS client_id, SUM(_sample_interval) AS clicks, MIN(timestamp) AS first_click, MAX(timestamp) AS last_click, round(dateDiff('second', MIN(timestamp), MAX(timestamp)) / 60.0, 1) AS gap_minutes FROM $DATASET GROUP BY client_id HAVING clicks >= 2 AND dateDiff('second', MIN(timestamp), MAX(timestamp)) >= 900 ORDER BY gap_minutes DESC"
+    query "SELECT blob1 AS client_id, SUM(_sample_interval) AS clicks, MIN(timestamp) AS first_click, MAX(timestamp) AS last_click, round((toUnixTimestamp(MAX(timestamp)) - toUnixTimestamp(MIN(timestamp))) / 60.0, 1) AS gap_minutes FROM $DATASET GROUP BY client_id HAVING clicks >= 2 AND (toUnixTimestamp(MAX(timestamp)) - toUnixTimestamp(MIN(timestamp))) >= 900 ORDER BY gap_minutes DESC"
     ;;
 
   devices)
@@ -155,7 +155,7 @@ case "${1:-all}" in
     query "SELECT blob1 AS client_id, COUNT(DISTINCT toStartOfDay(timestamp)) AS active_days, SUM(_sample_interval) AS total_clicks FROM $DATASET GROUP BY client_id HAVING active_days > 1 ORDER BY active_days DESC"
     echo ""
     echo "=== Repeat visitors (≥15 min between first & last click) ==="
-    query "SELECT blob1 AS client_id, SUM(_sample_interval) AS clicks, MIN(timestamp) AS first_click, MAX(timestamp) AS last_click, round(dateDiff('second', MIN(timestamp), MAX(timestamp)) / 60.0, 1) AS gap_minutes FROM $DATASET GROUP BY client_id HAVING clicks >= 2 AND dateDiff('second', MIN(timestamp), MAX(timestamp)) >= 900 ORDER BY gap_minutes DESC"
+    query "SELECT blob1 AS client_id, SUM(_sample_interval) AS clicks, MIN(timestamp) AS first_click, MAX(timestamp) AS last_click, round((toUnixTimestamp(MAX(timestamp)) - toUnixTimestamp(MIN(timestamp))) / 60.0, 1) AS gap_minutes FROM $DATASET GROUP BY client_id HAVING clicks >= 2 AND (toUnixTimestamp(MAX(timestamp)) - toUnixTimestamp(MIN(timestamp))) >= 900 ORDER BY gap_minutes DESC"
     ;;
 
   *)
