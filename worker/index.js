@@ -2,13 +2,12 @@
  * Cloudflare Worker — POST /api/calc-event
  *
  * Records a Calculate button click to KV.
- *   calc:count:<clientId>     — total lifetime click count
- *   calc:last:<clientId>      — ISO timestamp of most recent click
- *   calc:days:<clientId>      — unique calendar days used
- *   calc:lastDay:<clientId>   — last YYYY-MM-DD seen
+ *   calc:count:<clientId>       — total lifetime click count
+ *   calc:last:<clientId>        — ISO timestamp of most recent click (date also used for day dedup)
+ *   calc:days:<clientId>        — unique calendar days used
  *   calc:userCountry:<clientId> — ISO country code for this user
- *   calc:total                — global total across all clients
- *   calc:country:<code>       — global click total per country
+ *   calc:total                  — global total across all clients
+ *   calc:country:<code>         — global click total per country
  *
  * KV binding: CALC_EVENTS
  */
@@ -58,35 +57,32 @@ export default {
     const lastKey       = `calc:last:${clientId}`;
     const countryKey    = `calc:userCountry:${clientId}`;
     const daysKey       = `calc:days:${clientId}`;
-    const lastDayKey    = `calc:lastDay:${clientId}`;
     const totalKey      = 'calc:total';
     const countryTotKey = `calc:country:${country}`;
 
-    const [rawCount, rawTotal, rawCountryTot, rawLastDay, rawDays] = await Promise.all([
+    const [rawCount, rawTotal, rawCountryTot, rawLast, rawDays] = await Promise.all([
       kv.get(countKey),
       kv.get(totalKey),
       kv.get(countryTotKey),
-      kv.get(lastDayKey),
+      kv.get(lastKey),
       kv.get(daysKey),
     ]);
 
     const newCount      = (parseInt(rawCount      || '0', 10) || 0) + 1;
     const newTotal      = (parseInt(rawTotal      || '0', 10) || 0) + 1;
     const newCountryTot = (parseInt(rawCountryTot || '0', 10) || 0) + 1;
-    const isNewDay      = rawLastDay !== today;
+    const lastDay       = rawLast ? rawLast.slice(0, 10) : null;
+    const isNewDay      = lastDay !== today;
     const newDays       = (parseInt(rawDays || '0', 10) || 0) + (isNewDay ? 1 : 0);
 
-    const writes = [
+    await Promise.all([
       kv.put(countKey,      String(newCount)),
       kv.put(lastKey,       nowIso),
       kv.put(totalKey,      String(newTotal)),
       kv.put(countryTotKey, String(newCountryTot)),
       kv.put(countryKey,    country),
       kv.put(daysKey,       String(newDays)),
-    ];
-    if (isNewDay) writes.push(kv.put(lastDayKey, today));
-
-    await Promise.all(writes);
+    ]);
 
     return new Response(null, {
       status: 204,
