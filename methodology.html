@@ -653,6 +653,32 @@
     </ul>
     <p>No financial data, no settings values, no dates of birth, no names are ever collected. The anonymous ID is stored in your browser&#8217;s local storage under the key <code>pension-client-id</code> and never leaves your computer. You can delete it at any time by clearing your browser&#8217;s site data.</p>
     <p>Analytics data is processed by Cloudflare Analytics Engine and is used solely to count usage and improve the tool. For privacy queries or to request deletion of your anonymous ID, contact <a href="mailto:privacy@retirecalc.uk">privacy@retirecalc.uk</a>.</p>
+    <p style="margin-top:1rem">
+      <button id="show-client-id-btn" style="background:none;border:1px solid #334155;border-radius:6px;color:#64748b;font-size:0.82rem;padding:5px 12px;cursor:pointer">Find my anonymous ID</button>
+      <span id="client-id-display" style="display:none;margin-left:10px;font-size:0.82rem;color:#64748b">
+        Your ID: <code id="client-id-value" style="user-select:all"></code>
+        <button id="copy-client-id-btn" style="background:none;border:none;color:#2563eb;font-size:0.82rem;cursor:pointer;margin-left:6px;text-decoration:underline">Copy</button>
+        <span id="copy-client-id-confirm" style="display:none;color:#16a34a;font-size:0.82rem;margin-left:4px">Copied</span>
+      </span>
+      <span id="client-id-none" style="display:none;margin-left:10px;font-size:0.82rem;color:#64748b">No ID found — you haven&#8217;t used the calculator yet.</span>
+    </p>
+    <script>
+    document.getElementById('show-client-id-btn').addEventListener('click', function() {
+      var id = localStorage.getItem('pension-client-id');
+      this.style.display = 'none';
+      if (id) {
+        document.getElementById('client-id-value').textContent = id;
+        document.getElementById('client-id-display').style.display = 'inline';
+        document.getElementById('copy-client-id-btn').addEventListener('click', function() {
+          navigator.clipboard.writeText(id).then(function() {
+            document.getElementById('copy-client-id-confirm').style.display = 'inline';
+          });
+        });
+      } else {
+        document.getElementById('client-id-none').style.display = 'inline';
+      }
+    });
+    </script>
   </section>
 
   <div class="cta-block">
