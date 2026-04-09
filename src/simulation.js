@@ -1,6 +1,6 @@
-import { HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS, LSA, FORMER_LTA, PA } from './constants.js?v=43';
-import { incomeTax, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=43';
-import { randn } from './utils.js?v=43';
+import { HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS, LSA, FORMER_LTA, PA } from './constants.js?v=47';
+import { incomeTax, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=47';
+import { randn } from './utils.js?v=47';
 
 export function historicalReturn(equityWeight) {
   const idx = Math.floor(Math.random() * HIST_EQUITY_RETURNS.length);
@@ -321,9 +321,10 @@ export function runDeterministicProjection(p, returnPct) {
     }
     const cashTaken = netTarget - cashRemaining;
 
-    // Gross up remaining net from pension
+    // Gross up remaining net from pension (blocked before NMPA)
     const remainingNet = Math.max(0, netTarget - cashTaken);
-    const pensionWithdrawal = netTarget > 0 ? remainingNet * (grossNeeded / netTarget) : 0;
+    const pensionLocked = age < (p.nmpa ?? 57);
+    const pensionWithdrawal = (!pensionLocked && netTarget > 0) ? remainingNet * (grossNeeded / netTarget) : 0;
 
     detCashContribByYear[y] = cashTaken;
     detPotByYear[y + 1] = Math.max(0, pensionAfterGrowth - pensionWithdrawal);
@@ -449,7 +450,8 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     }
 
     const remainingNetAnn = Math.max(0, netTargetAnn - cashContrib);
-    const intendedPensionWithdrawal = netTargetAnn > 0
+    const pensionLockedAID = age < (p.nmpa ?? 57);
+    const intendedPensionWithdrawal = (!pensionLockedAID && netTargetAnn > 0)
       ? remainingNetAnn * (neededFromPots / netTargetAnn) * guardrailFactor
       : 0;
     const potWithdrawNominal = potDepleted ? 0 : Math.min(pensionAtPctile, intendedPensionWithdrawal);
@@ -940,7 +942,8 @@ export function runSimulation(p) {
 
       const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       const remainingNet = Math.max(0, netTarget - cashTaken);
-      const _pensionWithdrawalTarget = netTarget > 0
+      const pensionLocked = age < (p.nmpa ?? 57);
+      const _pensionWithdrawalTarget = (!pensionLocked && netTarget > 0)
         ? remainingNet * (grossWithdrawal / netTarget) * guardrailFactor
         : 0;
       let pensionWithdrawal = _pensionWithdrawalTarget;
