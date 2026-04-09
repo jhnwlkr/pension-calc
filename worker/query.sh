@@ -40,7 +40,15 @@ query() {
     -H "Authorization: Bearer $TOKEN" \
     --data "$sql" | python3 -c "
 import sys, json
-d = json.load(sys.stdin)
+raw = sys.stdin.read()
+if not raw.strip():
+    print('Error: empty response from API (possible SQL syntax error or rate limit)')
+    sys.exit(1)
+try:
+    d = json.loads(raw)
+except json.JSONDecodeError as e:
+    print('Error: invalid JSON response:', repr(raw[:200]))
+    sys.exit(1)
 if not d.get('success', True) or 'errors' in d and d['errors']:
     print('Error:', d.get('errors', d))
     sys.exit(1)
@@ -152,16 +160,16 @@ case "${1:-all}" in
     query "SELECT toStartOfDay(timestamp) AS day, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY day ORDER BY day DESC"
     echo ""
     echo "=== Last 7 days — Clicks by country ==="
-    query "SELECT toStartOfDay(timestamp) AS day, blob2 AS country, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY toStartOfDay(timestamp), blob2 ORDER BY toStartOfDay(timestamp) DESC, clicks DESC"
+    query "SELECT toStartOfDay(timestamp) AS day, blob2 AS country, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY day, country ORDER BY day DESC, clicks DESC"
     echo ""
     echo "=== Last 7 days — Clicks by device ==="
-    query "SELECT toStartOfDay(timestamp) AS day, blob3 AS device, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY toStartOfDay(timestamp), blob3 ORDER BY toStartOfDay(timestamp) DESC, clicks DESC"
+    query "SELECT toStartOfDay(timestamp) AS day, blob3 AS device, SUM(_sample_interval) AS clicks, COUNT(DISTINCT blob1) AS unique_users FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY day, device ORDER BY day DESC, clicks DESC"
     echo ""
     echo "=== Last 7 days — Clicks by referrer ==="
-    query "SELECT toStartOfDay(timestamp) AS day, blob4 AS referrer, SUM(_sample_interval) AS clicks FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY toStartOfDay(timestamp), blob4 ORDER BY toStartOfDay(timestamp) DESC, clicks DESC"
+    query "SELECT toStartOfDay(timestamp) AS day, blob4 AS referrer, SUM(_sample_interval) AS clicks FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY day, referrer ORDER BY day DESC, clicks DESC"
     echo ""
     echo "=== Last 7 days — Active tab at Calculate ==="
-    query "SELECT toStartOfDay(timestamp) AS day, blob5 AS active_tab, SUM(_sample_interval) AS clicks FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY toStartOfDay(timestamp), blob5 ORDER BY toStartOfDay(timestamp) DESC, clicks DESC"
+    query "SELECT toStartOfDay(timestamp) AS day, blob5 AS active_tab, SUM(_sample_interval) AS clicks FROM $DATASET WHERE timestamp > NOW() - INTERVAL '7' DAY GROUP BY day, active_tab ORDER BY day DESC, clicks DESC"
     echo ""
     echo "=== Returning users (>1 active day) ==="
     query "SELECT blob1 AS client_id, COUNT(DISTINCT toStartOfDay(timestamp)) AS active_days, SUM(_sample_interval) AS total_clicks FROM $DATASET GROUP BY client_id HAVING active_days > 1 ORDER BY active_days DESC"
