@@ -1,11 +1,11 @@
-import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js?v=43';
+import { fmt, fmtGBP, fmtPct, fmtAxisGBP } from './utils.js?v=47';
 import { LSA, FORMER_LTA, HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS,
   PA, BR_LIMIT, HR_LIMIT, BR_RATE, HR_RATE, AR_RATE,
   PROP_SAV_BR_RATE, PROP_SAV_HR_RATE, PROP_SAV_AR_RATE, PROP_SAV_RATE_CHANGE_YEAR,
   DIV_BR_RATE, DIV_HR_RATE, DIV_AR_RATE, DIV_BR_RATE_OLD, DIV_HR_RATE_OLD, DIV_RATE_CHANGE_YEAR,
-} from './constants.js?v=43';
-import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=43';
-import { runSimulation as runSimulationImpl, runDeterministicProjection, buildAnnualIncomeData } from './simulation.js?v=43';
+} from './constants.js?v=47';
+import { incomeTax, incomeTaxBands, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=47';
+import { runSimulation as runSimulationImpl, runDeterministicProjection, buildAnnualIncomeData } from './simulation.js?v=47';
 
 // ── Dev mode: visit /#dev once to set; never overwritten by imports ────────
 (function() {
@@ -1584,6 +1584,7 @@ function getParams() {
     dbPensions: dbPensionsData.map(d => Object.assign({}, d)),
     cashPots: cashPotsData.map(p => Object.assign({}, p)),
     partner: getPartnerParams(),
+    nmpa: (() => { const dob = document.getElementById('current-dob').value; return dob && new Date(dob) < new Date('1973-04-06') ? 55 : 57; })(),
     taxFreeMode: document.getElementById('pcls-enabled')?.checked ? 'pcls' : 'ufpls',
     pclsPct: document.getElementById('pcls-enabled')?.checked ? (+document.getElementById('pcls-pct').value || 25) : 0,
   };
@@ -1662,6 +1663,20 @@ partnerSliders.forEach(([id, formatter]) => {
 });
 
 // Keep end-age min in sync with retirement-age
+function updateNmpaWarning() {
+  const warn = document.getElementById('nmpa-warning');
+  if (!warn) return;
+  const dob = document.getElementById('current-dob').value;
+  const nmpa = dob && new Date(dob) < new Date('1973-04-06') ? 55 : 57;
+  const retAge = +document.getElementById('retirement-age').value;
+  if (retAge < nmpa) {
+    warn.textContent = `⚠ Your retirement age (${retAge}) is below the minimum pension access age (${nmpa}). The pension pot will not be drawn down until age ${nmpa} — cash and other income cover any gap.`;
+    warn.style.display = '';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
 document.getElementById('retirement-age').addEventListener('input', () => {
   const retirementAge = +document.getElementById('retirement-age').value;
   const endEl = document.getElementById('end-age');
@@ -1670,6 +1685,7 @@ document.getElementById('retirement-age').addEventListener('input', () => {
     endEl.value = retirementAge + 1;
     document.getElementById('v-end-age').textContent = retirementAge + 1;
   }
+  updateNmpaWarning();
 });
 
 // ── Persistence ────────────────────────────────────────────────────────────
@@ -5683,6 +5699,7 @@ function initApp() {
         const age = dobToAge(dateStr);
         if (age > 0 && age < 120) {
           if (lbl) lbl.textContent = 'Age ' + age;
+          updateNmpaWarning();
           persistParams();
           document.getElementById('run-btn').click();
         }
