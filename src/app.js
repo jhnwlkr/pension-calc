@@ -2604,6 +2604,7 @@ function restoreParams(obj) {
       if (el._flatpickr) el._flatpickr.setDate(dob, false);
       if (lbl) lbl.textContent = 'Age ' + age;
     }
+    updateNmpaWarning();
   }
   {
     const el = document.getElementById('partner-dob');
