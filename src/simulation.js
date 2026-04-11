@@ -2,6 +2,24 @@ import { HIST_EQUITY_RETURNS, HIST_BONDS_RETURNS, LSA, FORMER_LTA, PA } from './
 import { incomeTax, calcPensionTax, calcOtherIncomesNet, calcDbIncome } from './model.js?v=47';
 import { randn } from './utils.js?v=47';
 
+// Module-level historical mean returns, used for equity-adjusted rate calculations.
+const MEAN_EQ = HIST_EQUITY_RETURNS.reduce((s, v) => s + v, 0) / HIST_EQUITY_RETURNS.length;
+const MEAN_BD = HIST_BONDS_RETURNS.reduce((s, v) => s + v, 0) / HIST_BONDS_RETURNS.length;
+// Expected return for the app's default 80/20 split — returnPct slider is anchored here.
+const BASE_EXPECTED_8020 = 0.8 * MEAN_EQ + 0.2 * MEAN_BD;
+
+/**
+ * Returns the equity-adjusted annual growth rate for a market-linked cash pot (S&S ISA / LISA).
+ * Mirrors the same scaling used for pension pots in runDeterministicProjection.
+ * @param {object} cp   Cash pot config (must have optional equityPct, defaults to 80)
+ * @param {number} returnPct  User's nominal return assumption (%) — calibrated for 80/20
+ */
+function mlCashRate(cp, returnPct) {
+  const eq = (cp.equityPct || 80) / 100;
+  const sf = BASE_EXPECTED_8020 > 0 ? returnPct / BASE_EXPECTED_8020 : 1;
+  return (eq * MEAN_EQ + (1 - eq) * MEAN_BD) * sf / 100;
+}
+
 export function historicalReturn(equityWeight) {
   const idx = Math.floor(Math.random() * HIST_EQUITY_RETURNS.length);
   const eq = HIST_EQUITY_RETURNS[idx];
@@ -63,13 +81,10 @@ export function runDeterministicProjection(p, returnPct) {
   // scaleFactor is anchored to the app's default 80% equity split (not value-weighted),
   // so returnPct means "what an 80% equity pot earns". Higher equity pots earn
   // proportionally more; changing one pot's equity never affects other pots' rates.
-  const meanEq = HIST_EQUITY_RETURNS.reduce((s, v) => s + v, 0) / HIST_EQUITY_RETURNS.length;
-  const meanBd = HIST_BONDS_RETURNS.reduce((s, v) => s + v, 0) / HIST_BONDS_RETURNS.length;
-  const baseExpected = 0.8 * meanEq + 0.2 * meanBd; // expected return for 80/20 (app default)
-  const scaleFactor = baseExpected > 0 ? returnPct / baseExpected : 1;
+  const scaleFactor = BASE_EXPECTED_8020 > 0 ? returnPct / BASE_EXPECTED_8020 : 1;
   const potRets = allPotsConfig.map(pot => {
     const eq = (pot.equityPct ?? 80) / 100;
-    return 1 + (eq * meanEq + (1 - eq) * meanBd) * scaleFactor / 100;
+    return 1 + (eq * MEAN_EQ + (1 - eq) * MEAN_BD) * scaleFactor / 100;
   });
 
   // --- Pre-retirement: grow each pot at its own equity-adjusted rate ---
@@ -104,7 +119,7 @@ export function runDeterministicProjection(p, returnPct) {
   const retBlended = 1 + (pensionPotBeforePcls > 0
     ? allPotsConfig.reduce((s, pot, i) => {
         const eq = (pot.equityPct ?? 80) / 100;
-        return s + potValsAtRet[i] / pensionPotBeforePcls * (eq * meanEq + (1 - eq) * meanBd) * scaleFactor / 100;
+        return s + potValsAtRet[i] / pensionPotBeforePcls * (eq * MEAN_EQ + (1 - eq) * MEAN_BD) * scaleFactor / 100;
       }, 0)
     : returnPct / 100);
 
@@ -119,7 +134,7 @@ export function runDeterministicProjection(p, returnPct) {
     if (isML) {
       // S&S ISA / LISA: annual compounding using equity-adjusted scaled return
       const eq = (cp.equityPct || 80) / 100;
-      const annualRate = (eq * meanEq + (1 - eq) * meanBd) * scaleFactor / 100;
+      const annualRate = (eq * MEAN_EQ + (1 - eq) * MEAN_BD) * scaleFactor / 100;
       const ownerAge = cp._ownerCurrentAge;
       const now = new Date();
       let delayYears = 0;
@@ -214,7 +229,7 @@ export function runDeterministicProjection(p, returnPct) {
         // Growth
         if (isML) {
           const _eq = (cp.equityPct || 80) / 100;
-          cashAccBals[ci2] *= 1 + (_eq * meanEq + (1 - _eq) * meanBd) * scaleFactor / 100;
+          cashAccBals[ci2] *= 1 + (_eq * MEAN_EQ + (1 - _eq) * MEAN_BD) * scaleFactor / 100;
         } else {
           cashAccBals[ci2] *= 1 + (cp.interestPct || 0) / 100;
         }
@@ -260,7 +275,7 @@ export function runDeterministicProjection(p, returnPct) {
       const _cpType = allCashPots[ci2].type || 'cash';
       if (_cpType === 'ss_isa' || _cpType === 'lisa') {
         const _eq = (allCashPots[ci2].equityPct || 80) / 100;
-        cashBals[ci2] *= 1 + (_eq * meanEq + (1 - _eq) * meanBd) * scaleFactor / 100;
+        cashBals[ci2] *= 1 + (_eq * MEAN_EQ + (1 - _eq) * MEAN_BD) * scaleFactor / 100;
       } else {
         cashBals[ci2] *= (1 + allCashPots[ci2].interestPct / 100);
       }
@@ -391,7 +406,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     for (let ci2 = 0; ci2 < (p.cashPots || []).length; ci2++) {
       const _cpType = p.cashPots[ci2].type || 'cash';
       cashBals[ci2] *= _cpType === 'ss_isa' || _cpType === 'lisa'
-        ? 1 + (r.returnPct ?? 5) / 100
+        ? 1 + mlCashRate(p.cashPots[ci2], r.returnPct ?? 5)
         : 1 + p.cashPots[ci2].interestPct / 100;
     }
 
@@ -642,8 +657,8 @@ export function runSimulation(p) {
     const cpType = cp.type || 'cash';
     const isML = cpType === 'ss_isa' || cpType === 'lisa';
     if (isML) {
-      // S&S ISA / LISA: annual compounding at user's expected return
-      const annualRate = (p.returnPct ?? 5) / 100;
+      // S&S ISA / LISA: annual compounding at equity-adjusted return (mirrors pension pot scaling)
+      const annualRate = mlCashRate(cp, p.returnPct ?? 5);
       const ownerAge = cp._ownerCurrentAge;
       const now = new Date();
       let delayYears = 0;
@@ -1093,7 +1108,7 @@ export function runSimulation(p) {
       for (let ci = 0; ci < numCashPots; ci++) {
         const _cpType = allCashPots[ci].type || 'cash';
         cb[ci] *= _cpType === 'ss_isa' || _cpType === 'lisa'
-          ? 1 + (p.returnPct ?? 5) / 100
+          ? 1 + mlCashRate(allCashPots[ci], p.returnPct ?? 5)
           : 1 + allCashPots[ci].interestPct / 100;
       }
       const inflFactor = p.drawdownInflation ? Math.pow(inflF, y) : 1.0;
