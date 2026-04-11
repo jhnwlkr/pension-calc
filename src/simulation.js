@@ -444,6 +444,9 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     const notionalTcAnn = calcPensionTax(neededFromPots, spInflated, hasStatePension, r.taxFreeFrac, otherNet.byType, currentYear + (age - p.currentAge));
     const netTargetAnn = notionalTcAnn.pensionNet;
     // alwaysTaxFree: draw enough pension to use remaining Personal Allowance.
+    // During pension-locked bridge years, determine lock status first so alwaysTaxFree
+    // doesn't reserve income for a pension draw that can't happen.
+    const pensionLockedAID = age < (p.nmpa ?? 57);
     // Under UFPLS (25% tax-free): drawing PA / 0.75 = £16,760 means 25% is tax-free and
     // 75% is taxable but fully covered by the PA — zero income tax on the whole draw.
     const _atfTfFracEst = (p.taxFreeMode !== 'none' && p.taxFreeMode !== 'pcls' && cumulPrimaryTaxFree < LSA) ? 0.25 : 0;
@@ -452,7 +455,7 @@ export function buildAnnualIncomeData(r, pctileIdx) {
       ? Math.min(pensionAtPctile, neededFromPots, _atfRemainingPA / (1 - _atfTfFracEst))
       : 0;
     const _atfCashTarget = (
-      p.alwaysTaxFree && !guardrailActive && !potDepleted && _atfMinPensionGross > 0 && netTargetAnn > 0
+      p.alwaysTaxFree && !guardrailActive && !potDepleted && !pensionLockedAID && _atfMinPensionGross > 0 && netTargetAnn > 0
     ) ? Math.max(0, netTargetAnn - _atfMinPensionGross * (netTargetAnn / neededFromPots))
       : netTargetAnn;
     let cashContrib = 0;
@@ -465,7 +468,6 @@ export function buildAnnualIncomeData(r, pctileIdx) {
     }
 
     const remainingNetAnn = Math.max(0, netTargetAnn - cashContrib);
-    const pensionLockedAID = age < (p.nmpa ?? 57);
     const intendedPensionWithdrawal = (!pensionLockedAID && netTargetAnn > 0)
       ? remainingNetAnn * (neededFromPots / netTargetAnn) * guardrailFactor
       : 0;
@@ -940,8 +942,11 @@ export function runSimulation(p) {
       const _atfMinPensionMC = (_atfRemainingPAmc > 0 && grossWithdrawal > 0)
         ? Math.min(pensionTotalAfterGrowth, grossWithdrawal, _atfRemainingPAmc / (1 - _atfTfFracMC))
         : 0;
+      // Determine lock status before computing cash budget so alwaysTaxFree doesn't
+      // reserve income for a pension draw that is blocked during the bridge period.
+      const pensionLocked = age < (p.nmpa ?? 57);
       const _atfCashBudgetMC = (
-        p.alwaysTaxFree && !guardrailActive && _atfMinPensionMC > 0 && netTarget > 0
+        p.alwaysTaxFree && !guardrailActive && !pensionLocked && _atfMinPensionMC > 0 && netTarget > 0
       ) ? Math.max(0, netTarget - _atfMinPensionMC * (netTarget / grossWithdrawal))
         : netTarget;
       // Draw from cash pots in priority order: cash/cash_isa → ss_isa → lisa (age 60+ only)
@@ -957,7 +962,6 @@ export function runSimulation(p) {
 
       const guardrailFactor = guardrailActive ? 0.90 : 1.0;
       const remainingNet = Math.max(0, netTarget - cashTaken);
-      const pensionLocked = age < (p.nmpa ?? 57);
       const _pensionWithdrawalTarget = (!pensionLocked && netTarget > 0)
         ? remainingNet * (grossWithdrawal / netTarget) * guardrailFactor
         : 0;
