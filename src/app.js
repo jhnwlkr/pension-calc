@@ -5721,6 +5721,22 @@ function initWizard() {
 }
 
 function initApp() {
+  // Restart Onboarding button in Settings
+  (function() {
+    const btn = document.getElementById('restart-onboarding-btn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      if (confirm('Restart the setup wizard? This will clear your current plan and settings.')) {
+        try { localStorage.removeItem(LS_KEY); } catch(e) {}
+        try { localStorage.removeItem(WIZARD_COMPLETED_KEY); } catch(e) {}
+        try { sessionStorage.removeItem(LS_KEY); } catch(e) {}
+        try { sessionStorage.setItem(WIZARD_FORCE_KEY, '1'); } catch(e) {}
+        try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
+        location.reload();
+      }
+    });
+  })();
+
   // Hidden onboarding restart: triple-click title area to clear saved plan and replay setup.
   (function() {
     const headerText = document.querySelector('.header-text');

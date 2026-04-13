@@ -353,7 +353,7 @@
         <div class="wizard-validation" data-validation-step="3"></div>
       </div>
       <div class="wizard-step" data-step="4">
-        <div class="wizard-step-title">How much income do you want each year?</div>
+        <div class="wizard-step-title">How much income from your pension do you want to take each year?</div>
         <div class="wizard-step-sub">Annual target in today's money (before tax).</div>
         <label class="wizard-label" for="wizard-income">Annual income target (£)</label>
         <input id="wizard-income" class="wizard-input" type="number" min="1" step="100" placeholder="e.g. 30000">
@@ -919,6 +919,13 @@
     <button id="export-backup-btn" class="add-btn" style="width:100%;margin-bottom:8px">⬇ Export backup</button>
     <button id="import-backup-btn" class="add-btn" style="width:100%;background:var(--surface2)">⬆ Import backup…</button>
     <input type="file" id="import-file-input" accept=".json" style="display:none">
+  </div>
+
+  <!-- Restart Onboarding -->
+  <div class="section" id="restart-onboarding-section">
+    <h3 class="section-title">Setup Wizard</h3>
+    <p style="font-size:0.78rem;color:var(--text2);margin:0 0 10px">Replay the setup wizard to re-enter your details from scratch.</p>
+    <button id="restart-onboarding-btn" class="add-btn" style="width:100%;background:var(--surface2)">↺ Restart onboarding</button>
   </div>
 
 </div>
