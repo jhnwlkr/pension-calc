@@ -1692,8 +1692,8 @@ document.getElementById('retirement-age').addEventListener('input', () => {
 const LS_KEY = 'pension-forecast-v7';
 const ACTUALS_KEY = 'pension-forecast-actuals-v1';
 const FIRST_RUN_DISMISSED_KEY = 'pension-first-run-dismissed-v1';
-const FIRST_RUN_ADVANCED_KEY = 'pension-first-run-advanced-v1';
 const FIRST_RUN_RESTART_ONCE_KEY = 'pension-first-run-restart-once-v1';
+const ONBOARDING_RESET_MIGRATION_KEY = 'pension-onboarding-core-reset-v1';
 const APP_VERSION = '1.0.0';
 const SLIDER_IDS = sliders.map(([id]) => id);
 
@@ -5375,26 +5375,30 @@ function restoreScrollState() {
   } catch(e) {}
 }
 
-function getFirstRunShowAllSections() {
-  try { return localStorage.getItem(FIRST_RUN_ADVANCED_KEY) === '1'; } catch(e) { return false; }
+function runOnboardingResetMigration() {
+  try {
+    if (localStorage.getItem(ONBOARDING_RESET_MIGRATION_KEY) === APP_VERSION) return;
+    localStorage.removeItem(LS_KEY);
+    localStorage.removeItem(FIRST_RUN_DISMISSED_KEY);
+    sessionStorage.removeItem(LS_KEY);
+    localStorage.setItem(ONBOARDING_RESET_MIGRATION_KEY, APP_VERSION);
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  } catch(e) {}
 }
 
-function setFirstRunShowAllSections(show) {
-  try { localStorage.setItem(FIRST_RUN_ADVANCED_KEY, show ? '1' : '0'); } catch(e) {}
+function areCoreFieldsComplete() {
+  const coreSteps = ['current-dob', 'retirement-age', 'drawdown'];
+  return coreSteps.every((fieldId) => {
+    const badge = document.querySelector(`.starter-badge[data-starter-for="${fieldId}"]`);
+    return !badge || badge.classList.contains('hidden');
+  });
 }
 
 function applyFirstRunAdvancedVisibility(isFirstRun) {
-  const showAllSections = getFirstRunShowAllSections();
-  const collapseAdvanced = isFirstRun && !showAllSections;
+  const collapseAdvanced = isFirstRun && !areCoreFieldsComplete();
   document.querySelectorAll('.first-run-advanced').forEach(el => {
     el.classList.toggle('hidden', collapseAdvanced);
   });
-  const showAdvancedBtn = document.getElementById('first-run-show-advanced');
-  if (showAdvancedBtn) {
-    showAdvancedBtn.classList.toggle('hidden', !isFirstRun);
-    showAdvancedBtn.textContent = collapseAdvanced ? 'Show optional sections' : 'Hide optional sections';
-    showAdvancedBtn.setAttribute('aria-pressed', (!collapseAdvanced).toString());
-  }
 }
 
 function initStarterBadges(isFirstRun) {
@@ -5405,7 +5409,10 @@ function initStarterBadges(isFirstRun) {
     const visible = !!isFirstRun && !!field;
     badge.classList.toggle('hidden', !visible);
     if (!visible || field.dataset.starterBound === '1') return;
-    const hide = () => badge.classList.add('hidden');
+    const hide = () => {
+      badge.classList.add('hidden');
+      applyFirstRunAdvancedVisibility(isFirstRun);
+    };
     field.addEventListener('input', hide);
     field.addEventListener('change', hide);
     field.addEventListener('blur', hide);
@@ -5434,7 +5441,6 @@ function initFirstRunCard(isFirstRun, forceReveal = false) {
   }
 
   const focusCoreBtn = document.getElementById('first-run-focus-core');
-  const showAdvancedBtn = document.getElementById('first-run-show-advanced');
   const dismissBtn = document.getElementById('first-run-dismiss');
   if (focusCoreBtn && focusCoreBtn.dataset.bound !== '1') {
     focusCoreBtn.addEventListener('click', () => {
@@ -5451,23 +5457,10 @@ function initFirstRunCard(isFirstRun, forceReveal = false) {
     });
     focusCoreBtn.dataset.bound = '1';
   }
-  if (showAdvancedBtn && showAdvancedBtn.dataset.bound !== '1') {
-    showAdvancedBtn.addEventListener('click', () => {
-      const currentlyCollapsed = Array.from(document.querySelectorAll('.first-run-advanced')).some(el => el.classList.contains('hidden'));
-      setFirstRunShowAllSections(currentlyCollapsed);
-      applyFirstRunAdvancedVisibility(isFirstRun);
-      if (currentlyCollapsed) {
-        const firstAdvanced = document.querySelector('.first-run-advanced');
-        if (firstAdvanced) firstAdvanced.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    });
-    showAdvancedBtn.dataset.bound = '1';
-  }
   if (dismissBtn && dismissBtn.dataset.bound !== '1') {
     dismissBtn.addEventListener('click', () => {
       try {
         localStorage.setItem(FIRST_RUN_DISMISSED_KEY, '1');
-        setFirstRunShowAllSections(true);
       } catch(e) {}
       card.classList.add('hidden');
       applyFirstRunAdvancedVisibility(isFirstRun);
@@ -5478,6 +5471,7 @@ function initFirstRunCard(isFirstRun, forceReveal = false) {
 
 function initApp() {
   // Hidden onboarding restart: triple-click the app title to replay quick-start UI.
+  runOnboardingResetMigration();
   (function() {
     const h1 = document.querySelector('.header h1');
     if (!h1) return;
@@ -5488,10 +5482,12 @@ function initApp() {
       timer = setTimeout(() => { clicks = 0; }, 600);
       if (clicks >= 3) {
         clicks = 0;
-        if (confirm('Restart new user onboarding? This keeps your current settings and figures.')) {
+        if (confirm('Restart onboarding and clear saved settings?')) {
+          try { localStorage.removeItem(LS_KEY); } catch(e) {}
           try { localStorage.removeItem(FIRST_RUN_DISMISSED_KEY); } catch(e) {}
-          try { localStorage.removeItem(FIRST_RUN_ADVANCED_KEY); } catch(e) {}
+          try { sessionStorage.removeItem(LS_KEY); } catch(e) {}
           try { sessionStorage.setItem(FIRST_RUN_RESTART_ONCE_KEY, '1'); } catch(e) {}
+          try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
           location.reload();
         }
       }
