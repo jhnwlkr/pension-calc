@@ -1696,6 +1696,7 @@ const FIRST_RUN_RESTART_ONCE_KEY = 'pension-first-run-restart-once-v1';
 const ONBOARDING_RESET_MIGRATION_KEY = 'pension-onboarding-core-reset-v1';
 const APP_VERSION = '1.0.0';
 const SLIDER_IDS = sliders.map(([id]) => id);
+const CORE_FIELD_IDS = ['current-dob', 'retirement-age', 'drawdown'];
 
 // ── Actuals ledger ─────────────────────────────────────────────────────────
 // Events stored in localStorage under ACTUALS_KEY, separate from settings.
@@ -5387,8 +5388,7 @@ function runOnboardingResetMigration() {
 }
 
 function areCoreFieldsComplete() {
-  const coreSteps = ['current-dob', 'retirement-age', 'drawdown'];
-  return coreSteps.every((fieldId) => {
+  return CORE_FIELD_IDS.every((fieldId) => {
     const badge = document.querySelector(`.starter-badge[data-starter-for="${fieldId}"]`);
     return !badge || badge.classList.contains('hidden');
   });
@@ -5399,6 +5399,11 @@ function applyFirstRunAdvancedVisibility(isFirstRun) {
   document.querySelectorAll('.first-run-advanced').forEach(el => {
     el.classList.toggle('hidden', collapseAdvanced);
   });
+  const runBtn = document.getElementById('run-btn');
+  if (runBtn) {
+    runBtn.disabled = collapseAdvanced;
+    runBtn.title = collapseAdvanced ? 'Complete core fields first: Date of birth, Retirement age, Annual pension income' : '';
+  }
 }
 
 function initStarterBadges(isFirstRun) {
@@ -5415,7 +5420,6 @@ function initStarterBadges(isFirstRun) {
     };
     field.addEventListener('input', hide);
     field.addEventListener('change', hide);
-    field.addEventListener('blur', hide);
     field.dataset.starterBound = '1';
   });
 }
@@ -5444,11 +5448,10 @@ function initFirstRunCard(isFirstRun, forceReveal = false) {
   const dismissBtn = document.getElementById('first-run-dismiss');
   if (focusCoreBtn && focusCoreBtn.dataset.bound !== '1') {
     focusCoreBtn.addEventListener('click', () => {
-      const coreSteps = ['current-dob', 'retirement-age', 'drawdown'];
-      const nextFieldId = coreSteps.find((fieldId) => {
+      const nextFieldId = CORE_FIELD_IDS.find((fieldId) => {
         const badge = document.querySelector(`.starter-badge[data-starter-for="${fieldId}"]`);
         return !!badge && !badge.classList.contains('hidden');
-      }) || coreSteps[0];
+      }) || CORE_FIELD_IDS[0];
       const target = document.getElementById(nextFieldId);
       if (!target) return;
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -5793,6 +5796,8 @@ function initApp() {
       d.setFullYear(d.getFullYear() - defaultYearsAgo);
       el.value = d.toISOString().slice(0, 10);
       if (lbl) lbl.textContent = 'Age ' + defaultYearsAgo;
+    } else if (!el.value && lbl && inputId === 'current-dob') {
+      lbl.textContent = 'Not Set';
     }
     flatpickr(el, {
       dateFormat: 'Y-m-d',
@@ -5805,6 +5810,7 @@ function initApp() {
         const age = dobToAge(dateStr);
         if (age > 0 && age < 120) {
           if (lbl) lbl.textContent = 'Age ' + age;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
           updateNmpaWarning();
           persistParams();
           document.getElementById('run-btn').click();
@@ -5812,7 +5818,7 @@ function initApp() {
       }
     });
   }
-  _initDobPicker('current-dob', 'v-current-age', 50);
+  _initDobPicker('current-dob', 'v-current-age');
   _initDobPicker('partner-dob', 'v-partner-age');
 
   applyFirstRunAdvancedVisibility(isFirstRun);

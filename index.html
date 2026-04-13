@@ -366,7 +366,7 @@
 
   <div id="first-run-card" class="first-run-card hidden" role="region" aria-label="Quick start">
     <div class="first-run-title">Quick start: make this plan yours</div>
-    <div class="first-run-sub">These are starter assumptions. Use "Edit core fields" to step through date of birth, retirement age, and annual income target.</div>
+    <div class="first-run-sub">Set date of birth, retirement age, and annual income target. Calculate unlocks once those core fields are captured.</div>
     <div class="first-run-actions">
       <button id="first-run-focus-core" class="first-run-btn primary" type="button">Edit next core field</button>
       <button id="first-run-dismiss" class="first-run-btn" type="button">Dismiss</button>
@@ -377,25 +377,25 @@
   <div class="section">
     <h3 class="section-title">Age & Retirement</h3>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Date of birth <span class="starter-badge hidden" data-starter-for="current-dob">Starter</span></span><span class="slider-val" id="v-current-age">Age 55</span></div>
+      <div class="slider-label"><span class="slider-name">Date of birth <span class="starter-badge hidden" data-starter-for="current-dob">Starter</span></span><span class="slider-val" id="v-current-age">Not Set</span></div>
       <input type="text" id="current-dob" placeholder="Select date of birth" readonly style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem;cursor:pointer">
     </div>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Retirement age <span class="starter-badge hidden" data-starter-for="retirement-age">Starter</span></span><span class="slider-val" id="v-retirement-age">65</span></div>
       <input type="range" id="retirement-age" min="18" max="85" value="65">
     </div>
-    <div id="nmpa-warning" style="display:none;font-size:0.72rem;color:#92400e;margin-top:4px;padding:4px 6px;background:#fffbeb;border:1px solid #fcd34d;border-radius:3px"></div>
-    <div class="slider-row">
+    <div id="nmpa-warning" class="first-run-advanced" style="display:none;font-size:0.72rem;color:#92400e;margin-top:4px;padding:4px 6px;background:#fffbeb;border:1px solid #fcd34d;border-radius:3px"></div>
+    <div class="slider-row first-run-advanced">
       <div class="slider-label"><span class="slider-name">Target end age</span><span class="slider-val" id="v-end-age">90</span></div>
       <input type="range" id="end-age" min="75" max="100" value="90">
     </div>
-    <div class="slider-row" style="align-items:center">
+    <div class="slider-row first-run-advanced" style="align-items:center">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;font-weight:500">
         <input type="checkbox" id="income-reduction-enabled" checked>
         Income Reduction
       </label>
     </div>
-    <div id="income-reduction-sliders">
+    <div id="income-reduction-sliders" class="first-run-advanced">
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Income reduction from age</span><span class="slider-val" id="v-reduction-age">75</span></div>
       <input type="range" id="reduction-age" min="60" max="95" value="75">
@@ -408,7 +408,7 @@
   </div>
 
   <!-- Pension Pots -->
-  <div class="section">
+  <div class="section first-run-advanced">
     <div class="section-header">
       <h3>Pension Pots</h3>
       <button class="add-btn" id="add-pot-btn">+ Add Pot</button>
@@ -428,7 +428,7 @@
   </div>
 
   <!-- Cash Pots -->
-  <div class="section">
+  <div class="section first-run-advanced">
     <div class="section-header">
       <h3>Cash &amp; ISA Pots</h3>
       <button class="add-btn" id="add-cash-pot-btn">+ Add Pot</button>
@@ -438,7 +438,7 @@
   </div>
 
   <!-- Other Income -->
-  <div class="section">
+  <div class="section first-run-advanced">
     <div class="section-header">
       <h3>Other Income</h3>
       <button class="add-btn" id="add-income-btn">+ Add Income</button>
@@ -457,7 +457,7 @@
   </div>
 
   <!-- State Pension -->
-  <div class="section">
+  <div class="section first-run-advanced">
     <h3 class="section-title">State Pension</h3>
     <div style="font-size:0.72rem;color:var(--text2);margin-bottom:6px">Age 67 applies to those born after 5 April 1960 under current legislation — <a href="https://www.gov.uk/state-pension-age" target="_blank" rel="noopener" style="color:var(--accent)">check gov.uk for your cohort</a>. National Insurance is not modelled.</div>
     <div class="slider-row">
@@ -535,7 +535,7 @@
   </div>
 
   <!-- Investment & Simulation -->
-  <div class="section">
+  <div class="section first-run-advanced">
     <h3 class="section-title">Investment & Simulation</h3>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Base inflation</span><span class="slider-val" id="v-inflation">2.5%</span></div>
@@ -577,7 +577,7 @@
         <input type="range" id="drawdown-pct" min="2" max="6" step="0.05" value="4">
       </div>
     </div>
-    <div class="slider-row">
+    <div class="slider-row first-run-advanced">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
         <input type="checkbox" id="drawdown-inflation" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         <span>
@@ -587,7 +587,7 @@
       </label>
     </div>
     <!-- Tax-free cash mode -->
-    <div class="slider-row" style="margin-top:4px">
+    <div class="slider-row first-run-advanced" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
         <input type="checkbox" id="pcls-enabled" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         <span>
@@ -603,7 +603,7 @@
         <input type="range" id="pcls-pct" min="0" max="25" step="1" value="25">
       </div>
     </div>
-    <div class="slider-row" style="margin-top:4px">
+    <div class="slider-row first-run-advanced" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
         <input type="checkbox" id="guardrails" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         <span>
@@ -612,7 +612,7 @@
         </span>
       </label>
     </div>
-    <div class="slider-row" style="margin-top:4px">
+    <div class="slider-row first-run-advanced" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
         <input type="checkbox" id="always-taxfree" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         <span>
