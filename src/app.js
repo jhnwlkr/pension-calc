@@ -5428,11 +5428,16 @@ function initFirstRunCard(isFirstRun, forceReveal = false) {
   const dismissBtn = document.getElementById('first-run-dismiss');
   if (focusCoreBtn && focusCoreBtn.dataset.bound !== '1') {
     focusCoreBtn.addEventListener('click', () => {
-      const dob = document.getElementById('current-dob');
-      if (!dob) return;
-      dob.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      dob.focus();
-      if (dob._flatpickr) dob._flatpickr.open();
+      const coreSteps = ['current-dob', 'retirement-age', 'drawdown'];
+      const nextFieldId = coreSteps.find((fieldId) => {
+        const badge = document.querySelector(`.starter-badge[data-starter-for="${fieldId}"]`);
+        return !!badge && !badge.classList.contains('hidden');
+      }) || coreSteps[0];
+      const target = document.getElementById(nextFieldId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.focus();
+      if (nextFieldId === 'current-dob' && target._flatpickr) target._flatpickr.open();
     });
     focusCoreBtn.dataset.bound = '1';
   }
