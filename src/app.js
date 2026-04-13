@@ -5609,13 +5609,13 @@ function initWizard() {
     }
 
     if (wz.preset === 'conservative') {
-      setSlider('return-pct', 4.5);
+      setSlider('return-pct', 3);
       setSlider('inflation', 3.0);
     } else if (wz.preset === 'balanced') {
-      setSlider('return-pct', 6.5);
+      setSlider('return-pct', 5);
       setSlider('inflation', 2.5);
     } else if (wz.preset === 'growth') {
-      setSlider('return-pct', 8.5);
+      setSlider('return-pct', 7);
       setSlider('inflation', 2.5);
     } else if (wz.preset === 'custom') {
       setSlider('return-pct', wz.customReturn);
