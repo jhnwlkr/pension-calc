@@ -5403,13 +5403,25 @@ function initStarterBadges(isFirstRun) {
   });
 }
 
-function initFirstRunCard(isFirstRun) {
+function initFirstRunCard(isFirstRun, forceReveal = false) {
   const card = document.getElementById('first-run-card');
   if (!card) return;
   const dismissed = (() => {
     try { return localStorage.getItem(FIRST_RUN_DISMISSED_KEY) === '1'; } catch(e) { return false; }
   })();
-  card.classList.toggle('hidden', !isFirstRun || dismissed);
+  const visible = isFirstRun && !dismissed;
+  card.classList.toggle('hidden', !visible);
+
+  if (forceReveal && visible) {
+    requestAnimationFrame(() => {
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) sidebar.scrollTop = 0;
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      card.classList.remove('onboarding-flash');
+      void card.offsetWidth; // restart animation class
+      card.classList.add('onboarding-flash');
+    });
+  }
 
   const focusCoreBtn = document.getElementById('first-run-focus-core');
   const showAdvancedBtn = document.getElementById('first-run-show-advanced');
@@ -5445,7 +5457,7 @@ function initFirstRunCard(isFirstRun) {
 }
 
 function initApp() {
-  // Hidden reset: triple-click the app title to wipe all settings and reload
+  // Hidden onboarding restart: triple-click the app title to replay quick-start UI.
   (function() {
     const h1 = document.querySelector('.header h1');
     if (!h1) return;
@@ -5789,9 +5801,9 @@ function initApp() {
 
   applyFirstRunAdvancedVisibility(isFirstRun);
   initStarterBadges(isFirstRun);
-  initFirstRunCard(isFirstRun);
+  initFirstRunCard(isFirstRun, forceFirstRun);
 
-  _restoreScrollOnNextRun = true;
+  _restoreScrollOnNextRun = !forceFirstRun;
   document.getElementById('run-btn').click();
   updateMobileHeaderOffset();
 }

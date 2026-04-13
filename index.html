@@ -114,6 +114,20 @@
   .preset-btn { padding: 4px 10px; background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: 5px; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
   .preset-btn:hover, .preset-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .hidden { display: none !important; }
+  .first-run-card { margin-bottom: 14px; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border)); border-left: 4px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+  .first-run-card.onboarding-flash { animation: onboardingFlash 1200ms ease; }
+  @keyframes onboardingFlash {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 36%, transparent); }
+    45% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 14%, transparent); }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  .first-run-title { font-size: 0.82rem; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+  .first-run-sub { font-size: 0.75rem; color: var(--text2); line-height: 1.4; }
+  .first-run-actions { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+  .first-run-btn { padding: 4px 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); font-size: 0.73rem; cursor: pointer; }
+  .first-run-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .first-run-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .starter-badge { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 5px; border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--amber) 18%, var(--surface)); color: color-mix(in srgb, var(--amber) 88%, var(--text)); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.01em; text-transform: uppercase; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
   #planning-disclaimer { flex-shrink: 0; font-size: 0.78rem; color: var(--text); padding: 8px 20px; background: var(--surface2); border-top: 2px solid var(--border); }
   .explain-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
@@ -350,15 +364,25 @@
 <div class="layout">
 <div class="sidebar" id="sidebar">
 
+  <div id="first-run-card" class="first-run-card hidden" role="region" aria-label="Quick start">
+    <div class="first-run-title">Quick start: make this plan yours</div>
+    <div class="first-run-sub">These are starter assumptions. Edit date of birth, retirement age, and annual income target, then calculate.</div>
+    <div class="first-run-actions">
+      <button id="first-run-focus-core" class="first-run-btn primary" type="button">Edit core fields</button>
+      <button id="first-run-show-advanced" class="first-run-btn" type="button">Show all sections</button>
+      <button id="first-run-dismiss" class="first-run-btn" type="button">Dismiss</button>
+    </div>
+  </div>
+
   <!-- Age & Retirement -->
   <div class="section">
     <h3 class="section-title">Age & Retirement</h3>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Date of birth</span><span class="slider-val" id="v-current-age">Age 55</span></div>
+      <div class="slider-label"><span class="slider-name">Date of birth <span class="starter-badge hidden" data-starter-for="current-dob">Starter</span></span><span class="slider-val" id="v-current-age">Age 55</span></div>
       <input type="text" id="current-dob" placeholder="Select date of birth" readonly style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem;cursor:pointer">
     </div>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Retirement age</span><span class="slider-val" id="v-retirement-age">65</span></div>
+      <div class="slider-label"><span class="slider-name">Retirement age <span class="starter-badge hidden" data-starter-for="retirement-age">Starter</span></span><span class="slider-val" id="v-retirement-age">65</span></div>
       <input type="range" id="retirement-age" min="18" max="85" value="65">
     </div>
     <div id="nmpa-warning" style="display:none;font-size:0.72rem;color:#92400e;margin-top:4px;padding:4px 6px;background:#fffbeb;border:1px solid #fcd34d;border-radius:3px"></div>
@@ -395,7 +419,7 @@
   </div>
 
   <!-- DB Pensions -->
-  <div class="section">
+  <div class="section first-run-advanced">
     <div class="section-header">
       <h3>DB Pensions</h3>
       <button class="add-btn" id="add-db-pension-btn">+ Add</button>
@@ -424,7 +448,7 @@
   </div>
 
   <!-- Spending Goals -->
-  <div class="section">
+  <div class="section first-run-advanced">
     <div class="section-header">
       <h3>Spending Goals</h3>
       <button class="add-btn" id="add-goal-btn">+ Add Goal</button>
@@ -448,7 +472,7 @@
   </div>
 
   <!-- Partner -->
-  <div class="section">
+  <div class="section first-run-advanced">
     <div class="section-header" style="margin-bottom:0">
       <h3 style="margin:0">Partner</h3>
       <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text2);cursor:pointer">
@@ -519,7 +543,7 @@
       <input type="range" id="inflation" min="1" max="6" step="0.1" value="2.5">
     </div>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Investment return (nominal, per year)</span><span class="slider-val" id="v-return-pct">5.0%</span></div>
+      <div class="slider-label"><span class="slider-name">Investment return (nominal, per year) <span class="starter-badge hidden" data-starter-for="return-pct">Starter</span></span><span class="slider-val" id="v-return-pct">5.0%</span></div>
       <input type="range" id="return-pct" min="1" max="15" step="0.5" value="5">
       <div style="display:flex;gap:6px;margin-top:6px">
         <button class="preset-btn" data-target="return-pct" data-value="3" data-label="v-return-pct">Pessimistic (3%)</button>
@@ -546,7 +570,7 @@
         </label>
       </div>
       <div id="drawdown-amount-row">
-        <div class="slider-label"><span class="slider-name">Annual pension income</span><span class="slider-val" id="v-drawdown">£35,000</span></div>
+        <div class="slider-label"><span class="slider-name">Annual pension income <span class="starter-badge hidden" data-starter-for="drawdown">Starter</span></span><span class="slider-val" id="v-drawdown">£35,000</span></div>
         <input type="range" id="drawdown" min="10000" max="120000" step="1000" value="35000">
       </div>
       <div id="drawdown-pct-row" class="hidden">
@@ -692,7 +716,7 @@
   </div>
 
   <!-- Backup -->
-  <div class="section" id="backup-section">
+  <div class="section first-run-advanced" id="backup-section">
     <h3 class="section-title">Backup <span id="backup-age-badge" class="backup-badge" style="display:none"></span></h3>
     <p style="font-size:0.78rem;color:var(--text2);margin:0 0 10px">Export your pots, income sources, and actuals journal as a JSON file you can re-import later.</p>
     <button id="export-backup-btn" class="add-btn" style="width:100%;margin-bottom:8px">⬇ Export backup</button>
