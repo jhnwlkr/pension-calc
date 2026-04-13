@@ -1691,6 +1691,9 @@ document.getElementById('retirement-age').addEventListener('input', () => {
 // ── Persistence ────────────────────────────────────────────────────────────
 const LS_KEY = 'pension-forecast-v7';
 const ACTUALS_KEY = 'pension-forecast-actuals-v1';
+const FIRST_RUN_DISMISSED_KEY = 'pension-first-run-dismissed-v1';
+const FIRST_RUN_ADVANCED_KEY = 'pension-first-run-advanced-v1';
+const FIRST_RUN_RESTART_ONCE_KEY = 'pension-first-run-restart-once-v1';
 const APP_VERSION = '1.0.0';
 const SLIDER_IDS = sliders.map(([id]) => id);
 
@@ -5372,6 +5375,75 @@ function restoreScrollState() {
   } catch(e) {}
 }
 
+function applyFirstRunAdvancedVisibility(isFirstRun) {
+  const showAllSections = (() => {
+    try { return localStorage.getItem(FIRST_RUN_ADVANCED_KEY) === '1'; } catch(e) { return false; }
+  })();
+  const collapseAdvanced = isFirstRun && !showAllSections;
+  document.querySelectorAll('.first-run-advanced').forEach(el => {
+    el.classList.toggle('hidden', collapseAdvanced);
+  });
+  const showAdvancedBtn = document.getElementById('first-run-show-advanced');
+  if (showAdvancedBtn) showAdvancedBtn.classList.toggle('hidden', !collapseAdvanced);
+}
+
+function initStarterBadges(isFirstRun) {
+  const badges = document.querySelectorAll('.starter-badge[data-starter-for]');
+  badges.forEach(badge => {
+    const fieldId = badge.dataset.starterFor;
+    const field = document.getElementById(fieldId);
+    const visible = !!isFirstRun && !!field;
+    badge.classList.toggle('hidden', !visible);
+    if (!visible || field.dataset.starterBound === '1') return;
+    const hide = () => badge.classList.add('hidden');
+    field.addEventListener('input', hide);
+    field.addEventListener('change', hide);
+    field.addEventListener('blur', hide);
+    field.dataset.starterBound = '1';
+  });
+}
+
+function initFirstRunCard(isFirstRun) {
+  const card = document.getElementById('first-run-card');
+  if (!card) return;
+  const dismissed = (() => {
+    try { return localStorage.getItem(FIRST_RUN_DISMISSED_KEY) === '1'; } catch(e) { return false; }
+  })();
+  card.classList.toggle('hidden', !isFirstRun || dismissed);
+
+  const focusCoreBtn = document.getElementById('first-run-focus-core');
+  const showAdvancedBtn = document.getElementById('first-run-show-advanced');
+  const dismissBtn = document.getElementById('first-run-dismiss');
+  if (focusCoreBtn && focusCoreBtn.dataset.bound !== '1') {
+    focusCoreBtn.addEventListener('click', () => {
+      const dob = document.getElementById('current-dob');
+      if (!dob) return;
+      dob.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      dob.focus();
+      if (dob._flatpickr) dob._flatpickr.open();
+    });
+    focusCoreBtn.dataset.bound = '1';
+  }
+  if (showAdvancedBtn && showAdvancedBtn.dataset.bound !== '1') {
+    showAdvancedBtn.addEventListener('click', () => {
+      try { localStorage.setItem(FIRST_RUN_ADVANCED_KEY, '1'); } catch(e) {}
+      applyFirstRunAdvancedVisibility(isFirstRun);
+    });
+    showAdvancedBtn.dataset.bound = '1';
+  }
+  if (dismissBtn && dismissBtn.dataset.bound !== '1') {
+    dismissBtn.addEventListener('click', () => {
+      try {
+        localStorage.setItem(FIRST_RUN_DISMISSED_KEY, '1');
+        localStorage.setItem(FIRST_RUN_ADVANCED_KEY, '1');
+      } catch(e) {}
+      card.classList.add('hidden');
+      applyFirstRunAdvancedVisibility(isFirstRun);
+    });
+    dismissBtn.dataset.bound = '1';
+  }
+}
+
 function initApp() {
   // Hidden reset: triple-click the app title to wipe all settings and reload
   (function() {
@@ -5384,12 +5456,11 @@ function initApp() {
       timer = setTimeout(() => { clicks = 0; }, 600);
       if (clicks >= 3) {
         clicks = 0;
-        if (confirm('Reset all settings to defaults?')) {
-          try { localStorage.removeItem(LS_KEY); } catch(e) {}
-          try { localStorage.removeItem(ACTUALS_KEY); } catch(e) {}
-          try { localStorage.removeItem('pension-forecast-last-export'); } catch(e) {}
-          try { sessionStorage.clear(); } catch(e) {}
-          location.replace(location.pathname);
+        if (confirm('Restart new user onboarding? This keeps your current settings and figures.')) {
+          try { localStorage.removeItem(FIRST_RUN_DISMISSED_KEY); } catch(e) {}
+          try { localStorage.removeItem(FIRST_RUN_ADVANCED_KEY); } catch(e) {}
+          try { sessionStorage.setItem(FIRST_RUN_RESTART_ONCE_KEY, '1'); } catch(e) {}
+          location.reload();
         }
       }
     });
@@ -5640,6 +5711,12 @@ function initApp() {
 
   // Try to restore persisted state; fall back to defaults
   const saved = loadPersistedParams();
+  let forceFirstRun = false;
+  try {
+    forceFirstRun = sessionStorage.getItem(FIRST_RUN_RESTART_ONCE_KEY) === '1';
+    if (forceFirstRun) sessionStorage.removeItem(FIRST_RUN_RESTART_ONCE_KEY);
+  } catch(e) {}
+  const isFirstRun = !saved || forceFirstRun;
   if (saved) {
     restoreParams(saved);
     // If no pots were restored, seed defaults
@@ -5709,6 +5786,10 @@ function initApp() {
   }
   _initDobPicker('current-dob', 'v-current-age', 50);
   _initDobPicker('partner-dob', 'v-partner-age');
+
+  applyFirstRunAdvancedVisibility(isFirstRun);
+  initStarterBadges(isFirstRun);
+  initFirstRunCard(isFirstRun);
 
   _restoreScrollOnNextRun = true;
   document.getElementById('run-btn').click();
