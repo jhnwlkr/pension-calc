@@ -6059,8 +6059,38 @@ function initApp() {
       }
     });
   }
+
+  function _initWizardDobPicker() {
+    const el = document.getElementById('wizard-dob');
+    if (!el || !window.flatpickr) return;
+    flatpickr(el, {
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'j F Y',
+      allowInput: true,
+      monthSelectorType: 'static',
+      maxDate: 'today',
+      minDate: '1930-01-01',
+      defaultDate: el.value || null,
+      onOpen(selectedDates, _dateStr, instance) {
+        if (selectedDates.length) return;
+        const d = new Date();
+        d.setFullYear(d.getFullYear() - 45);
+        instance.jumpToDate(d, true);
+      },
+      onReady(_selectedDates, _dateStr, instance) {
+        if (instance.altInput) instance.altInput.placeholder = 'Select date of birth';
+      },
+      onChange(_selectedDates, dateStr) {
+        if (!dateStr) return;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+  }
+
   _initDobPicker('current-dob', 'v-current-age');
   _initDobPicker('partner-dob', 'v-partner-age');
+  _initWizardDobPicker();
 
   initWizard();
 
