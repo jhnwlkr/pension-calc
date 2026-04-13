@@ -5375,16 +5375,26 @@ function restoreScrollState() {
   } catch(e) {}
 }
 
+function getFirstRunShowAllSections() {
+  try { return localStorage.getItem(FIRST_RUN_ADVANCED_KEY) === '1'; } catch(e) { return false; }
+}
+
+function setFirstRunShowAllSections(show) {
+  try { localStorage.setItem(FIRST_RUN_ADVANCED_KEY, show ? '1' : '0'); } catch(e) {}
+}
+
 function applyFirstRunAdvancedVisibility(isFirstRun) {
-  const showAllSections = (() => {
-    try { return localStorage.getItem(FIRST_RUN_ADVANCED_KEY) === '1'; } catch(e) { return false; }
-  })();
+  const showAllSections = getFirstRunShowAllSections();
   const collapseAdvanced = isFirstRun && !showAllSections;
   document.querySelectorAll('.first-run-advanced').forEach(el => {
     el.classList.toggle('hidden', collapseAdvanced);
   });
   const showAdvancedBtn = document.getElementById('first-run-show-advanced');
-  if (showAdvancedBtn) showAdvancedBtn.classList.toggle('hidden', !collapseAdvanced);
+  if (showAdvancedBtn) {
+    showAdvancedBtn.classList.toggle('hidden', !isFirstRun);
+    showAdvancedBtn.textContent = collapseAdvanced ? 'Show optional sections' : 'Hide optional sections';
+    showAdvancedBtn.setAttribute('aria-pressed', (!collapseAdvanced).toString());
+  }
 }
 
 function initStarterBadges(isFirstRun) {
@@ -5443,8 +5453,13 @@ function initFirstRunCard(isFirstRun, forceReveal = false) {
   }
   if (showAdvancedBtn && showAdvancedBtn.dataset.bound !== '1') {
     showAdvancedBtn.addEventListener('click', () => {
-      try { localStorage.setItem(FIRST_RUN_ADVANCED_KEY, '1'); } catch(e) {}
+      const currentlyCollapsed = Array.from(document.querySelectorAll('.first-run-advanced')).some(el => el.classList.contains('hidden'));
+      setFirstRunShowAllSections(currentlyCollapsed);
       applyFirstRunAdvancedVisibility(isFirstRun);
+      if (currentlyCollapsed) {
+        const firstAdvanced = document.querySelector('.first-run-advanced');
+        if (firstAdvanced) firstAdvanced.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     });
     showAdvancedBtn.dataset.bound = '1';
   }
@@ -5452,7 +5467,7 @@ function initFirstRunCard(isFirstRun, forceReveal = false) {
     dismissBtn.addEventListener('click', () => {
       try {
         localStorage.setItem(FIRST_RUN_DISMISSED_KEY, '1');
-        localStorage.setItem(FIRST_RUN_ADVANCED_KEY, '1');
+        setFirstRunShowAllSections(true);
       } catch(e) {}
       card.classList.add('hidden');
       applyFirstRunAdvancedVisibility(isFirstRun);
