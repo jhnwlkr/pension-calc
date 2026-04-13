@@ -1691,12 +1691,11 @@ document.getElementById('retirement-age').addEventListener('input', () => {
 // ── Persistence ────────────────────────────────────────────────────────────
 const LS_KEY = 'pension-forecast-v7';
 const ACTUALS_KEY = 'pension-forecast-actuals-v1';
-const FIRST_RUN_DISMISSED_KEY = 'pension-first-run-dismissed-v1';
-const FIRST_RUN_RESTART_ONCE_KEY = 'pension-first-run-restart-once-v1';
-const ONBOARDING_RESET_MIGRATION_KEY = 'pension-onboarding-core-reset-v1';
 const APP_VERSION = '1.0.0';
+const WIZARD_COMPLETED_KEY = 'pension-wizard-v1';
+const WIZARD_FORCE_KEY = 'pension-force-wizard';
+const SP_FULL_ANNUAL = 11502;
 const SLIDER_IDS = sliders.map(([id]) => id);
-const CORE_FIELD_IDS = ['current-dob', 'retirement-age', 'drawdown'];
 
 // ── Actuals ledger ─────────────────────────────────────────────────────────
 // Events stored in localStorage under ACTUALS_KEY, separate from settings.
@@ -5376,110 +5375,358 @@ function restoreScrollState() {
   } catch(e) {}
 }
 
-function runOnboardingResetMigration() {
+function initWizard() {
+  const overlay = document.getElementById('wizard-overlay');
+  if (!overlay) return;
+
+  let wizardDone = false;
+  let forceWizard = false;
   try {
-    if (localStorage.getItem(ONBOARDING_RESET_MIGRATION_KEY) === APP_VERSION) return;
-    localStorage.removeItem(LS_KEY);
-    localStorage.removeItem(FIRST_RUN_DISMISSED_KEY);
-    sessionStorage.removeItem(LS_KEY);
-    localStorage.setItem(ONBOARDING_RESET_MIGRATION_KEY, APP_VERSION);
-    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    wizardDone = localStorage.getItem(WIZARD_COMPLETED_KEY) === '1';
+    forceWizard = sessionStorage.getItem(WIZARD_FORCE_KEY) === '1';
+    if (forceWizard) sessionStorage.removeItem(WIZARD_FORCE_KEY);
   } catch(e) {}
-}
-
-function areCoreFieldsComplete() {
-  return CORE_FIELD_IDS.every((fieldId) => {
-    const badge = document.querySelector(`.starter-badge[data-starter-for="${fieldId}"]`);
-    return !badge || badge.classList.contains('hidden');
-  });
-}
-
-function applyFirstRunAdvancedVisibility(isFirstRun) {
-  const collapseAdvanced = isFirstRun && !areCoreFieldsComplete();
-  document.querySelectorAll('.first-run-advanced').forEach(el => {
-    el.classList.toggle('hidden', collapseAdvanced);
-  });
-  const runBtn = document.getElementById('run-btn');
-  if (runBtn) {
-    runBtn.disabled = collapseAdvanced;
-    runBtn.title = collapseAdvanced ? 'Complete core fields first: Date of birth, Retirement age, Annual pension income' : '';
+  if (wizardDone && !forceWizard) {
+    overlay.classList.add('hidden');
+    return;
   }
-}
 
-function initStarterBadges(isFirstRun) {
-  const badges = document.querySelectorAll('.starter-badge[data-starter-for]');
-  badges.forEach(badge => {
-    const fieldId = badge.dataset.starterFor;
-    const field = document.getElementById(fieldId);
-    const visible = !!isFirstRun && !!field;
-    badge.classList.toggle('hidden', !visible);
-    if (!visible || field.dataset.starterBound === '1') return;
-    const hide = () => {
-      badge.classList.add('hidden');
-      applyFirstRunAdvancedVisibility(isFirstRun);
+  const wz = {
+    step: 1,
+    dob: null,
+    retirementAge: null,
+    endAge: null,
+    income: null,
+    hasPot: null,
+    potValue: null,
+    potContrib: 0,
+    hasDB: null,
+    dbName: '',
+    dbAge: null,
+    dbIncome: null,
+    hasCash: null,
+    cashType: 'cash',
+    cashValue: null,
+    cashMonthly: 0,
+    hasOther: null,
+    otherName: '',
+    otherType: 'employment',
+    otherAmount: null,
+    otherFreq: 'annual',
+    hasGoal: null,
+    goalLabel: '',
+    goalFrom: null,
+    goalTo: null,
+    goalAmount: null,
+    statePension: null,
+    spPartial: null,
+    preset: null,
+    customReturn: null,
+    customInflation: null,
+  };
+
+  const steps = Array.from(document.querySelectorAll('.wizard-step'));
+  const progressFill = document.getElementById('wizard-progress-fill');
+  const backBtn = document.getElementById('wizard-back');
+  const nextBtn = document.getElementById('wizard-next');
+  const skipBtn = document.getElementById('wizard-skip');
+  const retSub = document.getElementById('wizard-ret-sub');
+  const spPartialWrap = document.getElementById('wizard-sp-partial-wrap');
+  const assetNote = document.getElementById('wizard-asset-note');
+  const summaryEl = document.getElementById('wizard-summary');
+
+  const byId = (id) => document.getElementById(id);
+  const asNum = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const setValidation = (step, msg = '') => {
+    const el = document.querySelector(`.wizard-validation[data-validation-step="${step}"]`);
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.toggle('visible', !!msg);
+  };
+  const clearValidation = () => {
+    document.querySelectorAll('.wizard-validation.visible').forEach((el) => {
+      el.classList.remove('visible');
+      el.textContent = '';
+    });
+  };
+
+  function getAgeFromDob(dob) {
+    if (!dob) return null;
+    const age = dobToAge(dob);
+    return age > 0 && age < 120 ? age : null;
+  }
+
+  function updateRetirementHelper() {
+    const age = getAgeFromDob(wz.dob);
+    const retAge = asNum(byId('wizard-ret-age').value);
+    if (!retSub) return;
+    if (age == null || retAge == null) {
+      retSub.textContent = 'Enter your planned retirement age.';
+      return;
+    }
+    const years = retAge - age;
+    retSub.textContent = years > 0
+      ? `That is ${years} years from now.`
+      : 'Retirement age must be greater than your current age.';
+  }
+
+  function updateSummary() {
+    if (!summaryEl) return;
+    const rows = [
+      ['Date of birth', wz.dob || 'Not set'],
+      ['Retirement age', wz.retirementAge != null ? String(wz.retirementAge) : 'Not set'],
+      ['Income target', wz.income != null ? fmtGBP(wz.income) + '/yr' : 'Not set'],
+      ['Pension pot', wz.hasPot ? fmtGBP(wz.potValue || 0) : 'None'],
+      ['DB pension', wz.hasDB ? fmtGBP(wz.dbIncome || 0) + '/yr from age ' + (wz.dbAge || '?') : 'None'],
+      ['Cash / ISA', wz.hasCash ? fmtGBP(wz.cashValue || 0) + ' (' + (wz.cashType || 'cash') + ')' : 'None'],
+      ['Other income', wz.hasOther ? fmtGBP(wz.otherAmount || 0) + '/' + (wz.otherFreq || 'annual') : 'None'],
+      ['Spending goal', wz.hasGoal ? fmtGBP(wz.goalAmount || 0) + '/yr' : 'None'],
+      ['State pension', wz.statePension === 'full' ? fmtGBP(SP_FULL_ANNUAL) + '/yr' : wz.statePension === 'partial' ? fmtGBP(wz.spPartial || 0) + '/yr' : 'None'],
+      ['Assumptions', wz.preset || 'Not set'],
+    ];
+    summaryEl.innerHTML = rows.map(([label, value]) => `<div class="wizard-summary-row"><span>${label}</span><span>${value}</span></div>`).join('');
+  }
+
+  function showAssetNote() {
+    if (!assetNote) return;
+    const hasAssets = !!wz.hasPot || !!wz.hasDB || !!wz.hasCash;
+    const show = !hasAssets && wz.statePension === 'none';
+    assetNote.textContent = show
+      ? 'Without assets or pension income, your forecast is likely to show £0. You can continue and add more details later.'
+      : '';
+    assetNote.classList.toggle('visible', show);
+  }
+
+  function activateStep(step) {
+    wz.step = step;
+    clearValidation();
+    steps.forEach((el) => el.classList.toggle('active', Number(el.dataset.step) === step));
+    if (progressFill) {
+      const pct = ((step - 1) / 11) * 100;
+      progressFill.style.width = pct + '%';
+    }
+    if (backBtn) backBtn.classList.toggle('hidden', step === 1);
+    if (nextBtn) nextBtn.textContent = step === 12 ? 'Calculate →' : 'Continue →';
+    if (step === 12) updateSummary();
+  }
+
+  function validateStep(step) {
+    if (step === 1) return true;
+    if (step === 2) {
+      if (!wz.dob) { setValidation(2, 'Please enter your date of birth.'); return false; }
+      return true;
+    }
+    if (step === 3) {
+      const age = getAgeFromDob(wz.dob);
+      if (age == null) { setValidation(3, 'Enter your date of birth first.'); return false; }
+      if (wz.retirementAge == null || wz.retirementAge < 18 || wz.retirementAge > 85) { setValidation(3, 'Retirement age must be between 18 and 85.'); return false; }
+      if (wz.retirementAge <= age) { setValidation(3, 'Retirement age must be higher than your current age.'); return false; }
+      return true;
+    }
+    if (step === 4) {
+      if (wz.income == null || wz.income <= 0) { setValidation(4, 'Enter an annual income target above £0.'); return false; }
+      return true;
+    }
+    if (step === 5) {
+      if (wz.hasPot === null) { setValidation(5, 'Please choose Yes or No.'); return false; }
+      if (wz.hasPot && (!wz.potValue || wz.potValue <= 0)) { setValidation(5, 'Enter your pension pot value.'); return false; }
+      return true;
+    }
+    if (step === 6) {
+      if (wz.hasDB === null) { setValidation(6, 'Please choose Yes or No.'); return false; }
+      if (wz.hasDB && (!wz.dbAge || !wz.dbIncome || wz.dbIncome <= 0)) { setValidation(6, 'Enter DB start age and annual income.'); return false; }
+      return true;
+    }
+    if (step === 7) {
+      if (wz.hasCash === null) { setValidation(7, 'Please choose Yes or No.'); return false; }
+      if (wz.hasCash && (!wz.cashValue || wz.cashValue <= 0)) { setValidation(7, 'Enter your cash/ISA pot value.'); return false; }
+      return true;
+    }
+    if (step === 8) {
+      if (wz.hasOther === null) { setValidation(8, 'Please choose Yes or No.'); return false; }
+      if (wz.hasOther && (!wz.otherAmount || wz.otherAmount <= 0)) { setValidation(8, 'Enter your annual or monthly amount.'); return false; }
+      return true;
+    }
+    if (step === 9) {
+      if (wz.hasGoal === null) { setValidation(9, 'Please choose Yes or No.'); return false; }
+      if (wz.hasGoal) {
+        if (!wz.goalFrom || !wz.goalTo || !wz.goalAmount || wz.goalAmount <= 0) { setValidation(9, 'Enter start age, end age and annual amount.'); return false; }
+        if (wz.goalTo < wz.goalFrom) { setValidation(9, 'End age must be the same or later than start age.'); return false; }
+      }
+      return true;
+    }
+    if (step === 10) {
+      if (!wz.statePension) { setValidation(10, 'Choose a state pension option.'); return false; }
+      if (wz.statePension === 'partial' && (!wz.spPartial || wz.spPartial <= 0)) { setValidation(10, 'Enter your estimated annual state pension.'); return false; }
+      return true;
+    }
+    if (step === 11) {
+      if (!wz.preset) { setValidation(11, 'Choose an assumptions profile.'); return false; }
+      if (wz.preset === 'custom' && (!wz.customReturn || !wz.customInflation)) {
+        setValidation(11, 'Enter both return and inflation for custom assumptions.');
+        return false;
+      }
+      return true;
+    }
+    return true;
+  }
+
+  function applyWizardToInputs() {
+    const setSlider = (id, value) => {
+      const el = document.getElementById(id);
+      if (!el || value == null) return;
+      el.value = String(value);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
     };
-    field.addEventListener('input', hide);
-    field.addEventListener('change', hide);
-    field.dataset.starterBound = '1';
+
+    const dobEl = document.getElementById('current-dob');
+    if (dobEl && wz.dob) {
+      dobEl.value = wz.dob;
+      if (dobEl._flatpickr) dobEl._flatpickr.setDate(wz.dob, true);
+      dobEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    setSlider('retirement-age', wz.retirementAge);
+    setSlider('end-age', wz.endAge || 90);
+    setSlider('drawdown', wz.income);
+
+    if (wz.hasPot && wz.potValue) addPot(wz.potValue, wz.potContrib || 0, 80);
+    if (wz.hasDB && wz.dbIncome && wz.dbAge) addDbPension(wz.dbName || 'DB pension', wz.dbAge, 0, wz.dbIncome);
+    if (wz.hasCash && wz.cashValue) addCashPot(wz.cashValue, 3.5, '', wz.cashMonthly || 0, undefined, undefined, wz.cashType || 'cash', 80);
+    if (wz.hasOther && wz.otherAmount) addIncome(wz.otherName || 'Other income', wz.otherAmount, wz.otherFreq || 'annual', false, false, undefined, undefined, 'real', wz.otherType || 'employment');
+    if (wz.hasGoal && wz.goalAmount && wz.goalFrom && wz.goalTo) addSpendingGoal(wz.goalLabel || 'Spending goal', wz.goalFrom, wz.goalTo, wz.goalAmount);
+
+    if (wz.statePension === 'full') {
+      setSlider('sp-age', 67);
+      setSlider('sp', SP_FULL_ANNUAL);
+    } else if (wz.statePension === 'partial') {
+      setSlider('sp-age', 67);
+      setSlider('sp', wz.spPartial);
+    } else if (wz.statePension === 'none') {
+      setSlider('sp', 0);
+    }
+
+    if (wz.preset === 'conservative') {
+      setSlider('return-pct', 4.5);
+      setSlider('inflation', 3.0);
+    } else if (wz.preset === 'balanced') {
+      setSlider('return-pct', 6.5);
+      setSlider('inflation', 2.5);
+    } else if (wz.preset === 'growth') {
+      setSlider('return-pct', 8.5);
+      setSlider('inflation', 2.5);
+    } else if (wz.preset === 'custom') {
+      setSlider('return-pct', wz.customReturn);
+      setSlider('inflation', wz.customInflation);
+    }
+  }
+
+  overlay.classList.remove('hidden');
+  activateStep(1);
+
+  byId('wizard-dob')?.addEventListener('input', (e) => {
+    wz.dob = e.target.value || null;
+    updateRetirementHelper();
   });
-}
+  byId('wizard-ret-age')?.addEventListener('input', (e) => {
+    wz.retirementAge = asNum(e.target.value);
+    updateRetirementHelper();
+  });
+  byId('wizard-end-age')?.addEventListener('input', (e) => { wz.endAge = asNum(e.target.value); });
+  byId('wizard-income')?.addEventListener('input', (e) => { wz.income = asNum(e.target.value); });
 
-function initFirstRunCard(isFirstRun, forceReveal = false) {
-  const card = document.getElementById('first-run-card');
-  if (!card) return;
-  const dismissed = (() => {
-    try { return localStorage.getItem(FIRST_RUN_DISMISSED_KEY) === '1'; } catch(e) { return false; }
-  })();
-  const visible = isFirstRun && !dismissed;
-  card.classList.toggle('hidden', !visible);
+  const ynMap = {
+    5: ['hasPot', 'wizard-pot-fields'],
+    6: ['hasDB', 'wizard-db-fields'],
+    7: ['hasCash', 'wizard-cash-fields'],
+    8: ['hasOther', 'wizard-other-fields'],
+    9: ['hasGoal', 'wizard-goal-fields'],
+  };
+  Object.entries(ynMap).forEach(([step, [key, fieldsId]]) => {
+    const container = document.querySelector(`.wizard-yn-group[data-yn-step="${step}"]`);
+    const fields = byId(fieldsId);
+    if (!container) return;
+    container.querySelectorAll('.wizard-yn-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const yes = btn.dataset.answer === 'yes';
+        wz[key] = yes;
+        container.querySelectorAll('.wizard-yn-btn').forEach((b) => b.classList.toggle('selected', b === btn));
+        if (fields) fields.classList.toggle('visible', yes);
+      });
+    });
+  });
 
-  if (forceReveal && visible) {
-    requestAnimationFrame(() => {
-      const sidebar = document.getElementById('sidebar');
-      if (sidebar) sidebar.scrollTop = 0;
-      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      card.classList.remove('onboarding-flash');
-      void card.offsetWidth; // restart animation class
-      card.classList.add('onboarding-flash');
-    });
-  }
+  byId('wizard-pot-value')?.addEventListener('input', (e) => { wz.potValue = asNum(e.target.value); });
+  byId('wizard-pot-contrib')?.addEventListener('input', (e) => { wz.potContrib = asNum(e.target.value) || 0; });
+  byId('wizard-db-name')?.addEventListener('input', (e) => { wz.dbName = e.target.value.trim(); });
+  byId('wizard-db-age')?.addEventListener('input', (e) => { wz.dbAge = asNum(e.target.value); });
+  byId('wizard-db-income')?.addEventListener('input', (e) => { wz.dbIncome = asNum(e.target.value); });
+  byId('wizard-cash-type')?.addEventListener('change', (e) => { wz.cashType = e.target.value; });
+  byId('wizard-cash-value')?.addEventListener('input', (e) => { wz.cashValue = asNum(e.target.value); });
+  byId('wizard-cash-monthly')?.addEventListener('input', (e) => { wz.cashMonthly = asNum(e.target.value) || 0; });
+  byId('wizard-other-name')?.addEventListener('input', (e) => { wz.otherName = e.target.value.trim(); });
+  byId('wizard-other-type')?.addEventListener('change', (e) => { wz.otherType = e.target.value; });
+  byId('wizard-other-amount')?.addEventListener('input', (e) => { wz.otherAmount = asNum(e.target.value); });
+  byId('wizard-other-freq')?.addEventListener('change', (e) => { wz.otherFreq = e.target.value; });
+  byId('wizard-goal-label')?.addEventListener('input', (e) => { wz.goalLabel = e.target.value.trim(); });
+  byId('wizard-goal-from')?.addEventListener('input', (e) => { wz.goalFrom = asNum(e.target.value); });
+  byId('wizard-goal-to')?.addEventListener('input', (e) => { wz.goalTo = asNum(e.target.value); });
+  byId('wizard-goal-amount')?.addEventListener('input', (e) => { wz.goalAmount = asNum(e.target.value); });
 
-  const focusCoreBtn = document.getElementById('first-run-focus-core');
-  const dismissBtn = document.getElementById('first-run-dismiss');
-  if (focusCoreBtn && focusCoreBtn.dataset.bound !== '1') {
-    focusCoreBtn.addEventListener('click', () => {
-      const nextFieldId = CORE_FIELD_IDS.find((fieldId) => {
-        const badge = document.querySelector(`.starter-badge[data-starter-for="${fieldId}"]`);
-        return !!badge && !badge.classList.contains('hidden');
-      }) || CORE_FIELD_IDS[0];
-      const target = document.getElementById(nextFieldId);
-      if (!target) return;
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      target.focus();
-      if (nextFieldId === 'current-dob' && target._flatpickr) target._flatpickr.open();
+  document.querySelectorAll('input[name="wizard-sp"]').forEach((radio) => {
+    radio.addEventListener('change', (e) => {
+      wz.statePension = e.target.value;
+      const showPartial = wz.statePension === 'partial';
+      if (spPartialWrap) spPartialWrap.classList.toggle('hidden', !showPartial);
+      showAssetNote();
     });
-    focusCoreBtn.dataset.bound = '1';
-  }
-  if (dismissBtn && dismissBtn.dataset.bound !== '1') {
-    dismissBtn.addEventListener('click', () => {
-      try {
-        localStorage.setItem(FIRST_RUN_DISMISSED_KEY, '1');
-      } catch(e) {}
-      card.classList.add('hidden');
-      applyFirstRunAdvancedVisibility(isFirstRun);
+  });
+  byId('wizard-sp-partial')?.addEventListener('input', (e) => { wz.spPartial = asNum(e.target.value); });
+
+  document.querySelectorAll('.wizard-preset-card[data-preset]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      wz.preset = btn.dataset.preset;
+      document.querySelectorAll('.wizard-preset-card[data-preset]').forEach((c) => c.classList.toggle('selected', c === btn));
+      byId('wizard-custom-preset')?.classList.toggle('hidden', wz.preset !== 'custom');
     });
-    dismissBtn.dataset.bound = '1';
-  }
+  });
+  byId('wizard-custom-return')?.addEventListener('input', (e) => { wz.customReturn = asNum(e.target.value); });
+  byId('wizard-custom-inflation')?.addEventListener('input', (e) => { wz.customInflation = asNum(e.target.value); });
+
+  backBtn?.addEventListener('click', () => {
+    if (wz.step > 1) activateStep(wz.step - 1);
+  });
+
+  nextBtn?.addEventListener('click', () => {
+    if (!validateStep(wz.step)) return;
+    if (wz.step < 12) {
+      activateStep(wz.step + 1);
+      if (wz.step === 10) showAssetNote();
+      return;
+    }
+
+    applyWizardToInputs();
+    persistParams();
+    try { localStorage.setItem(WIZARD_COMPLETED_KEY, '1'); } catch(e) {}
+    overlay.classList.add('hidden');
+    document.getElementById('run-btn')?.click();
+  });
+
+  skipBtn?.addEventListener('click', () => {
+    try { localStorage.setItem(WIZARD_COMPLETED_KEY, '1'); } catch(e) {}
+    overlay.classList.add('hidden');
+  });
 }
 
 function initApp() {
-  // Hidden onboarding restart: triple-click the app title to replay quick-start UI.
-  runOnboardingResetMigration();
+  // Hidden onboarding restart: triple-click title area to clear saved plan and replay setup.
   (function() {
-    const h1 = document.querySelector('.header h1');
-    if (!h1) return;
+    const headerText = document.querySelector('.header-text');
+    if (!headerText) return;
     let clicks = 0, timer;
-    h1.addEventListener('click', () => {
+    headerText.addEventListener('click', () => {
       clicks++;
       clearTimeout(timer);
       timer = setTimeout(() => { clicks = 0; }, 600);
@@ -5487,9 +5734,9 @@ function initApp() {
         clicks = 0;
         if (confirm('Restart onboarding and clear saved settings?')) {
           try { localStorage.removeItem(LS_KEY); } catch(e) {}
-          try { localStorage.removeItem(FIRST_RUN_DISMISSED_KEY); } catch(e) {}
+          try { localStorage.removeItem(WIZARD_COMPLETED_KEY); } catch(e) {}
           try { sessionStorage.removeItem(LS_KEY); } catch(e) {}
-          try { sessionStorage.setItem(FIRST_RUN_RESTART_ONCE_KEY, '1'); } catch(e) {}
+          try { sessionStorage.setItem(WIZARD_FORCE_KEY, '1'); } catch(e) {}
           try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
           location.reload();
         }
@@ -5740,35 +5987,10 @@ function initApp() {
     });
   }
 
-  // Try to restore persisted state; fall back to defaults
+  // Try to restore persisted state; no first-run defaults are seeded.
   const saved = loadPersistedParams();
-  let forceFirstRun = false;
-  try {
-    forceFirstRun = sessionStorage.getItem(FIRST_RUN_RESTART_ONCE_KEY) === '1';
-    if (forceFirstRun) sessionStorage.removeItem(FIRST_RUN_RESTART_ONCE_KEY);
-  } catch(e) {}
-  const isFirstRun = !saved || forceFirstRun;
   if (saved) {
     restoreParams(saved);
-    // If no pots were restored, seed defaults
-    if (potsData.length === 0) {
-      addPot(500000, 10000, 70);
-    }
-    // If no incomes were restored, seed defaults
-    if (incomesData.length === 0) {
-      addIncome('Property income', 12000, 'annual', 22, true);
-    }
-    if (cashPotsData.length === 0) {
-      addCashPot(50000, 3.5);
-    }
-  } else {
-    // First-run defaults
-    addPot(500000, 10000, 70);
-    addIncome('Property income', 12000, 'annual', 22, true);
-    addCashPot(50000, 3.5);
-    // Partner first-run defaults (disabled)
-    addPartnerPot(250000, 5000, 70);
-    addPartnerCashPot(25000, 3.5);
   }
 
   // Activate preset button matching each slider's initial value on page load
@@ -5777,10 +5999,7 @@ function initApp() {
     if (target && +btn.dataset.value === +target.value) btn.classList.add('active');
   });
 
-  // Re-persist now that all pots/incomes/cash pots are fully initialised.
-  // Slider input dispatches during restoreParams call persistParams before pots are loaded,
-  // so this final call overwrites storage with the complete correct state.
-  persistParams();
+  if (saved) persistParams();
 
   // Apply actuals enabled state (covers fresh loads and old saved state without the key)
   applyActualsEnabled(isActualsEnabled());
@@ -5821,12 +6040,12 @@ function initApp() {
   _initDobPicker('current-dob', 'v-current-age');
   _initDobPicker('partner-dob', 'v-partner-age');
 
-  applyFirstRunAdvancedVisibility(isFirstRun);
-  initStarterBadges(isFirstRun);
-  initFirstRunCard(isFirstRun, forceFirstRun);
+  initWizard();
 
-  _restoreScrollOnNextRun = !forceFirstRun;
-  document.getElementById('run-btn').click();
+  const overlay = document.getElementById('wizard-overlay');
+  const wizardVisible = overlay && !overlay.classList.contains('hidden');
+  _restoreScrollOnNextRun = true;
+  if (!wizardVisible) document.getElementById('run-btn').click();
   updateMobileHeaderOffset();
 }
 

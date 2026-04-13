@@ -114,20 +114,45 @@
   .preset-btn { padding: 4px 10px; background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: 5px; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
   .preset-btn:hover, .preset-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .hidden { display: none !important; }
-  .first-run-card { margin-bottom: 14px; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border)); border-left: 4px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
-  .first-run-card.onboarding-flash { animation: onboardingFlash 1200ms ease; }
-  @keyframes onboardingFlash {
-    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 36%, transparent); }
-    45% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 14%, transparent); }
-    100% { box-shadow: 0 0 0 0 transparent; }
-  }
-  .first-run-title { font-size: 0.82rem; font-weight: 700; color: var(--text); margin-bottom: 3px; }
-  .first-run-sub { font-size: 0.75rem; color: var(--text2); line-height: 1.4; }
-  .first-run-actions { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
-  .first-run-btn { padding: 4px 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); font-size: 0.73rem; cursor: pointer; }
-  .first-run-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .first-run-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  .starter-badge { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 5px; border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--amber) 18%, var(--surface)); color: color-mix(in srgb, var(--amber) 88%, var(--text)); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.01em; text-transform: uppercase; }
+  .wizard-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.86); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .wizard-overlay.hidden { display: none !important; }
+  .wizard-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; width: min(560px, 95vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.45); }
+  .wizard-progress { height: 4px; background: var(--surface2); }
+  .wizard-progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.25s ease; }
+  .wizard-inner { padding: 24px 24px 8px; overflow-y: auto; flex: 1; }
+  .wizard-step { display: none; }
+  .wizard-step.active { display: block; }
+  .wizard-step-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+  .wizard-step-sub { font-size: 0.9rem; color: var(--text2); margin-bottom: 14px; }
+  .wizard-input { width: 100%; padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 1rem; }
+  .wizard-input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 36%, transparent); outline-offset: 0; border-color: var(--accent); }
+  .wizard-label { display: block; font-size: 0.82rem; color: var(--text2); margin: 10px 0 6px; }
+  .wizard-yn-group { display: flex; gap: 8px; margin-bottom: 10px; }
+  .wizard-yn-btn { flex: 1; padding: 9px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface2); color: var(--text2); font-weight: 600; cursor: pointer; }
+  .wizard-yn-btn.selected { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+  .wizard-yn-fields { display: none; }
+  .wizard-yn-fields.visible { display: block; }
+  .wizard-radio-stack { display: grid; gap: 8px; }
+  .wizard-radio-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer; display: block; }
+  .wizard-radio-card input { margin-right: 8px; }
+  .wizard-preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .wizard-preset-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--surface2); }
+  .wizard-preset-card.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+  .wizard-preset-title { font-size: 0.86rem; font-weight: 700; color: var(--text); }
+  .wizard-preset-sub { font-size: 0.76rem; color: var(--text2); margin-top: 2px; }
+  .wizard-validation { margin-top: 8px; color: #dc2626; font-size: 0.8rem; display: none; }
+  .wizard-validation.visible { display: block; }
+  .wizard-soft-note { margin-top: 10px; color: #b45309; font-size: 0.8rem; background: rgba(245, 158, 11, 0.11); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 8px; padding: 8px 10px; display: none; }
+  .wizard-soft-note.visible { display: block; }
+  .wizard-summary-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.84rem; }
+  .wizard-summary-row span:first-child { color: var(--text2); }
+  .wizard-summary-row span:last-child { font-weight: 600; text-align: right; }
+  .wizard-footer { border-top: 1px solid var(--border); padding: 12px 24px 16px; background: var(--surface); }
+  .wizard-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .wizard-back { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface2); color: var(--text2); font-size: 0.82rem; cursor: pointer; }
+  .wizard-next { padding: 9px 14px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-size: 0.88rem; font-weight: 700; cursor: pointer; }
+  .wizard-next:disabled { opacity: 0.6; cursor: not-allowed; }
+  .wizard-skip { margin-top: 8px; text-align: center; font-size: 0.74rem; color: var(--text2); text-decoration: underline; cursor: pointer; }
   .ai-note { font-size: 0.75rem; color: var(--text2); margin-bottom: 14px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 4px 4px 0; }
   #planning-disclaimer { flex-shrink: 0; font-size: 0.78rem; color: var(--text); padding: 8px 20px; background: var(--surface2); border-top: 2px solid var(--border); }
   .explain-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
@@ -231,6 +256,11 @@
     .main { overflow: visible; padding: 12px 12px 16px 12px; }
     .top-bar { display: none; }
     .mobile-top-strip { display: flex; padding: 4px 12px; background: var(--bg); border-bottom: 1px solid var(--border); justify-content: flex-end; }
+    .wizard-overlay { padding: 0; }
+    .wizard-modal { width: 100%; max-height: 100%; height: 100%; border-radius: 0; border: none; }
+    .wizard-inner { padding: 16px 14px 8px; }
+    .wizard-footer { padding: 10px 14px 12px; }
+    .wizard-preset-grid { grid-template-columns: 1fr; }
     #planning-disclaimer { border-top: none; margin: 16px 0 0; }
     .cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .card { padding: 12px; } .card-value { font-size: 1.3rem; }
@@ -299,6 +329,183 @@
 </style>
 </head>
 <body>
+<div id="wizard-overlay" class="wizard-overlay hidden" role="dialog" aria-modal="true" aria-label="Setup wizard">
+  <div class="wizard-modal">
+    <div class="wizard-progress"><div id="wizard-progress-fill" class="wizard-progress-fill"></div></div>
+    <div class="wizard-inner">
+      <div class="wizard-step" data-step="1">
+        <div class="wizard-step-title">Let's set up your plan</div>
+        <div class="wizard-step-sub">Answer these quick questions once. After this, Settings becomes for tweaks only.</div>
+      </div>
+      <div class="wizard-step" data-step="2">
+        <div class="wizard-step-title">What's your date of birth?</div>
+        <div class="wizard-step-sub">Used to work out your age and years to retirement.</div>
+        <input id="wizard-dob" class="wizard-input" type="date">
+        <div class="wizard-validation" data-validation-step="2"></div>
+      </div>
+      <div class="wizard-step" data-step="3">
+        <div class="wizard-step-title">When do you want to retire?</div>
+        <div class="wizard-step-sub" id="wizard-ret-sub">Enter your planned retirement age.</div>
+        <label class="wizard-label" for="wizard-ret-age">Retirement age</label>
+        <input id="wizard-ret-age" class="wizard-input" type="number" min="18" max="85" placeholder="e.g. 65">
+        <label class="wizard-label" for="wizard-end-age">Target end age (optional)</label>
+        <input id="wizard-end-age" class="wizard-input" type="number" min="75" max="100" placeholder="e.g. 90">
+        <div class="wizard-validation" data-validation-step="3"></div>
+      </div>
+      <div class="wizard-step" data-step="4">
+        <div class="wizard-step-title">How much income do you want each year?</div>
+        <div class="wizard-step-sub">Annual target in today's money (before tax).</div>
+        <label class="wizard-label" for="wizard-income">Annual income target (£)</label>
+        <input id="wizard-income" class="wizard-input" type="number" min="1" step="100" placeholder="e.g. 30000">
+        <div class="wizard-validation" data-validation-step="4"></div>
+      </div>
+      <div class="wizard-step" data-step="5">
+        <div class="wizard-step-title">Do you have a pension pot?</div>
+        <div class="wizard-step-sub">Add your main pension pot now. You can add more later.</div>
+        <div class="wizard-yn-group" data-yn-step="5">
+          <button class="wizard-yn-btn" type="button" data-answer="yes">Yes</button>
+          <button class="wizard-yn-btn" type="button" data-answer="no">No</button>
+        </div>
+        <div class="wizard-yn-fields" id="wizard-pot-fields">
+          <label class="wizard-label" for="wizard-pot-value">Current value (£)</label>
+          <input id="wizard-pot-value" class="wizard-input" type="number" min="1" step="1000" placeholder="e.g. 180000">
+          <label class="wizard-label" for="wizard-pot-contrib">Annual contribution (£, optional)</label>
+          <input id="wizard-pot-contrib" class="wizard-input" type="number" min="0" step="100" placeholder="e.g. 6000">
+        </div>
+        <div class="wizard-validation" data-validation-step="5"></div>
+      </div>
+      <div class="wizard-step" data-step="6">
+        <div class="wizard-step-title">Do you have a DB/final salary pension?</div>
+        <div class="wizard-step-sub">Capture one defined-benefit pension now.</div>
+        <div class="wizard-yn-group" data-yn-step="6">
+          <button class="wizard-yn-btn" type="button" data-answer="yes">Yes</button>
+          <button class="wizard-yn-btn" type="button" data-answer="no">No</button>
+        </div>
+        <div class="wizard-yn-fields" id="wizard-db-fields">
+          <label class="wizard-label" for="wizard-db-name">Name (optional)</label>
+          <input id="wizard-db-name" class="wizard-input" type="text" placeholder="e.g. Employer DB pension">
+          <label class="wizard-label" for="wizard-db-age">Starts from age</label>
+          <input id="wizard-db-age" class="wizard-input" type="number" min="50" max="90" placeholder="e.g. 67">
+          <label class="wizard-label" for="wizard-db-income">Annual income (£)</label>
+          <input id="wizard-db-income" class="wizard-input" type="number" min="1" step="100" placeholder="e.g. 9000">
+        </div>
+        <div class="wizard-validation" data-validation-step="6"></div>
+      </div>
+      <div class="wizard-step" data-step="7">
+        <div class="wizard-step-title">Do you have cash or ISA savings?</div>
+        <div class="wizard-step-sub">Add one cash/ISA pot now. You can add more later.</div>
+        <div class="wizard-yn-group" data-yn-step="7">
+          <button class="wizard-yn-btn" type="button" data-answer="yes">Yes</button>
+          <button class="wizard-yn-btn" type="button" data-answer="no">No</button>
+        </div>
+        <div class="wizard-yn-fields" id="wizard-cash-fields">
+          <label class="wizard-label" for="wizard-cash-type">Pot type</label>
+          <select id="wizard-cash-type" class="wizard-input">
+            <option value="cash">Cash</option>
+            <option value="cash_isa">Cash ISA</option>
+            <option value="ss_isa">Stocks &amp; Shares ISA</option>
+            <option value="lisa">LISA</option>
+          </select>
+          <label class="wizard-label" for="wizard-cash-value">Current value (£)</label>
+          <input id="wizard-cash-value" class="wizard-input" type="number" min="1" step="1000" placeholder="e.g. 40000">
+          <label class="wizard-label" for="wizard-cash-monthly">Monthly contribution (£, optional)</label>
+          <input id="wizard-cash-monthly" class="wizard-input" type="number" min="0" step="10" placeholder="e.g. 200">
+        </div>
+        <div class="wizard-validation" data-validation-step="7"></div>
+      </div>
+      <div class="wizard-step" data-step="8">
+        <div class="wizard-step-title">Do you have any other regular income?</div>
+        <div class="wizard-step-sub">For example employment, property or dividends.</div>
+        <div class="wizard-yn-group" data-yn-step="8">
+          <button class="wizard-yn-btn" type="button" data-answer="yes">Yes</button>
+          <button class="wizard-yn-btn" type="button" data-answer="no">No</button>
+        </div>
+        <div class="wizard-yn-fields" id="wizard-other-fields">
+          <label class="wizard-label" for="wizard-other-name">Income name</label>
+          <input id="wizard-other-name" class="wizard-input" type="text" placeholder="e.g. Rental income">
+          <label class="wizard-label" for="wizard-other-type">Type</label>
+          <select id="wizard-other-type" class="wizard-input">
+            <option value="employment">Employment</option>
+            <option value="property">Property</option>
+            <option value="savings">Savings interest</option>
+            <option value="dividends">Dividends</option>
+          </select>
+          <label class="wizard-label" for="wizard-other-amount">Amount (£)</label>
+          <input id="wizard-other-amount" class="wizard-input" type="number" min="1" step="100" placeholder="e.g. 12000">
+          <label class="wizard-label" for="wizard-other-freq">Frequency</label>
+          <select id="wizard-other-freq" class="wizard-input">
+            <option value="annual">Annual</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div class="wizard-validation" data-validation-step="8"></div>
+      </div>
+      <div class="wizard-step" data-step="9">
+        <div class="wizard-step-title">Do you have a temporary spending goal?</div>
+        <div class="wizard-step-sub">Optional: extra spending for a defined age range.</div>
+        <div class="wizard-yn-group" data-yn-step="9">
+          <button class="wizard-yn-btn" type="button" data-answer="yes">Yes</button>
+          <button class="wizard-yn-btn" type="button" data-answer="no">No</button>
+        </div>
+        <div class="wizard-yn-fields" id="wizard-goal-fields">
+          <label class="wizard-label" for="wizard-goal-label">Goal name</label>
+          <input id="wizard-goal-label" class="wizard-input" type="text" placeholder="e.g. Travel budget">
+          <label class="wizard-label" for="wizard-goal-from">From age</label>
+          <input id="wizard-goal-from" class="wizard-input" type="number" min="18" max="100" placeholder="e.g. 67">
+          <label class="wizard-label" for="wizard-goal-to">To age</label>
+          <input id="wizard-goal-to" class="wizard-input" type="number" min="18" max="100" placeholder="e.g. 75">
+          <label class="wizard-label" for="wizard-goal-amount">Annual amount (£)</label>
+          <input id="wizard-goal-amount" class="wizard-input" type="number" min="1" step="100" placeholder="e.g. 5000">
+        </div>
+        <div class="wizard-validation" data-validation-step="9"></div>
+      </div>
+      <div class="wizard-step" data-step="10">
+        <div class="wizard-step-title">What about state pension?</div>
+        <div class="wizard-step-sub">Pick the closest match for your expected entitlement.</div>
+        <div class="wizard-radio-stack" id="wizard-sp-choice">
+          <label class="wizard-radio-card"><input type="radio" name="wizard-sp" value="full"> Full state pension (~£11,502/year from age 67)</label>
+          <label class="wizard-radio-card"><input type="radio" name="wizard-sp" value="partial"> Partial state pension</label>
+          <label class="wizard-radio-card"><input type="radio" name="wizard-sp" value="none"> I do not expect state pension</label>
+        </div>
+        <div id="wizard-sp-partial-wrap" class="hidden" style="margin-top:10px">
+          <label class="wizard-label" for="wizard-sp-partial">Estimated annual amount (£)</label>
+          <input id="wizard-sp-partial" class="wizard-input" type="number" min="1" step="10" placeholder="e.g. 7000">
+        </div>
+        <div id="wizard-asset-note" class="wizard-soft-note"></div>
+        <div class="wizard-validation" data-validation-step="10"></div>
+      </div>
+      <div class="wizard-step" data-step="11">
+        <div class="wizard-step-title">Choose your investment assumptions</div>
+        <div class="wizard-step-sub">Pick a profile now. You can tweak this in Settings later.</div>
+        <div class="wizard-preset-grid" id="wizard-preset-grid">
+          <button type="button" class="wizard-preset-card" data-preset="conservative"><div class="wizard-preset-title">Conservative</div><div class="wizard-preset-sub">4.5% return, 3.0% inflation</div></button>
+          <button type="button" class="wizard-preset-card" data-preset="balanced"><div class="wizard-preset-title">Balanced</div><div class="wizard-preset-sub">6.5% return, 2.5% inflation</div></button>
+          <button type="button" class="wizard-preset-card" data-preset="growth"><div class="wizard-preset-title">Growth</div><div class="wizard-preset-sub">8.5% return, 2.5% inflation</div></button>
+          <button type="button" class="wizard-preset-card" data-preset="custom"><div class="wizard-preset-title">Custom</div><div class="wizard-preset-sub">Set your own return and inflation</div></button>
+        </div>
+        <div id="wizard-custom-preset" class="hidden" style="margin-top:10px">
+          <label class="wizard-label" for="wizard-custom-return">Return %</label>
+          <input id="wizard-custom-return" class="wizard-input" type="number" min="1" max="15" step="0.1" placeholder="e.g. 6.5">
+          <label class="wizard-label" for="wizard-custom-inflation">Inflation %</label>
+          <input id="wizard-custom-inflation" class="wizard-input" type="number" min="1" max="6" step="0.1" placeholder="e.g. 2.5">
+        </div>
+        <div class="wizard-validation" data-validation-step="11"></div>
+      </div>
+      <div class="wizard-step" data-step="12">
+        <div class="wizard-step-title">Review your setup</div>
+        <div class="wizard-step-sub">This is what we'll calculate from. You can tweak any setting afterwards.</div>
+        <div id="wizard-summary"></div>
+      </div>
+    </div>
+    <div class="wizard-footer">
+      <div class="wizard-nav">
+        <button type="button" id="wizard-back" class="wizard-back">&larr; Back</button>
+        <button type="button" id="wizard-next" class="wizard-next">Continue &rarr;</button>
+      </div>
+      <div id="wizard-skip" class="wizard-skip">Skip setup &rarr;</div>
+    </div>
+  </div>
+</div>
 <!-- Pot action modal (archive / consolidate / delete) -->
 <div id="pot-action-modal" class="pot-modal-backdrop hidden" role="dialog" aria-modal="true">
   <div class="pot-modal">
@@ -364,38 +571,29 @@
 <div class="layout">
 <div class="sidebar" id="sidebar">
 
-  <div id="first-run-card" class="first-run-card hidden" role="region" aria-label="Quick start">
-    <div class="first-run-title">Quick start: make this plan yours</div>
-    <div class="first-run-sub">Set date of birth, retirement age, and annual income target. Calculate unlocks once those core fields are captured.</div>
-    <div class="first-run-actions">
-      <button id="first-run-focus-core" class="first-run-btn primary" type="button">Edit next core field</button>
-      <button id="first-run-dismiss" class="first-run-btn" type="button">Dismiss</button>
-    </div>
-  </div>
-
   <!-- Age & Retirement -->
   <div class="section">
     <h3 class="section-title">Age & Retirement</h3>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Date of birth <span class="starter-badge hidden" data-starter-for="current-dob">Starter</span></span><span class="slider-val" id="v-current-age">Not Set</span></div>
+      <div class="slider-label"><span class="slider-name">Date of birth</span><span class="slider-val" id="v-current-age">Not Set</span></div>
       <input type="text" id="current-dob" placeholder="Select date of birth" readonly style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem;cursor:pointer">
     </div>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Retirement age <span class="starter-badge hidden" data-starter-for="retirement-age">Starter</span></span><span class="slider-val" id="v-retirement-age">65</span></div>
-      <input type="range" id="retirement-age" min="18" max="85" value="65">
+      <div class="slider-label"><span class="slider-name">Retirement age</span><span class="slider-val" id="v-retirement-age">Not Set</span></div>
+      <input type="range" id="retirement-age" min="18" max="85">
     </div>
-    <div id="nmpa-warning" class="first-run-advanced" style="display:none;font-size:0.72rem;color:#92400e;margin-top:4px;padding:4px 6px;background:#fffbeb;border:1px solid #fcd34d;border-radius:3px"></div>
-    <div class="slider-row first-run-advanced">
+    <div id="nmpa-warning" style="display:none;font-size:0.72rem;color:#92400e;margin-top:4px;padding:4px 6px;background:#fffbeb;border:1px solid #fcd34d;border-radius:3px"></div>
+    <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Target end age</span><span class="slider-val" id="v-end-age">90</span></div>
       <input type="range" id="end-age" min="75" max="100" value="90">
     </div>
-    <div class="slider-row first-run-advanced" style="align-items:center">
+    <div class="slider-row" style="align-items:center">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;font-weight:500">
         <input type="checkbox" id="income-reduction-enabled" checked>
         Income Reduction
       </label>
     </div>
-    <div id="income-reduction-sliders" class="first-run-advanced">
+    <div id="income-reduction-sliders">
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Income reduction from age</span><span class="slider-val" id="v-reduction-age">75</span></div>
       <input type="range" id="reduction-age" min="60" max="95" value="75">
@@ -408,7 +606,7 @@
   </div>
 
   <!-- Pension Pots -->
-  <div class="section first-run-advanced">
+  <div class="section">
     <div class="section-header">
       <h3>Pension Pots</h3>
       <button class="add-btn" id="add-pot-btn">+ Add Pot</button>
@@ -418,7 +616,7 @@
   </div>
 
   <!-- DB Pensions -->
-  <div class="section first-run-advanced">
+  <div class="section">
     <div class="section-header">
       <h3>DB Pensions</h3>
       <button class="add-btn" id="add-db-pension-btn">+ Add</button>
@@ -428,7 +626,7 @@
   </div>
 
   <!-- Cash Pots -->
-  <div class="section first-run-advanced">
+  <div class="section">
     <div class="section-header">
       <h3>Cash &amp; ISA Pots</h3>
       <button class="add-btn" id="add-cash-pot-btn">+ Add Pot</button>
@@ -438,7 +636,7 @@
   </div>
 
   <!-- Other Income -->
-  <div class="section first-run-advanced">
+  <div class="section">
     <div class="section-header">
       <h3>Other Income</h3>
       <button class="add-btn" id="add-income-btn">+ Add Income</button>
@@ -447,7 +645,7 @@
   </div>
 
   <!-- Spending Goals -->
-  <div class="section first-run-advanced">
+  <div class="section">
     <div class="section-header">
       <h3>Spending Goals</h3>
       <button class="add-btn" id="add-goal-btn">+ Add Goal</button>
@@ -457,21 +655,21 @@
   </div>
 
   <!-- State Pension -->
-  <div class="section first-run-advanced">
+  <div class="section">
     <h3 class="section-title">State Pension</h3>
     <div style="font-size:0.72rem;color:var(--text2);margin-bottom:6px">Age 67 applies to those born after 5 April 1960 under current legislation — <a href="https://www.gov.uk/state-pension-age" target="_blank" rel="noopener" style="color:var(--accent)">check gov.uk for your cohort</a>. National Insurance is not modelled.</div>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">State pension from age</span><span class="slider-val" id="v-sp-age">67</span></div>
-      <input type="range" id="sp-age" min="60" max="70" value="67">
+      <div class="slider-label"><span class="slider-name">State pension from age</span><span class="slider-val" id="v-sp-age">Not Set</span></div>
+      <input type="range" id="sp-age" min="60" max="70">
     </div>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">State pension (annual)</span><span class="slider-val" id="v-sp">£12,540</span></div>
-      <input type="range" id="sp" min="0" max="12900" step="10" value="12540">
+      <div class="slider-label"><span class="slider-name">State pension (annual)</span><span class="slider-val" id="v-sp">Not Set</span></div>
+      <input type="range" id="sp" min="0" max="12900" step="10">
     </div>
   </div>
 
   <!-- Partner -->
-  <div class="section first-run-advanced">
+  <div class="section">
     <div class="section-header" style="margin-bottom:0">
       <h3 style="margin:0">Partner</h3>
       <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text2);cursor:pointer">
@@ -481,7 +679,7 @@
     <div id="partner-section" class="hidden" style="margin-top:14px">
       <div style="font-size:0.72rem;color:var(--text2);margin-bottom:10px;padding:6px 8px;background:var(--surface2);border-radius:4px;border-left:3px solid var(--accent)">Partner's state pension is added to joint income. Survival probability reflects either partner outliving the plan.</div>
       <div class="slider-row">
-        <div class="slider-label"><span class="slider-name">Partner date of birth</span><span class="slider-val" id="v-partner-age">Age 52</span></div>
+        <div class="slider-label"><span class="slider-name">Partner date of birth</span><span class="slider-val" id="v-partner-age">Not Set</span></div>
         <input type="text" id="partner-dob" placeholder="Select date of birth" readonly style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:0.85rem;cursor:pointer">
       </div>
       <div class="slider-row">
@@ -535,14 +733,14 @@
   </div>
 
   <!-- Investment & Simulation -->
-  <div class="section first-run-advanced">
+  <div class="section">
     <h3 class="section-title">Investment & Simulation</h3>
     <div class="slider-row">
       <div class="slider-label"><span class="slider-name">Base inflation</span><span class="slider-val" id="v-inflation">2.5%</span></div>
       <input type="range" id="inflation" min="1" max="6" step="0.1" value="2.5">
     </div>
     <div class="slider-row">
-      <div class="slider-label"><span class="slider-name">Investment return (nominal, per year) <span class="starter-badge hidden" data-starter-for="return-pct">Starter</span></span><span class="slider-val" id="v-return-pct">5.0%</span></div>
+      <div class="slider-label"><span class="slider-name">Investment return (nominal, per year)</span><span class="slider-val" id="v-return-pct">5.0%</span></div>
       <input type="range" id="return-pct" min="1" max="15" step="0.5" value="5">
       <div style="display:flex;gap:6px;margin-top:6px">
         <button class="preset-btn" data-target="return-pct" data-value="3" data-label="v-return-pct">Pessimistic (3%)</button>
@@ -569,15 +767,15 @@
         </label>
       </div>
       <div id="drawdown-amount-row">
-        <div class="slider-label"><span class="slider-name">Annual pension income <span class="starter-badge hidden" data-starter-for="drawdown">Starter</span></span><span class="slider-val" id="v-drawdown">£35,000</span></div>
-        <input type="range" id="drawdown" min="10000" max="120000" step="1000" value="35000">
+        <div class="slider-label"><span class="slider-name">Annual pension income</span><span class="slider-val" id="v-drawdown">Not Set</span></div>
+        <input type="range" id="drawdown" min="10000" max="120000" step="1000">
       </div>
       <div id="drawdown-pct-row" class="hidden">
         <div class="slider-label"><span class="slider-name">Annual drawdown rate</span><span class="slider-val" id="v-drawdown-pct">4.00%</span></div>
         <input type="range" id="drawdown-pct" min="2" max="6" step="0.05" value="4">
       </div>
     </div>
-    <div class="slider-row first-run-advanced">
+    <div class="slider-row">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
         <input type="checkbox" id="drawdown-inflation" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         <span>
@@ -587,7 +785,7 @@
       </label>
     </div>
     <!-- Tax-free cash mode -->
-    <div class="slider-row first-run-advanced" style="margin-top:4px">
+    <div class="slider-row" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
         <input type="checkbox" id="pcls-enabled" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         <span>
@@ -603,7 +801,7 @@
         <input type="range" id="pcls-pct" min="0" max="25" step="1" value="25">
       </div>
     </div>
-    <div class="slider-row first-run-advanced" style="margin-top:4px">
+    <div class="slider-row" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
         <input type="checkbox" id="guardrails" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         <span>
@@ -612,7 +810,7 @@
         </span>
       </label>
     </div>
-    <div class="slider-row first-run-advanced" style="margin-top:4px">
+    <div class="slider-row" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
         <input type="checkbox" id="always-taxfree" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         <span>
@@ -715,7 +913,7 @@
   </div>
 
   <!-- Backup -->
-  <div class="section first-run-advanced" id="backup-section">
+  <div class="section" id="backup-section">
     <h3 class="section-title">Backup <span id="backup-age-badge" class="backup-badge" style="display:none"></span></h3>
     <p style="font-size:0.78rem;color:var(--text2);margin:0 0 10px">Export your pots, income sources, and actuals journal as a JSON file you can re-import later.</p>
     <button id="export-backup-btn" class="add-btn" style="width:100%;margin-bottom:8px">⬇ Export backup</button>
