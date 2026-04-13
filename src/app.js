@@ -5724,23 +5724,36 @@ function initApp() {
   // Restart Onboarding button in Settings
   (function() {
     const btn = document.getElementById('restart-onboarding-btn');
-    if (!btn) return;
+    const dialog = document.getElementById('restart-wizard-dialog');
+    const confirmBtn = document.getElementById('restart-wizard-confirm-btn');
+    const cancelBtn = document.getElementById('restart-wizard-cancel-btn');
+    if (!btn || !dialog) return;
+
     btn.addEventListener('click', () => {
-      if (confirm('Restart the setup wizard? This will clear your current plan and settings.')) {
-        try { localStorage.removeItem(LS_KEY); } catch(e) {}
-        try { localStorage.removeItem(WIZARD_COMPLETED_KEY); } catch(e) {}
-        try { sessionStorage.removeItem(LS_KEY); } catch(e) {}
-        try { sessionStorage.setItem(WIZARD_FORCE_KEY, '1'); } catch(e) {}
-        try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
-        location.reload();
-      }
+      dialog.classList.remove('hidden');
+    });
+    cancelBtn.addEventListener('click', () => {
+      dialog.classList.add('hidden');
+    });
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) dialog.classList.add('hidden');
+    });
+    confirmBtn.addEventListener('click', () => {
+      dialog.classList.add('hidden');
+      try { localStorage.removeItem(LS_KEY); } catch(e) {}
+      try { localStorage.removeItem(WIZARD_COMPLETED_KEY); } catch(e) {}
+      try { sessionStorage.removeItem(LS_KEY); } catch(e) {}
+      try { sessionStorage.setItem(WIZARD_FORCE_KEY, '1'); } catch(e) {}
+      try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
+      location.reload();
     });
   })();
 
   // Hidden onboarding restart: triple-click title area to clear saved plan and replay setup.
   (function() {
     const headerText = document.querySelector('.header-text');
-    if (!headerText) return;
+    const dialog = document.getElementById('restart-wizard-dialog');
+    if (!headerText || !dialog) return;
     let clicks = 0, timer;
     headerText.addEventListener('click', () => {
       clicks++;
@@ -5748,14 +5761,7 @@ function initApp() {
       timer = setTimeout(() => { clicks = 0; }, 600);
       if (clicks >= 3) {
         clicks = 0;
-        if (confirm('Restart onboarding and clear saved settings?')) {
-          try { localStorage.removeItem(LS_KEY); } catch(e) {}
-          try { localStorage.removeItem(WIZARD_COMPLETED_KEY); } catch(e) {}
-          try { sessionStorage.removeItem(LS_KEY); } catch(e) {}
-          try { sessionStorage.setItem(WIZARD_FORCE_KEY, '1'); } catch(e) {}
-          try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
-          location.reload();
-        }
+        dialog.classList.remove('hidden');
       }
     });
   })();
